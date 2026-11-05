@@ -1,11 +1,23 @@
 /**
- * TV mode: for a screen on the office wall. Used automatically for TV links
+ * TV mode: for a screen on the office wall. Used automatically for TV codes
  * (viewer role), or with `?tv` in the URL. No buttons, bigger name tags, the
  * office always fitted to the screen, the mouse hidden when idle, and the
  * screen kept awake.
+ *
+ * Moving the mouse shows a small bar for a few seconds with the way out: a
+ * viewer can log in as admin (handy when a TV code was opened in your own
+ * browser), an admin can leave TV mode.
  */
-export function startTvMode(fit: () => void): void {
+export function startTvMode(fit: () => void, role: "admin" | "viewer"): void {
   document.body.classList.add("tv");
+  const exit = document.createElement("div");
+  exit.className = "tv-exit";
+  exit.innerHTML =
+    role === "viewer"
+      ? `<span>📺 This browser is logged in as a TV (watch only).</span>
+         <form method="post" action="/logout"><button type="submit">Log in as admin</button></form>`
+      : `<span>📺 TV mode</span><a href="/">Exit TV mode</a>`;
+  document.body.append(exit);
   localStorage.setItem("po.helpSeen", "1");
   document.getElementById("help")?.classList.remove("open");
 
@@ -20,7 +32,7 @@ export function startTvMode(fit: () => void): void {
   const wake = () => {
     document.body.classList.remove("tv-idle");
     clearTimeout(idle);
-    idle = setTimeout(() => document.body.classList.add("tv-idle"), 3000);
+    idle = setTimeout(() => document.body.classList.add("tv-idle"), 4000);
   };
   window.addEventListener("mousemove", wake);
   wake();

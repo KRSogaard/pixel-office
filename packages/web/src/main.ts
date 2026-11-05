@@ -111,7 +111,7 @@ store.connect();
 const params = new URLSearchParams(location.search);
 void store.loadRole().then((role) => {
   document.body.classList.toggle("admin", role === "admin");
-  if (role === "viewer" || params.has("tv")) startTvMode(() => scene.fit());
+  if (role === "viewer" || params.has("tv")) startTvMode(() => scene.fit(), role);
   if (role === "admin" && params.has("people")) void people.toggle();
 });
 

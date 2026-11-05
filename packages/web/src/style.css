@@ -1121,6 +1121,40 @@ body.tv-idle * {
   cursor: none !important;
 }
 
+/* The way out of TV mode: shown while the mouse moves, gone when it's idle. */
+.tv-exit {
+  position: fixed;
+  top: 8px;
+  right: 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 10px;
+  background: var(--panel);
+  border: 2px solid #f0c45a;
+  box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.4);
+  z-index: 10;
+}
+
+.tv-exit form {
+  margin: 0;
+}
+
+.tv-exit button,
+.tv-exit a {
+  font: inherit;
+  color: #11131a;
+  background: #f0c45a;
+  border: none;
+  padding: 3px 10px;
+  text-decoration: none;
+  font-weight: 700;
+}
+
+body.tv-idle .tv-exit {
+  display: none;
+}
+
 /* --- panel --------------------------------------------------------------- */
 
 #panel {
