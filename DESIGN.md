@@ -100,6 +100,7 @@ because it's purely about how things look.
 | **Gossip** | Idle agents in the lounge chat about recent happenings (launches, fires, scary commands, medics, ducks, pizza, squashed bugs), or small talk. | `scene/antics.ts` |
 | **Seasons** | Christmas tree and snowy windows in winter, pumpkins at Halloween, confetti at New Year, balloons and party hats on the office's birthday. `?date=YYYY-MM-DD` previews. | `office/season.ts`, `scene/seasonal.ts` |
 | **Sound effects** | 🔊 synthesized: rocket rumble, lab alarm, meow, bug squash, achievement fanfare, soft keyboard clicks. | `ui/sounds.ts` |
+| **Visitors** | Fictional characters who drop by every 3–8 minutes, tour a few stops and leave: the Visionary CEO (on a scooter), the Consultant, the Lost Intern, the Investor (comments on today's real numbers), Grandpa Cobol (naps on the sofa); the Auditor comes after a scary command. The lounge gossips about them afterwards. `?visitors=fast` previews. | `scene/visitors.ts` |
 | **Day and night** | Tint from your local clock (`?hour=22` to preview); light pools on manager lamps and occupied desks after dark. | `scene/lighting.ts` |
 | **Byte the cat** | Wanders, sits by agents, naps; click for a purr. | `scene/pet.ts` |
 | **Notifications** | 🔔 a synthesized bell when an agent needs you, a chime when a main agent finishes; 🖥 desktop notifications while the tab is in the background. Opt-in, per browser. | `ui/notify.ts` |

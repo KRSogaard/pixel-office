@@ -13,6 +13,7 @@ import { Antics } from "./antics.js";
 import { Drones } from "./drones.js";
 import { Bugs } from "./bugs.js";
 import { Seasonal } from "./seasonal.js";
+import { Visitors, type VisitorKind } from "./visitors.js";
 import type { Sfx } from "../ui/sounds.js";
 import type { StatsBoard } from "../ui/board.js";
 import { ContextBins } from "./bins.js";
@@ -75,6 +76,9 @@ export class OfficeScene extends Phaser.Scene {
   private drones!: Drones;
   private bugs!: Bugs;
   private seasonal!: Seasonal;
+  private visitors!: Visitors;
+  /** Visitor name-tag positions for this frame. */
+  private visitorTags = new Map<string, { x: number; y: number }>();
   private actors = new Map<string, Actor>();
   private planner = new OfficePlanner();
   private builtKey = "";
@@ -130,6 +134,7 @@ export class OfficeScene extends Phaser.Scene {
     this.bugs = new Bugs(this, () => this.office);
     this.seasonal = new Seasonal(this, () => this.office, () => this.deps.store.stats?.allTime.since);
     this.seasonal.relocate();
+    this.visitors?.relocate();
     this.deps.store.onStats(() => {
       const birthday = this.seasonal.season.birthday;
       this.seasonal.relocate();
@@ -148,6 +153,31 @@ export class OfficeScene extends Phaser.Scene {
       mailroom: () => this.office.spots.find((s) => s.kind === "mail"),
       lounge: () => this.coffeeMachine(),
       onFire: () => this.deps.sfx.alarm(),
+      onScary: (agentId) => this.visitors.audit(agentId),
+    });
+    this.visitors = new Visitors(this, {
+      office: () => this.office,
+      besideAgent: (agentId, from) => {
+        const target = this.actors.get(agentId);
+        if (!target || target.gone || target.carried) return undefined;
+        return this.nearestOpenTile(target.c.destination?.tile ?? target.c.tile, from);
+      },
+      agents: () => [...this.actors.values()].filter((a) => !a.gone && !a.carried && a.agent.status !== "ended").map((a) => a.agent),
+      stats: () => this.deps.store.stats,
+      say: (id, text) => this.deps.overlay.say(id, { kind: "message", text }, this.now),
+      tag: (id, name, at) => {
+        if (!at) {
+          this.deps.overlay.remove(id);
+          this.visitorTags.delete(id);
+          return;
+        }
+        this.deps.overlay.ensure(visitorRecord(id, name), {}, () => {});
+        this.visitorTags.set(id, at);
+      },
+      onLeave: (kind) => {
+        const [line, reply] = VISITOR_GOSSIP[kind];
+        this.antics.gossip(line, reply);
+      },
     });
     this.setupCamera();
     this.deps.store.subscribe((state) => this.sync(state));
@@ -190,6 +220,8 @@ export class OfficeScene extends Phaser.Scene {
       points.set(id, this.toScreen(actor.c.x, actor.c.y - 27, cam));
       if (actor.c.destination?.pose === "type" && actor.c.arrived && Math.random() < 0.05) this.deps.sfx.click();
     }
+    this.visitors.update(Math.min(delta, 100), time);
+    for (const [id, at] of this.visitorTags) points.set(id, this.toScreen(at.x, at.y - 27, cam));
     this.deps.overlay.placeAll(points, time);
     this.drawTeamLinks(time);
     this.labelTeams(cam);
@@ -814,6 +846,35 @@ export class OfficeScene extends Phaser.Scene {
   private isDoor(t: Point): boolean {
     return this.office.tiles[t.y]?.[t.x] === "D";
   }
+}
+
+/** What the office says after each kind of visitor leaves. */
+const VISITOR_GOSSIP: Record<VisitorKind, [string, string]> = {
+  ceo: ["Did the CEO just say Mars again?", "Q3. Sure."],
+  consultant: ["Who let the consultant in?", "That chat cost us $2,000."],
+  intern: ["Did anyone help the intern find the exit?", "He's in the silo."],
+  auditor: ["The Auditor was here 😬", "Act natural."],
+  investor: ["The Investor was here. Look busy next time.", "We ARE busy."],
+  grandpa: ["Grandpa Cobol fell asleep on the sofa again", "Let him rest. He earned it."],
+};
+
+/** A visitor as an agent-shaped record, so it gets a regular name tag. */
+function visitorRecord(id: string, name: string): AgentState {
+  return {
+    id,
+    source: "visitor",
+    sessionId: id,
+    name,
+    project: { path: "", name: "visitor" },
+    status: "working",
+    activity: "message",
+    activitySince: 0,
+    openCalls: [],
+    recentTools: [],
+    pendingDelegations: [],
+    startedAt: 0,
+    lastEventAt: 0,
+  };
 }
 
 /**

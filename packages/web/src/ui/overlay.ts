@@ -82,7 +82,7 @@ export class Overlay {
       const card = el("div", "tag-card");
       const line = el("div", "tag-line");
       const badge = el("span", `badge badge-${badgeClass(agent.source)}`);
-      badge.textContent = agent.source === "claude" ? "C" : agent.source === "opencode" ? "O" : "•";
+      badge.textContent = agent.source === "claude" ? "C" : agent.source === "opencode" ? "O" : agent.source === "visitor" ? "★" : "•";
       badge.title = agent.source;
       const name = el("span", "tag-name");
       const sub = el("span", "tag-sub");
@@ -101,7 +101,7 @@ export class Overlay {
     tag.name.textContent = agent.name;
     tag.sub.textContent = agent.parentId ? `sub${agent.label ? ` · ${agent.label}` : ""}` : "";
     tag.sub.hidden = !agent.parentId;
-    tag.icon.textContent = STATUS_ICON[agent.activity];
+    tag.icon.textContent = agent.source === "visitor" ? "" : STATUS_ICON[agent.activity];
     const color = ctx.sessionColor === undefined ? "transparent" : hex(ctx.sessionColor);
     tag.card.style.setProperty("--session", color);
     tag.root.style.setProperty("--session-line", ctx.sessionColor === undefined ? "rgba(255,255,255,.55)" : color);
@@ -344,7 +344,7 @@ function hex(color: number): string {
 }
 
 function badgeClass(source: string): string {
-  return source === "claude" || source === "opencode" ? source : "other";
+  return source === "claude" || source === "opencode" || source === "visitor" ? source : "other";
 }
 
 function iconOnly(kind: Utterance["kind"]): string {

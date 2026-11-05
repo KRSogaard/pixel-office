@@ -91,6 +91,8 @@ export class Character {
     this.screen = scene.add.graphics().setVisible(false);
     this.ring = scene.add.ellipse(0, 0, 14, 5).setVisible(false);
     this.flame = scene.add.graphics().setVisible(false);
+    // Extras (couriers, medics, visitors) have no activity, so no activity icon.
+    if (appearance) this.activity = "ended";
   }
 
   /**

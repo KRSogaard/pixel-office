@@ -271,6 +271,9 @@ button {
 .badge-opencode {
   background: var(--opencode);
 }
+.badge-visitor {
+  background: #c77dff;
+}
 .badge-other {
   background: var(--other);
 }

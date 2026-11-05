@@ -42,6 +42,8 @@ export interface AnticsHost {
   lounge(): Point | undefined;
   /** Optional: the lab caught fire (for the alarm sound). */
   onFire?: () => void;
+  /** Optional: someone ran a scary command (the Auditor comes). */
+  onScary?: (agentId: string) => void;
 }
 
 const SMALL_TALK = [
@@ -174,6 +176,7 @@ export class Antics {
     if (SCARY.test(call.summary)) {
       sweat(scene, actor.c.x, actor.c.y);
       this.host.say(actor.id, "😬");
+      this.host.onScary?.(actor.id);
       this.gossip(`${actor.agent.name} just ran ${call.summary.replace(/^\w+: /, "").slice(0, 28)}…`, "😱 brave.");
       for (const other of this.host.actors()) {
         if (other.id === actor.id) continue;
