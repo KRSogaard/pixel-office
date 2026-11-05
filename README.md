@@ -43,10 +43,19 @@ docker compose logs pixel-office   # first start prints the generated password +
 ```sh
 pnpm install
 pnpm build
-pnpm start                         # http://127.0.0.1:8790
+PIXEL_OFFICE_HOST=0.0.0.0 pnpm start   # http://<this-machine>:8790
 ```
 
 Open the URL, log in with the password, and you'll see an empty office.
+
+- `PIXEL_OFFICE_HOST=0.0.0.0` lets other machines reach the server. Leave it out and only
+  this machine can connect.
+- `pnpm start` runs the *built* server. After a `git pull`, run `pnpm install && pnpm build`
+  again, or you'll keep running the old version.
+- The password and ingest token are printed **only on the first start**. The password is
+  stored hashed and can't be shown again; to choose your own, start with
+  `PIXEL_OFFICE_PASSWORD='…' pnpm start`. To see the token again:
+  `node packages/server/dist/server.js token`.
 
 ### Configuration
 
@@ -70,16 +79,31 @@ and shell commands travel to it.
 
 ## 2. Connect Claude Code
 
-Install the plugin from this repo's marketplace:
+Do this on every computer where you use Claude Code. It can be the server machine or any
+other machine that can reach it.
 
-```
-/plugin marketplace add KRSogaard/pixel-office
-/plugin install pixel-office@pixel-office
-```
+1. **Get the ingest token** on the server machine:
+   ```sh
+   node packages/server/dist/server.js token          # Docker: docker compose exec pixel-office node server.js token
+   ```
+2. **Check the Claude machine can reach the server.** This should print `{"ok":true}`:
+   ```sh
+   curl http://<server-address>:8790/health
+   ```
+   If it hangs, a firewall on the server machine is blocking port 8790, or the server was
+   started without `PIXEL_OFFICE_HOST=0.0.0.0`.
+3. **Install the plugin** inside Claude Code:
+   ```
+   /plugin marketplace add KRSogaard/pixel-office
+   /plugin install pixel-office@pixel-office
+   ```
+4. **Enter the settings** when Claude Code asks:
+   - Server URL: `http://<server-address>:8790`
+   - Ingest token: the token from step 1 (kept in secure storage, not in `settings.json`)
 
-Claude Code asks for the **server URL** and the **ingest token** when the plugin is
-enabled (the token is stored in secure storage). That's it — every session now appears
-in the office.
+   If it didn't ask, find them as plugin settings under `/config` or `/plugin`.
+5. **Start a new Claude Code session.** Hooks load when a session starts. Send any prompt
+   and a new person walks into the office.
 
 To try it from a clone without installing: `claude --plugin-dir plugins/claude-code`
 with `PIXEL_OFFICE_URL` and `PIXEL_OFFICE_TOKEN` set in the environment.
