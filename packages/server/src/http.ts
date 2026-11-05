@@ -8,6 +8,7 @@ import type { Adapter } from "./adapters/index.js";
 import type { Config } from "./config.js";
 import type { Hub } from "./hub.js";
 import type { SettingsStore } from "./settings.js";
+import { emptyStats, type StatsTracker } from "./stats.js";
 import { loginPage } from "./login-page.js";
 import { safeEqual, signSession, verifyPassword, verifySession, type Secrets } from "./secrets.js";
 
@@ -21,6 +22,7 @@ export interface AppDeps {
   secrets: Secrets;
   hub: Hub;
   settings: SettingsStore;
+  stats?: StatsTracker;
   adapters: Record<string, Adapter>;
   clock?: () => number;
 }
@@ -146,6 +148,7 @@ export function createApp(deps: AppDeps): Hono {
   app.get("/api/history", (c) => (authed(c) ? c.json(hub.getHistory(clock())) : c.body(null, 401)));
 
   app.get("/api/settings", (c) => (authed(c) ? c.json(settings.get()) : c.body(null, 401)));
+  app.get("/api/stats", (c) => (authed(c) ? c.json(deps.stats?.get() ?? emptyStats()) : c.body(null, 401)));
 
   // Changing settings needs the cookie and a custom header a cross-site form can't send.
   app.put("/api/settings", bodyLimit({ maxSize: 16 * 1024, onError: (c) => c.body(null, 413) }), async (c) => {

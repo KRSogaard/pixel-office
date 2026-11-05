@@ -11,6 +11,9 @@ import { TILE } from "../office/layout.js";
 export class RocketSilo {
   launches = 0;
   lastLaunchAt = 0;
+  /** Crates (commits) loaded since the last launch. */
+  cargo = 0;
+  private gauge: Phaser.GameObjects.Graphics;
   private queued: string[] = [];
   private running = false;
   private gfx: Phaser.GameObjects.Graphics;
@@ -21,6 +24,34 @@ export class RocketSilo {
     private onLaunched: (label: string) => void,
   ) {
     this.gfx = scene.add.graphics();
+    this.gauge = scene.add.graphics();
+    this.drawGauge();
+  }
+
+  /** A crate arrived on the belt: load it. */
+  addCargo(): void {
+    this.cargo++;
+    this.drawGauge();
+  }
+
+  /** The office was rebuilt: the silo may have moved. */
+  relocate(): void {
+    this.drawGauge();
+  }
+
+  /** Ten-segment cargo gauge beside the silo, like Factorio's rocket-part progress. */
+  private drawGauge(): void {
+    const g = this.gauge.clear();
+    const s = this.silo();
+    if (!s) return;
+    const x = (s.x + 3) * TILE + 2;
+    const y = s.y * TILE + 4;
+    g.setDepth(y + 60);
+    g.fillStyle(0x1d1f27, 1).fillRect(x, y, 6, 42);
+    const filled = Math.min(10, this.cargo);
+    for (let i = 0; i < 10; i++) {
+      g.fillStyle(i < filled ? (filled >= 10 ? 0x5af07a : 0xd9a83a) : 0x3b3f4a, 1).fillRect(x + 1, y + 37 - i * 4, 4, 3);
+    }
   }
 
   launch(label: string): void {
@@ -64,6 +95,8 @@ export class RocketSilo {
       smoke.remove();
       this.launches++;
       this.lastLaunchAt = Date.now();
+      this.cargo = 0;
+      this.drawGauge();
       this.onLaunched(label);
       state.rise = 0;
       state.fly = 0;

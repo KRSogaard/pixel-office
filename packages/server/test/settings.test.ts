@@ -24,5 +24,6 @@ describe("settings store", () => {
     expect(s.minRooms.git).toBe(3);
     expect(s.teamsPerRow).toBe(2);
     expect(s.rugs).toBe(false);
+    expect(s.bossName).toBe("You");
   });
 });

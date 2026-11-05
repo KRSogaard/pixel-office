@@ -6,9 +6,12 @@ import { SESSION_COOKIE, isAuthed } from "./http.js";
 import type { Hub } from "./hub.js";
 import type { Secrets } from "./secrets.js";
 import type { SettingsStore } from "./settings.js";
+import type { StatsTracker } from "./stats.js";
 
 const SNAPSHOT_EVERY_MS = 30_000;
 const PING_EVERY_MS = 25_000;
+/** Stats go out at most this often, and only when they changed. */
+const STATS_EVERY_MS = 5000;
 
 function readCookie(header: string | undefined, name: string): string | undefined {
   if (!header) return undefined;
@@ -34,7 +37,7 @@ function reject(socket: Duplex, status: number, text: string): void {
   socket.destroy();
 }
 
-export function attachWebSocket(server: Server, hub: Hub, secrets: Secrets, settings: SettingsStore): () => void {
+export function attachWebSocket(server: Server, hub: Hub, secrets: Secrets, settings: SettingsStore, stats?: StatsTracker): () => void {
   const wss = new WebSocketServer({ noServer: true, maxPayload: 4 * 1024 });
   const alive = new WeakMap<WebSocket, boolean>();
   const send = (ws: WebSocket, msg: ServerMessage) => {
@@ -55,7 +58,17 @@ export function attachWebSocket(server: Server, hub: Hub, secrets: Secrets, sett
     ws.on("message", () => {}); // clients don't send anything meaningful
     send(ws, { t: "snapshot", state: hub.snapshot });
     send(ws, { t: "settings", settings: settings.get() });
+    if (stats) send(ws, { t: "stats", stats: stats.get() });
   });
+
+  let statsSent = stats?.changes ?? 0;
+  const statsTimer = setInterval(() => {
+    if (!stats || stats.changes === statsSent) return;
+    statsSent = stats.changes;
+    const msg = JSON.stringify({ t: "stats", stats: stats.get() } satisfies ServerMessage);
+    for (const ws of wss.clients) if (ws.readyState === ws.OPEN) ws.send(msg);
+  }, STATS_EVERY_MS);
+  statsTimer.unref();
 
   const unsubscribeSettings = settings.subscribe((s) => {
     for (const ws of wss.clients) send(ws, { t: "settings", settings: s });
@@ -86,6 +99,7 @@ export function attachWebSocket(server: Server, hub: Hub, secrets: Secrets, sett
     unsubscribe();
     unsubscribeSettings();
     clearInterval(snapshotTimer);
+    clearInterval(statsTimer);
     clearInterval(pingTimer);
     wss.close();
   };

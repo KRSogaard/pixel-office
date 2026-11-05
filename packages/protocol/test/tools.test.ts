@@ -32,4 +32,11 @@ describe("tools", () => {
     expect(isShipCommand("Bash", "Bash: git push origin main")).toBe(true);
     expect(isShipCommand("Bash", "Bash: git commit -m x")).toBe(false);
   });
+
+  it("never counts a git command as a test run", async () => {
+    const { isTestRun } = await import("../src/index.js");
+    expect(isTestRun("Bash", "Bash: git commit -am 'Fix flaky invoice tests'")).toBe(false);
+    expect(isTestRun("Bash", "Bash: pnpm test invoices")).toBe(true);
+    expect(isTestRun("Bash", "Bash: Run test suite")).toBe(true);
+  });
 });

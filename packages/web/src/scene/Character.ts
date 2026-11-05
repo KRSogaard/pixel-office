@@ -50,6 +50,7 @@ export class Character {
   private activity: Activity = "idle";
   private fxLeft = false;
   private lying = false;
+  private hat: Phaser.GameObjects.Graphics | undefined;
   /** Small flame over the head: stuck on one tool call for a long time. */
   private readonly flame: Phaser.GameObjects.Graphics;
   private stuck = false;
@@ -106,6 +107,15 @@ export class Character {
   /** Put the activity icon on the left of the head (a neighbour is on the right). */
   setFxSide(left: boolean): void {
     this.fxLeft = left;
+  }
+
+  /** A party hat (the office's birthday). */
+  setHat(on: boolean): void {
+    if (on && !this.hat) this.hat = this.sprite.scene.add.graphics();
+    if (!on && this.hat) {
+      this.hat.destroy();
+      this.hat = undefined;
+    }
   }
 
   /** Lie flat (carried out on a stretcher). */
@@ -203,6 +213,14 @@ export class Character {
     this.updateFx(now);
     this.updateScreen(now);
     this.updateFlame(now);
+    if (this.hat) {
+      const seated = this.pose === "type" || this.pose === "think";
+      const x = Math.round(this.sprite.x) - 2;
+      const y = Math.round(this.sprite.y) - 25 - (seated ? 3 : 0);
+      this.hat.clear().setDepth(this.sprite.y + 0.6).setVisible(!this.lying);
+      this.hat.fillStyle(0xc77dff, 1).fillRect(x, y + 2, 5, 2).fillRect(x + 1, y, 3, 2).fillRect(x + 2, y - 2, 1, 2);
+      this.hat.fillStyle(0xf0c45a, 1).fillRect(x + 1, y + 2, 1, 1).fillRect(x + 3, y + 1, 1, 1).fillRect(x + 2, y - 3, 1, 1);
+    }
     if (this.lying) {
       this.sprite.setAngle(-90).setOrigin(0.5, 0.5);
     } else if (this.sprite.angle !== 0) {
@@ -230,6 +248,7 @@ export class Character {
     this.screen.destroy();
     this.ring.destroy();
     this.flame.destroy();
+    this.hat?.destroy();
   }
 
   private updateFx(now: number): void {

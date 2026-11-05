@@ -130,6 +130,8 @@ export interface OfficeSettings {
   teamsPerRow: number;
   rugs: boolean;
   plants: boolean;
+  /** What your own character in the office is called. */
+  bossName: string;
 }
 
 export const DEFAULT_SETTINGS: OfficeSettings = {
@@ -138,10 +140,56 @@ export const DEFAULT_SETTINGS: OfficeSettings = {
   teamsPerRow: 3,
   rugs: true,
   plants: true,
+  bossName: "You",
 };
+
+/** Counters behind the production board. */
+export interface StatCounters {
+  launches: number;
+  commits: number;
+  testRuns: number;
+  testPasses: number;
+  edits: number;
+  failures: number;
+  prompts: number;
+  toolCalls: number;
+  /** Lab fires: an agent's second (or later) failed test run in a row. */
+  fires: number;
+  /** Scary commands (rm -rf, --force, …). */
+  scary: number;
+}
+
+export interface OfficeStats {
+  /** Server-local date, YYYY-MM-DD. */
+  day: string;
+  today: StatCounters & { peakWorking: number };
+  /** Tool calls per hour of today, 0–23. */
+  hourly: number[];
+  allTime: StatCounters & { since: number };
+  /** Unlocked achievements, oldest first. */
+  achievements: { id: AchievementId; at: number }[];
+}
+
+export const ACHIEVEMENTS = [
+  { id: "first-launch", icon: "🚀", title: "Liftoff", desc: "The office's first rocket launch." },
+  { id: "space-program", icon: "🛰", title: "Space Program", desc: "10 launches in one day." },
+  { id: "pyromaniac", icon: "🔥", title: "Pyromaniac", desc: "3 lab fires, all time." },
+  { id: "green-wall", icon: "🧪", title: "Green Wall", desc: "20 passing test runs in one day." },
+  { id: "crunch-time", icon: "🍕", title: "Crunch Time", desc: "5 agents working at once." },
+  { id: "delegator", icon: "👥", title: "Delegator", desc: "A manager with 5 sub-agents at once." },
+  { id: "night-owl", icon: "🦉", title: "Night Owl", desc: "Work between midnight and 5 a.m." },
+  { id: "marathon", icon: "🏃", title: "Marathon", desc: "An agent working for over 2 hours." },
+  { id: "thousand-cuts", icon: "✂", title: "Thousand Cuts", desc: "1,000 edits, all time." },
+  { id: "big-brain", icon: "🧠", title: "Big Brain", desc: "A context window over 80% full." },
+  { id: "living-dangerously", icon: "😱", title: "Living Dangerously", desc: "Someone ran a scary command." },
+  { id: "bug-squasher", icon: "🐛", title: "Bug Squasher", desc: "Tests pass after 3+ failures in a row." },
+] as const;
+
+export type AchievementId = (typeof ACHIEVEMENTS)[number]["id"];
 
 /** Messages the server sends to browsers over the WebSocket. */
 export type ServerMessage =
   | { t: "snapshot"; state: import("./state.js").OfficeState }
   | { t: "event"; e: AgentEvent }
-  | { t: "settings"; settings: OfficeSettings };
+  | { t: "settings"; settings: OfficeSettings }
+  | { t: "stats"; stats: OfficeStats };

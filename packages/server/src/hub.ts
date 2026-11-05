@@ -1,5 +1,6 @@
 import { appendFile } from "node:fs/promises";
 import { emptyState, reduce, type AgentEvent, type OfficeState } from "@pixel-office/protocol";
+import type { StatsTracker } from "./stats.js";
 
 export type Listener = (e: AgentEvent) => void;
 
@@ -12,6 +13,8 @@ export interface HubOptions {
   historyMs?: number;
   /** Hard cap on retained events, whatever their age. */
   maxHistory?: number;
+  /** Counts every applied event for the production board and achievements. */
+  stats?: StatsTracker;
 }
 
 export interface History {
@@ -35,12 +38,14 @@ export class Hub {
   private readonly recordPath: string | undefined;
   private readonly historyMs: number;
   private readonly maxHistory: number;
+  private readonly stats: StatsTracker | undefined;
 
   constructor(opts: HubOptions | string = {}) {
     const o = typeof opts === "string" ? { recordPath: opts } : opts;
     this.recordPath = o.recordPath;
     this.historyMs = o.historyMs ?? DEFAULT_HISTORY_MS;
     this.maxHistory = o.maxHistory ?? MAX_HISTORY_EVENTS;
+    this.stats = o.stats;
   }
 
   get snapshot(): OfficeState {
@@ -50,6 +55,7 @@ export class Hub {
   apply(events: AgentEvent[]): void {
     for (const e of events) {
       this.state = reduce(this.state, e);
+      this.stats?.observe(e, this.state);
       this.history.push(e);
       for (const l of this.listeners) l(e);
     }

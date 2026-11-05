@@ -64,9 +64,12 @@ function host(url: string): string {
   }
 }
 
-/** Does this shell call look like a test run? ("npm test", "vitest", "dotnet test", "pytest", …) */
+/**
+ * Does this shell call look like a test run? ("npm test", "vitest", "dotnet test", "pytest", …)
+ * Git commands never are, even when the commit message says "tests".
+ */
 export function isTestRun(tool: string, summary: string): boolean {
-  if (categorizeTool(tool) !== "shell") return false;
+  if (categorizeTool(tool) !== "shell" || isGitCommand(tool, summary)) return false;
   return /\b(test|tests|vitest|jest|pytest|mocha|rspec|phpunit|xunit|nunit|cargo test|go test|playwright)\b/i.test(summary);
 }
 

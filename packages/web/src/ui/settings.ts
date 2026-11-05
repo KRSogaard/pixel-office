@@ -76,6 +76,11 @@ export class SettingsPanel {
       <p class="muted">The office is generated to fit who's online. These are its ground rules; they're shared by everyone who opens this office.</p>
       <section><span class="section-title">Rooms along the top, left to right</span><ol class="set-order">${order}</ol></section>
       <section><span class="section-title">Smallest size (agents each room fits)</span><div class="set-grid">${mins}</div></section>
+      <section><span class="section-title">You</span>
+        <label class="set-num">Your name in the office
+          <input type="text" maxlength="30" data-boss value="${d.bossName.replace(/"/g, "&quot;")}" />
+        </label>
+      </section>
       <section><span class="section-title">Team areas</span>
         <label class="set-num">Side by side
           <select data-teams>${[1, 2, 3, 4].map((n) => `<option ${n === d.teamsPerRow ? "selected" : ""}>${n}</option>`).join("")}</select>
@@ -106,6 +111,9 @@ export class SettingsPanel {
         d.minRooms[k] = Math.min(30, Math.max(1, Math.round(Number(inp.value)) || 1));
       };
     });
+    this.root.querySelector<HTMLInputElement>("[data-boss]")!.oninput = (e) => {
+      d.bossName = (e.target as HTMLInputElement).value.trim() || "You";
+    };
     this.root.querySelector<HTMLSelectElement>("[data-teams]")!.onchange = (e) => {
       d.teamsPerRow = Number((e.target as HTMLSelectElement).value);
     };

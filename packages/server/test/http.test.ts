@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import { createAdapters } from "../src/adapters/index.js";
 import { createApp } from "../src/http.js";
 import { Hub } from "../src/hub.js";
+import { StatsTracker } from "../src/stats.js";
 import { hashPassword, loadSecrets, signSession, verifySession } from "../src/secrets.js";
 import { SettingsStore } from "../src/settings.js";
 import { originMatches } from "../src/ws.js";
@@ -15,10 +16,11 @@ function setup() {
   mkdirSync(join(webDir, "assets"));
   writeFileSync(join(webDir, "assets", "app.js"), "console.log(1)");
   const secrets = { sessionSecret: "s".repeat(64), ingestToken: "tok-123", passwordHash: hashPassword("hunter2") };
-  const hub = new Hub();
+  const stats = new StatsTracker();
+  const hub = new Hub({ stats });
   const dataDir = mkdtempSync(join(tmpdir(), "po-data-"));
   const settings = new SettingsStore(dataDir);
-  const app = createApp({ config: { trustProxy: false, webDir }, secrets, hub, settings, adapters: createAdapters() });
+  const app = createApp({ config: { trustProxy: false, webDir }, secrets, hub, settings, stats, adapters: createAdapters() });
   const cookie = `po_session=${signSession(secrets.sessionSecret, Date.now() + 60_000)}`;
   return { app, hub, secrets, cookie, settings, dataDir };
 }
@@ -168,6 +170,7 @@ describe("settings", () => {
     teamsPerRow: 2,
     rugs: false,
     plants: true,
+    bossName: "Kasper",
   };
 
   it("serves defaults, then saves and persists valid settings", async () => {
@@ -195,6 +198,26 @@ describe("settings", () => {
     expect((await send(good, { "x-po-csrf": "1" })).status).toBe(401);
     expect((await send({ ...good, teamsPerRow: 9 }, { cookie, "x-po-csrf": "1" })).status).toBe(400);
     expect((await send({ ...good, roomOrder: ["mail", "mail", "server", "library"] }, { cookie, "x-po-csrf": "1" })).status).toBe(400);
+    expect((await send({ ...good, bossName: "   " }, { cookie, "x-po-csrf": "1" })).status).toBe(400);
+    expect((await send({ ...good, bossName: "x".repeat(31) }, { cookie, "x-po-csrf": "1" })).status).toBe(400);
   });
 });
 
+describe("stats endpoint", () => {
+  it("needs a session and counts ingested events", async () => {
+    const { app, cookie } = setup();
+    expect((await app.request("/api/stats")).status).toBe(401);
+    const pre = { session_id: "abc", cwd: "/x/proj", hook_event_name: "PreToolUse", tool_name: "Bash", tool_input: { command: "git push origin main" }, tool_use_id: "t1" };
+    const ingest = await app.request("/ingest/claude", {
+      method: "POST",
+      body: JSON.stringify(pre),
+      headers: { authorization: "Bearer tok-123", "content-type": "application/json" },
+    });
+    expect(ingest.status).toBe(204);
+    const res = await app.request("/api/stats", { headers: { cookie } });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { today: { launches: number; toolCalls: number }; achievements: { id: string }[] };
+    expect(body.today).toMatchObject({ launches: 1, toolCalls: 1 });
+    expect(body.achievements.map((a) => a.id)).toContain("first-launch");
+  });
+});

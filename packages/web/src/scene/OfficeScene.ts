@@ -10,6 +10,12 @@ import { OfficePlanner, planKey } from "../office/planner.js";
 import type { OfficeStore } from "../net.js";
 import type { Overlay, ScreenPoint } from "../ui/overlay.js";
 import { Antics } from "./antics.js";
+import { Belts } from "./belts.js";
+import { BOSS_ID, Boss } from "./boss.js";
+import { Bugs } from "./bugs.js";
+import { Seasonal } from "./seasonal.js";
+import type { Sfx } from "../ui/sounds.js";
+import type { StatsBoard } from "../ui/board.js";
 import { ContextBins } from "./bins.js";
 import { Character, feet, type Destination } from "./Character.js";
 import { confetti, poof, puff } from "./effects.js";
@@ -27,6 +33,8 @@ interface Actor {
   lastErrorAt?: number;
   lastWinAt?: number;
   lastErrorText?: number;
+  /** Tool calls already looked at (for commit crates). */
+  seenCalls?: Set<string>;
   /** Being carried out by medics: the scene leaves it alone. */
   carried?: boolean;
   /** Last state we saw. Kept after the agent leaves the state so it can walk out. */
@@ -43,6 +51,8 @@ export interface SceneDeps {
   store: OfficeStore;
   overlay: Overlay;
   onSelect: (agentId: string | undefined) => void;
+  sfx: Sfx;
+  board: StatsBoard;
 }
 
 /**
@@ -63,6 +73,10 @@ export class OfficeScene extends Phaser.Scene {
   private silo!: RocketSilo;
   private antics!: Antics;
   private decor!: WallDecor;
+  private belts!: Belts;
+  private bugs!: Bugs;
+  private boss!: Boss;
+  private seasonal!: Seasonal;
   private actors = new Map<string, Actor>();
   private planner = new OfficePlanner();
   private builtKey = "";
@@ -102,16 +116,40 @@ export class OfficeScene extends Phaser.Scene {
       () => [...this.actors.values()].filter((a) => a.c.arrived).map((a) => a.c.tile),
       (tile) => {
         const victim = [...this.actors.values()].find((a) => a.c.tile.x === tile.x && a.c.tile.y === tile.y && a.c.destination?.pose === "type");
-        if (victim) this.deps.overlay.say(victim.agent.id, { kind: "message", text: "Byte! Not the keyboard! 😾" }, this.now);
+        if (victim) {
+          this.deps.overlay.say(victim.agent.id, { kind: "message", text: "Byte! Not the keyboard! 😾" }, this.now);
+          this.deps.sfx.meow();
+        }
       },
     );
     this.extras = new Extras(this, () => this.office, () => this.doorSpot());
     this.silo = new RocketSilo(this, () => this.office.silo, (label) => {
       const who = [...this.actors.values()].find((a) => label.startsWith(`${a.agent.name}:`));
       if (who) this.deps.overlay.say(who.agent.id, { kind: "message", text: "🚀 Shipped!" }, this.now);
+      this.deps.sfx.rocket();
     });
-    this.decor = new WallDecor(this, () => this.office);
+    this.belts = new Belts(this, () => this.office, () => this.silo.addCargo());
+    this.bugs = new Bugs(this, () => this.office);
+    this.seasonal = new Seasonal(this, () => this.office, () => this.deps.store.stats?.allTime.since);
+    this.seasonal.relocate();
+    this.deps.store.onStats(() => {
+      const birthday = this.seasonal.season.birthday;
+      this.seasonal.relocate();
+      if (birthday !== this.seasonal.season.birthday) for (const a of this.actors.values()) a.c.setHat(this.seasonal.season.birthday);
+    });
+    this.decor = new WallDecor(this, () => this.office, () => this.seasonal.season.snow);
     this.decor.relocate();
+    this.boss = new Boss(this, {
+      office: () => this.office,
+      beside: (agentId, from) => {
+        const target = this.actors.get(agentId);
+        if (!target) return undefined;
+        const at = target.c.destination?.tile ?? target.c.tile;
+        const tile = this.nearestOpenTile(at, from);
+        return tile && { tile, facing: faceToward(tile, at), pose: "stand" };
+      },
+      say: (id, text) => this.deps.overlay.say(id, { kind: "message", text }, this.now),
+    });
     this.antics = new Antics({
       scene: this,
       extras: this.extras,
@@ -122,6 +160,7 @@ export class OfficeScene extends Phaser.Scene {
       team: (sessionId) => this.office.teams.find((t) => t.sessionId === sessionId),
       mailroom: () => this.office.spots.find((s) => s.kind === "mail"),
       lounge: () => this.coffeeMachine(),
+      onFire: () => this.deps.sfx.alarm(),
     });
     this.setupCamera();
     this.deps.store.subscribe((state) => this.sync(state));
@@ -162,7 +201,11 @@ export class OfficeScene extends Phaser.Scene {
         continue;
       }
       points.set(id, this.toScreen(actor.c.x, actor.c.y - 27, cam));
+      if (actor.c.destination?.pose === "type" && actor.c.arrived && Math.random() < 0.05) this.deps.sfx.click();
     }
+    this.boss.update(Math.min(delta, 100), time);
+    this.deps.overlay.ensure(this.bossAgent(), {}, () => {});
+    points.set(BOSS_ID, this.toScreen(this.boss.c.x, this.boss.c.y - 27, cam));
     this.deps.overlay.placeAll(points, time);
     this.drawTeamLinks(time);
     this.labelTeams(cam);
@@ -170,6 +213,11 @@ export class OfficeScene extends Phaser.Scene {
     this.extras.update(Math.min(delta, 100), time);
     this.antics.tick(time);
     this.decor.update(time);
+    this.belts.update(Math.min(delta, 100), time);
+    this.bugs.update(Math.min(delta, 100), time);
+    this.seasonal.update(time);
+    const sb = this.office.statsBoard;
+    this.deps.board.render(this.deps.store.stats, this.bugs.count, this.toScreen((sb.x + 1) * TILE, (sb.y + 1) * TILE + 2, cam));
     if (Math.floor(time / 500) !== Math.floor((time - delta) / 500)) this.lighting.update(this.lightSpots());
     // Shrinking happens on a timer, not on an event, so re-plan now and then.
     if (Math.floor(time / 1000) !== Math.floor((time - delta) / 1000)) this.replan(this.deps.store.state);
@@ -339,15 +387,24 @@ export class OfficeScene extends Phaser.Scene {
       }
       if (agent.lastErrorAt && agent.lastErrorAt !== actor.lastErrorAt) {
         actor.lastErrorAt = agent.lastErrorAt;
-        if (!initial) puff(this, actor.c.x, actor.c.y);
+        if (!initial) {
+          puff(this, actor.c.x, actor.c.y);
+          this.bugs.spawn(agent.sessionId, actor.c.x, actor.c.y, this.now);
+        }
       }
       this.antics.observe({ id: agent.id, c: actor.c, agent }, this.now, initial);
+      if (!initial) this.shipCommits(actor, agent);
       if (agent.lastWinAt && agent.lastWinAt !== actor.lastWinAt) {
         actor.lastWinAt = agent.lastWinAt;
         if (!initial) {
           actor.c.cheer(this.now);
           confetti(this, actor.c.x, actor.c.y);
-          this.deps.overlay.say(agent.id, { kind: "message", text: "Tests pass! 🎉" }, this.now);
+          const squashed = this.bugs.squash(agent.sessionId);
+          this.deps.overlay.say(agent.id, { kind: "message", text: squashed ? `Tests pass! 🎉 Squashed ${squashed} 🐛` : "Tests pass! 🎉" }, this.now);
+          if (squashed) {
+            this.deps.sfx.squash();
+            this.antics.gossip(`${agent.name} squashed ${squashed} bug${squashed > 1 ? "s" : ""} 🐛`, "Finally.");
+          }
         }
       }
       if (agent.lastError && agent.lastError.at !== actor.lastErrorText) {
@@ -365,6 +422,7 @@ export class OfficeScene extends Phaser.Scene {
     const beside = parent && !atDestination ? this.nearestOpenTile(parent.c.tile, parent.c.tile) : undefined;
     const c = new Character(this, agent.id, beside ?? this.doorSpot(), () => this.office.walkable);
     if (beside) poof(this, c.x, c.y, this.sessionColor(agent.sessionId));
+    if (this.seasonal?.season.birthday) c.setHat(true);
     c.sprite.on("pointerdown", (p: Phaser.Input.Pointer) => {
       p.event.stopPropagation();
       this.deps.onSelect(agent.id);
@@ -378,6 +436,7 @@ export class OfficeScene extends Phaser.Scene {
       ...(agent.lastErrorAt ? { lastErrorAt: agent.lastErrorAt } : {}),
       ...(agent.lastWinAt ? { lastWinAt: agent.lastWinAt } : {}),
       ...(agent.lastError ? { lastErrorText: agent.lastError.at } : {}),
+      seenCalls: new Set(agent.recentTools.map((c) => c.callId)),
     };
     this.actors.set(agent.id, actor);
     if (atDestination) {
@@ -432,6 +491,11 @@ export class OfficeScene extends Phaser.Scene {
     this.pet.relocate();
     this.extras.relocate();
     this.decor.relocate();
+    this.belts.layout();
+    this.bugs.relocate();
+    this.boss.relocate();
+    this.silo.relocate();
+    this.seasonal.relocate();
     if (!this.userMovedCamera) this.fit();
     // Anyone now standing inside furniture or a wall steps out; everyone re-routes.
     for (const actor of this.actors.values()) {
@@ -591,6 +655,11 @@ export class OfficeScene extends Phaser.Scene {
         ]);
         return;
       }
+      case "prompt": {
+        // You walk the prompt over to the agent's desk.
+        this.boss.deliver(actor.agent.id, u.text);
+        return;
+      }
       default:
         say(actor, u.kind, u.text)();
     }
@@ -615,12 +684,45 @@ export class OfficeScene extends Phaser.Scene {
     }
   }
 
+  /** Every new `git commit` sends a crate from the agent's desk down the belt to the silo. */
+  private shipCommits(actor: Actor, agent: AgentState): void {
+    for (const call of agent.recentTools) {
+      if (actor.seenCalls?.has(call.callId)) continue;
+      (actor.seenCalls ??= new Set()).add(call.callId);
+      if (!/\bgit commit\b/i.test(call.summary)) continue;
+      const seat = this.allocator.seatFor(agent);
+      const from = seat ? { x: seat.x * TILE + 8, y: (seat.y - 1) * TILE + 8 } : { x: actor.c.x, y: actor.c.y };
+      this.belts.ship(from);
+    }
+  }
+
+  /** You, as an agent-shaped record for the name tag. */
+  private bossAgent(): AgentState {
+    const name = this.deps.store.settings.bossName || "You";
+    return {
+      id: BOSS_ID,
+      source: "boss",
+      sessionId: BOSS_ID,
+      name,
+      project: { path: "", name: "reception" },
+      status: "working",
+      activity: "other",
+      activitySince: 0,
+      openCalls: [],
+      recentTools: [],
+      pendingDelegations: [],
+      startedAt: 0,
+      lastEventAt: 0,
+    };
+  }
+
   /** A failed sub-agent: smoke, a sad bubble, and the medics come with a stretcher. */
   private collapse(actor: Actor, text: string): void {
     actor.carried = true;
     actor.c.play([]);
     puff(this, actor.c.x, actor.c.y);
     this.deps.overlay.say(actor.agent.id, { kind: "message", text: `✗ ${text || "failed"}` }, this.now);
+    this.antics.gossip(`Poor ${actor.agent.name}, carried out on a stretcher`, "Gone too soon. 🪦");
     this.time.delayedCall(900, () => {
       actor.c.setLying(true);
       this.extras.medics(actor.c, () => this.despawn(actor.agent.id));

@@ -1,7 +1,9 @@
 import Phaser from "phaser";
 import { OfficeStore } from "./net.js";
 import { OfficeScene } from "./scene/OfficeScene.js";
+import { AchievementToasts, StatsBoard } from "./ui/board.js";
 import { HelpPanel } from "./ui/help.js";
+import { Sfx } from "./ui/sounds.js";
 import { Hud } from "./ui/hud.js";
 import { ListView } from "./ui/listview.js";
 import { Overlay } from "./ui/overlay.js";
@@ -13,6 +15,10 @@ import "./style.css";
 
 const store = new OfficeStore();
 const overlay = new Overlay(document.getElementById("overlay")!);
+const sfx = new Sfx();
+const board = new StatsBoard(document.getElementById("overlay")!);
+const toasts = new AchievementToasts(document.getElementById("toasts")!, () => sfx.fanfare());
+store.onStats((s) => toasts.observe(s));
 let selected: string | undefined;
 
 const panel = new Panel(document.getElementById("panel")!, () => select(undefined));
@@ -45,6 +51,7 @@ const hud = new Hud(document.getElementById("hud")!, {
     panel.render(store.state);
   },
   sound: { get: () => notifier.sound, set: (on) => notifier.setSound(on) },
+  sfx: { get: () => sfx.enabled, set: (on) => sfx.set(on) },
   desktop: { get: () => notifier.desktop, set: (on) => notifier.setDesktop(on) },
   replay: () => {
     if (replay.open) replay.close();
@@ -65,7 +72,7 @@ new Phaser.Game({
   scene: [],
   callbacks: {
     postBoot: (game) => {
-      game.scene.add("office", scene, true, { store, overlay, onSelect: select });
+      game.scene.add("office", scene, true, { store, overlay, onSelect: select, sfx, board });
     },
   },
 });

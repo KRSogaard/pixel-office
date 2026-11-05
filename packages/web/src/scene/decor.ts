@@ -18,6 +18,8 @@ export class WallDecor {
   constructor(
     scene: Phaser.Scene,
     private office: () => Office,
+    /** Snow falling past the windows (winter). */
+    private snowing: () => boolean = () => false,
   ) {
     const forced = new URLSearchParams(location.search).get("hour");
     this.forcedHour = forced !== null && forced !== "" ? Number(forced) : undefined;
@@ -82,6 +84,12 @@ export class WallDecor {
           if (w <= 0 || bx < gx) continue;
           g.fillStyle(night ? 0x0b0c18 : dusk ? 0x6b4a5a : 0x5c7088, 1).fillRect(bx, gy + 6 - bh, w - 1 || 1, bh);
           if (night && bh > 2) g.fillStyle(0xffe066, 1).fillRect(bx, gy + 6 - bh + 1, 1, 1);
+        }
+        if (this.snowing()) {
+          const t = Math.floor(now / 2000);
+          for (let k = 0; k < 3; k++) {
+            g.fillStyle(0xffffff, 0.9).fillRect(gx + ((x * 3 + k * 4 + t) % 10), gy + ((k * 2 + t + y) % 6), 1, 1);
+          }
         }
         // Window frame mullion back on top.
         g.fillStyle(0x6a5a45, 1).fillRect(x * TILE + 7, gy, 2, 6);

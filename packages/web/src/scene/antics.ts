@@ -40,6 +40,26 @@ export interface AnticsHost {
   mailroom(): Point | undefined;
   /** A tile in the lounge (where pizza goes). */
   lounge(): Point | undefined;
+  /** Optional: the lab caught fire (for the alarm sound). */
+  onFire?: () => void;
+}
+
+const SMALL_TALK = [
+  { line: "Anyone seen the cat?", reply: "Byte was on my keyboard again." },
+  { line: "Is it just me or are the tests slower today?", reply: "It's the tests. It's always the tests." },
+  { line: "Who keeps pushing on Fridays?", reply: "👀" },
+  { line: "My context window is SO full.", reply: "Just compact, bro." },
+  { line: "Coffee machine's out again.", reply: "Rate limited, probably." },
+  { line: "I renamed a variable and broke prod.", reply: "Classic Tuesday." },
+];
+
+function shuffle<T>(xs: T[]): T[] {
+  const a = [...xs];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j]!, a[i]!];
+  }
+  return a;
 }
 
 const SCARY = /\b(rm -rf|rm -fr|--force\b|push -f\b|reset --hard|drop (table|database)|truncate table|sudo |chmod -R 777|mkfs|dd if=|kubectl delete|terraform destroy)/i;
@@ -56,6 +76,9 @@ export class Antics {
   private lastPrint = new Map<string, number>();
   private lastYawn = new Map<string, number>();
   private lastPizza = -Infinity;
+  /** Recent office happenings, for water-cooler gossip. Newest last. */
+  private news: { line: string; reply: string; at: number }[] = [];
+  private nextGossip = 15_000;
   private lastPizzaCheck = 0;
 
   constructor(private host: AnticsHost) {}
@@ -78,11 +101,13 @@ export class Antics {
       actor.c.cheer(now);
       confetti(this.host.scene, actor.c.x, actor.c.y);
       this.host.say(next.id, "🎉 All done!");
+      this.gossip(`${next.name} finished their whole todo list`, "Show-off. 🙄");
     }
   }
 
-  /** Per-frame gags: rubber ducks, yawns, pizza. */
+  /** Per-frame gags: rubber ducks, yawns, pizza, gossip. */
   tick(now: number): void {
+    this.chat(now);
     const wall = Date.now();
     for (const a of this.host.actors()) {
       const pose = a.c.destination?.pose;
@@ -92,6 +117,7 @@ export class Antics {
         const t = a.c.tile;
         this.ducks.set(a.id, duck(this.host.scene, t.x * TILE + 4, (t.y - 1) * TILE + 6));
         this.host.say(a.id, "🦆 *squeak*");
+        this.gossip(`${a.agent.name} is talking to a rubber duck again`, "Works for me, honestly.");
       } else if (!pondering && existing) {
         existing.destroy();
         this.ducks.delete(a.id);
@@ -112,9 +138,29 @@ export class Antics {
         this.host.extras.pizza(lounge, () => {
           const lucky = working[Math.floor(Math.random() * working.length)];
           if (lucky) this.host.say(lucky.id, "🍕 Pizza's here!");
+          this.gossip("There's pizza in the lounge 🍕", "Is it the one with pineapple?");
         });
       }
     }
+  }
+
+  /** Something happened worth gossiping about. */
+  gossip(line: string, reply: string): void {
+    this.news.push({ line, reply, at: Date.now() });
+    if (this.news.length > 12) this.news.shift();
+  }
+
+  /** Two idle agents in the lounge chat about the latest news (or small talk). */
+  private chat(now: number): void {
+    if (now < this.nextGossip) return;
+    this.nextGossip = now + 18_000 + Math.random() * 20_000;
+    const lounging = [...this.host.actors()].filter((a) => a.c.arrived && a.c.destination?.pose === "lounge");
+    if (lounging.length < 2) return;
+    const [a, b] = shuffle(lounging);
+    const fresh = this.news.filter((n) => Date.now() - n.at < 10 * 60_000);
+    const pick = fresh.length ? fresh[Math.floor(Math.random() * fresh.length)]! : SMALL_TALK[Math.floor(Math.random() * SMALL_TALK.length)]!;
+    this.host.say(a!.id, pick.line);
+    this.host.scene.time.delayedCall(1800, () => this.host.say(b!.id, pick.reply));
   }
 
   forget(agentId: string): void {
@@ -128,6 +174,7 @@ export class Antics {
     if (SCARY.test(call.summary)) {
       sweat(scene, actor.c.x, actor.c.y);
       this.host.say(actor.id, "😬");
+      this.gossip(`${actor.agent.name} just ran ${call.summary.replace(/^\w+: /, "").slice(0, 28)}…`, "😱 brave.");
       for (const other of this.host.actors()) {
         if (other.id === actor.id) continue;
         if (Math.abs(other.c.tile.x - actor.c.tile.x) + Math.abs(other.c.tile.y - actor.c.tile.y) <= 5) this.host.say(other.id, "😱");
@@ -135,6 +182,7 @@ export class Antics {
     }
     if (isShipCommand(call.tool, call.summary)) {
       this.host.silo.launch(`${actor.agent.name}: ${call.summary.replace(/^Bash: /, "")}`);
+      this.gossip(`Did you see ${actor.agent.name}'s rocket? 🚀`, "Ship it! 🚀");
     }
     if (call.category === "mcp" && now - (this.lastCourier.get(actor.id) ?? -Infinity) > 15_000) {
       const from = this.host.mailroom();
@@ -166,6 +214,8 @@ export class Antics {
     const at = best ?? actor.c.tile;
     fire(this.host.scene, at.x * TILE + 8, at.y * TILE + 6);
     this.host.say(actor.id, "🔥 This is fine.");
+    this.host.onFire?.();
+    this.gossip(`${actor.agent.name} set the lab on fire again 🔥`, "Classic.");
   }
 }
 

@@ -7,6 +7,7 @@ export interface HudActions {
   fit: () => void;
   togglePrivacy: (on: boolean) => void;
   sound: { get: () => boolean; set: (on: boolean) => void };
+  sfx: { get: () => boolean; set: (on: boolean) => void };
   desktop: { get: () => boolean; set: (on: boolean) => Promise<boolean> };
   replay: () => void;
   settings: () => void;
@@ -31,6 +32,7 @@ export class Hud {
       <div class="hud-tools">
         <button data-a="sound" title="Bell when an agent needs you or finishes">🔔</button>
         <button data-a="desktop" title="Desktop notifications while this tab is in the background">🖥</button>
+        <button data-a="sfx" title="Sound effects: rockets, alarms, meows, keyboards">🔊</button>
         <button data-a="list" title="List view: everyone as a table">☰</button>
         <button data-a="replay" title="Replay: what happened while you were away">⏪</button>
         <button data-a="settings" title="Office layout settings">⚙</button>
@@ -54,9 +56,15 @@ export class Hud {
     root.querySelector<HTMLButtonElement>('[data-a="fit"]')!.onclick = actions.fit;
     const sound = root.querySelector<HTMLButtonElement>('[data-a="sound"]')!;
     const desktop = root.querySelector<HTMLButtonElement>('[data-a="desktop"]')!;
+    const sfx = root.querySelector<HTMLButtonElement>('[data-a="sfx"]')!;
     const paint = () => {
       sound.classList.toggle("on", actions.sound.get());
       desktop.classList.toggle("on", actions.desktop.get());
+      sfx.classList.toggle("on", actions.sfx.get());
+    };
+    sfx.onclick = () => {
+      actions.sfx.set(!actions.sfx.get());
+      paint();
     };
     sound.onclick = () => {
       actions.sound.set(!actions.sound.get());

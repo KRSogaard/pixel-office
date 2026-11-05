@@ -5,6 +5,7 @@ import {
   type AgentEvent,
   type OfficeSettings,
   type OfficeState,
+  type OfficeStats,
   type ServerMessage,
 } from "@pixel-office/protocol";
 
@@ -23,6 +24,8 @@ type Listener = (state: OfficeState, event?: AgentEvent) => void;
 export class OfficeStore {
   state: OfficeState = emptyState();
   settings: OfficeSettings = DEFAULT_SETTINGS;
+  stats: OfficeStats | undefined;
+  private statsListeners = new Set<(s: OfficeStats) => void>();
   status: ConnectionStatus = "connecting";
   mode: StoreMode = "live";
   private live: OfficeState = emptyState();
@@ -43,6 +46,11 @@ export class OfficeStore {
     fn(this.status);
   }
 
+  onStats(fn: (s: OfficeStats) => void): void {
+    this.statsListeners.add(fn);
+    if (this.stats) fn(this.stats);
+  }
+
   onSettings(fn: (s: OfficeSettings) => void): void {
     this.settingsListeners.add(fn);
     fn(this.settings);
@@ -51,8 +59,13 @@ export class OfficeStore {
   /** Feed a server message (also used by tests). */
   receive(msg: ServerMessage): void {
     if (msg.t === "settings") {
-      this.settings = msg.settings;
-      for (const fn of this.settingsListeners) fn(msg.settings);
+      this.settings = { ...DEFAULT_SETTINGS, ...msg.settings };
+      for (const fn of this.settingsListeners) fn(this.settings);
+      return;
+    }
+    if (msg.t === "stats") {
+      this.stats = msg.stats;
+      for (const fn of this.statsListeners) fn(msg.stats);
       return;
     }
     if (msg.t === "snapshot") this.live = msg.state;
