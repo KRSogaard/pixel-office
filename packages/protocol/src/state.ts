@@ -53,6 +53,8 @@ export interface AgentState {
   /** Generated human first name, stable per agent id. */
   name: string;
   label?: string;
+  /** The person whose agent this is (from their ingest token). */
+  user?: string;
   project: { path: string; name: string };
   status: AgentStatus;
   activity: Activity;

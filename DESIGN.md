@@ -111,6 +111,24 @@ Sub-agents pop up beside their parent with a puff of sparkles and get their brie
 huddle right there. A manager whose sub-agents are still working waits at its desk instead of
 going to the lounge. When tags crowd together they drop their "why" line for a moment.
 
+### Several people, one office
+
+- **People**: each person gets their own ingest token (`po_u_…`, created in 👥 or with
+  `pixel-office user add <name>`). The server stamps every event from that token with the
+  person's name (`user` on the event and the agent) and ignores any `user` a client sends.
+  The shared ingest token still works, with no name.
+- **Who's who on screen**: name tags start with a chip in the person's own colour, then the
+  agent's name; the second line starts with the project. Team labels read
+  `project · manager · person · ⎇ branch`. The list view and the detail panel show the person.
+- **Roles**: the password or the admin token (`po_a_…`, printed on first start;
+  `/admin?token=…` logs you in) make you an *admin* — you can change ⚙ settings and 👥 people.
+  A **TV link** (`/tv?key=po_d_…`, created in 👥 or with `pixel-office display add <name>`)
+  logs a screen in as a *viewer* for a year: it can watch, not change anything. Removing the
+  link logs the screen out.
+- **TV mode** (viewers, or `?tv`): no buttons, bigger tags, the office always fitted to the
+  screen, the mouse hidden when idle, and a screen wake lock.
+- Tokens and keys are stored only as SHA-256 hashes (`DATA_DIR/users.json`, `secrets.json`).
+
 ## 2. How agents connect
 
 pixel-office is a **self-hosted website**: one server (Docker or `pnpm start`) that every agent

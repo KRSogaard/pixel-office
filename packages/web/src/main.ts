@@ -9,6 +9,8 @@ import { ListView } from "./ui/listview.js";
 import { Overlay } from "./ui/overlay.js";
 import { Notifier } from "./ui/notify.js";
 import { Panel } from "./ui/panel.js";
+import { PeoplePanel } from "./ui/people.js";
+import { startTvMode } from "./ui/tv.js";
 import { Replay } from "./ui/replay.js";
 import { SettingsPanel } from "./ui/settings.js";
 import "./style.css";
@@ -42,6 +44,7 @@ const replay = new Replay(document.getElementById("replay")!, store, () => {
   hud.setReplay(store.mode === "replay");
 });
 const settings = new SettingsPanel(document.getElementById("settings")!, store);
+const people = new PeoplePanel(document.getElementById("people")!);
 const help = new HelpPanel(document.getElementById("help")!);
 const list = new ListView(document.getElementById("list")!, (id) => select(id), (sessionId) => scene.colorOf(sessionId));
 
@@ -64,6 +67,7 @@ const hud = new Hud(document.getElementById("hud")!, {
     else void replay.openAt(30).catch((err) => console.warn("[pixel-office] replay", err));
   },
   settings: () => settings.toggle(),
+  people: () => void people.toggle(),
   help: () => help.toggle(),
   list: () => list.toggle(store.state),
   stats: () => board.toggle(),
@@ -92,6 +96,14 @@ store.subscribe((state) => {
 });
 store.onStatus((s) => hud.setConnection(s));
 store.connect();
+
+// Admins manage people and settings; TV links (viewers) get the kiosk view.
+const params = new URLSearchParams(location.search);
+void store.loadRole().then((role) => {
+  document.body.classList.toggle("admin", role === "admin");
+  if (role === "viewer" || params.has("tv")) startTvMode(() => scene.fit());
+  if (role === "admin" && params.has("people")) void people.toggle();
+});
 
 // The "working for" clock in the panel ticks even when no events arrive.
 setInterval(() => selected && panel.render(store.state), 1000);

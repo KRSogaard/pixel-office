@@ -33,7 +33,7 @@ const ROOMS_MIDDLE: Row[] = [
 ];
 
 const TEAM: Row[] = [
-  { name: "Team area", what: "One per session, on a rug in that session's colour, labelled “project · manager · ⎇ branch”." },
+  { name: "Team area", what: "One per session, on a rug in that session's colour, labelled “project · manager · person · ⎇ branch”." },
   { name: "Manager's desk", what: "The big desk with two monitors: the main agent of the session sits here." },
   { name: "Worker desks", what: "Its sub-agents sit here. A new row appears when they run out of free desks." },
   { name: "Whiteboard", what: "The manager's todo list: done / total, a progress bar and the item in progress. Hover for the full list." },
@@ -43,9 +43,9 @@ const TEAM: Row[] = [
 
 const PEOPLE: Row[] = [
   { name: "Coloured ring", what: "The session colour. A main agent and its sub-agents share it." },
-  { name: "C / O badge", what: "Claude Code or OpenCode." },
+  { name: "Coloured name chip", what: "Whose agent it is — each person has their own colour. (No chip: the shared token.) Visitors get a ★." },
   { name: "sub · Explore", what: "A sub-agent, and the kind it is." },
-  { name: "Second line", what: "Why it's working: the prompt it's on, or “↳ Manager: task” for a sub-agent, or “needs you: …”." },
+  { name: "Second line", what: "The project, then why it's working: the prompt it's on, or “↳ Manager: task” for a sub-agent, or “needs you: …”." },
   { name: "Speech bubbles", what: "☎ your prompt arriving · ✓ a sub-agent reporting back · ! / ? waiting for you · plain: agents talking to each other." },
   { name: "Thin line under a tag", what: "The tag was moved up to make room; the line points to its person." },
   { name: "Click someone", what: "Opens their details on the right (prompt, todos, context, recent tools) and draws dotted lines to their manager and sub-agents." },
@@ -100,7 +100,8 @@ const BAR: Row[] = [
   { name: "📊", what: "Production sidebar: today's launches, commits, tests and pass rate, bugs, activity per hour, all-time numbers and the trophy cabinet." },
   { name: "☰", what: "List view: everyone in a table (good on a phone)." },
   { name: "⏪", what: "Replay the last two hours." },
-  { name: "⚙", what: "Office layout settings (shared with everyone)." },
+  { name: "⚙", what: "Office layout settings (shared with everyone). Admins only." },
+  { name: "👥", what: "People and TV links: give each person their own token (their agents carry their name), and make read-only links for screens in the office. Admins only." },
   { name: "privacy", what: "Hide prompts and messages, e.g. when screen sharing." },
   { name: "− ▣ +", what: "Zoom out, fit the office, zoom in. You can also drag and scroll." },
   { name: "Green square", what: "Connected to the server. Red: reconnecting." },

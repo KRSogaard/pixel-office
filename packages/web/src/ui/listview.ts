@@ -41,8 +41,8 @@ export class ListView {
     const rows = groups.flat().map((a) => this.row(a, state, now)).join("");
     this.root.innerHTML = `
       <table class="list">
-        <thead><tr><th></th><th>Agent</th><th>Project</th><th>Status</th><th>Doing now</th><th>Why</th><th>Context</th><th>Todo</th></tr></thead>
-        <tbody>${rows || `<tr><td colspan="8" class="muted">Nobody in the office yet.</td></tr>`}</tbody>
+        <thead><tr><th></th><th>Agent</th><th>Person</th><th>Project</th><th>Status</th><th>Doing now</th><th>Why</th><th>Context</th><th>Todo</th></tr></thead>
+        <tbody>${rows || `<tr><td colspan="9" class="muted">Nobody in the office yet.</td></tr>`}</tbody>
       </table>`;
     this.root.querySelectorAll<HTMLTableRowElement>("tr[data-id]").forEach((tr) => {
       tr.onclick = () => this.onSelect(tr.dataset.id!);
@@ -62,6 +62,7 @@ export class ListView {
       <tr data-id="${esc(a.id)}" class="${a.status}${a.parentId ? " sub" : ""}">
         <td><span class="dot" style="background:${color}"></span></td>
         <td>${a.parentId ? "↳ " : ""}<b>${esc(a.name)}</b>${a.label && a.parentId ? ` <span class="muted">${esc(a.label)}</span>` : ""}</td>
+        <td>${a.user ? esc(a.user) : '<span class="muted">–</span>'}</td>
         <td>${esc(a.project.name)}${a.branch ? ` <span class="muted">⎇ ${esc(a.branch)}</span>` : ""}</td>
         <td class="st">${a.status}</td>
         <td>${doing}${stuck}</td>

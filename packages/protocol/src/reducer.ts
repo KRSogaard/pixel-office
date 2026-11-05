@@ -26,6 +26,7 @@ export function reduce(state: OfficeState, e: AgentEvent): OfficeState {
   a.lastEventAt = e.ts;
   if (e.project.name !== "unknown") a.project = e.project;
   if (e.label) a.label = e.label;
+  if (e.user) a.user = e.user;
   if (e.parentAgentId) a.parentId = e.parentAgentId;
   if (a.status === "ended" && e.kind !== "session.end") {
     a.status = "idle";

@@ -93,7 +93,8 @@ All optional, via environment variables:
 | `PIXEL_OFFICE_HOST` | `127.0.0.1` (`0.0.0.0` in Docker) | Interface to bind. |
 | `PIXEL_OFFICE_DATA_DIR` | `./data` (`/data` in Docker) | Holds `secrets.json`. |
 | `PIXEL_OFFICE_PASSWORD` | generated on first start | Password for the website. |
-| `PIXEL_OFFICE_INGEST_TOKEN` | generated on first start | Token agents send events with. `pixel-office token` prints it. |
+| `PIXEL_OFFICE_INGEST_TOKEN` | generated on first start | Shared token agents send events with (no name). `pixel-office token` prints it. |
+| `PIXEL_OFFICE_ADMIN_TOKEN` | generated on first start | Setup key: log in with it or open `/admin?token=…`. Stored hashed; `pixel-office token --admin --rotate` makes a new one. |
 | `PIXEL_OFFICE_TRUST_PROXY` | off | Turn on behind a TLS reverse proxy so the real client IP and `https` are honoured. |
 | `PIXEL_OFFICE_COOKIE_SECURE` | auto | Force the login cookie's `Secure` flag on/off. |
 | `PIXEL_OFFICE_IDLE_AFTER_MS` | 10 min | Silent working agents are sent to the lounge after this. |
@@ -148,6 +149,57 @@ Then set `PIXEL_OFFICE_URL` and `PIXEL_OFFICE_TOKEN` in the environment OpenCode
 
 POST normalized events (see `packages/protocol/src/events.ts`) to
 `/ingest/generic` with `Authorization: Bearer <token>`.
+
+## 5. Multiple people and a TV
+
+One office can show everyone's agents. Each person gets their own ingest token, so their
+agents are labelled with their name; a TV gets a read-only link.
+
+### The admin token (setup key)
+
+On first start the server prints an **admin token** (`po_a_…`) next to the password and the
+shared ingest token, plus a ready-made setup link:
+
+```
+Admin token        : po_a_…
+  setup link       : http://<server>:8790/admin?token=po_a_…
+```
+
+Open the setup link (or log in with the admin token instead of the password) to land in the
+⚙ **People** panel as an admin. The token is stored hashed and can't be shown again; to get a
+new one: `pixel-office token --admin --rotate` (restart the server afterwards). You can also
+pin it with `PIXEL_OFFICE_ADMIN_TOKEN`.
+
+### Add a person
+
+In ⚙ **People**, add a name — their token is shown **once**. Or on the server:
+
+```sh
+pixel-office user add Morten        # prints Morten's token once
+pixel-office user list
+pixel-office user remove Morten     # his token stops working
+```
+
+Morten then sets up the Claude Code plugin (section 2) with **his own token** instead of the
+shared one. Already installed? Change the token under pixel-office's settings in `/config` (or
+`/plugin`). OpenCode: `export PIXEL_OFFICE_TOKEN=<his token>`.
+
+Everything his agents do carries his name; the server sets it from the token, so nobody can
+pose as someone else. The shared ingest token keeps working, without a name.
+
+### Put the office on a TV
+
+In ⚙ **TV links**, create a link — or on the server:
+
+```sh
+pixel-office display add "Office TV"   # prints /tv?key=po_d_…
+pixel-office display list
+pixel-office display remove "Office TV" # logs that screen out
+```
+
+Open `http://<server>:8790/tv?key=po_d_…` **once** on the TV. That browser stays logged in for a
+year as a **viewer**: it can watch, but can't change settings or people. Removing the link logs
+the screen out.
 
 ## Development
 

@@ -32,6 +32,7 @@ export class Panel {
       close,
     ]);
     const rows: [string, Node | string][] = [
+      ...(a.user ? [["Person", a.user] as [string, string]] : []),
       ["Project", a.project.name],
       ["Path", a.project.path],
       ["Status", `${a.status} · ${a.activity}`],

@@ -153,4 +153,9 @@ describe("reduce", () => {
     ]);
     expect(c.agents.c!.activity).toBe("shell");
   });
+
+  it("remembers whose agent it is", () => {
+    const s = reduceAll(emptyState(), [ev({ kind: "session.start", agentId: "a", user: "Morten" })]);
+    expect(s.agents.a!.user).toBe("Morten");
+  });
 });

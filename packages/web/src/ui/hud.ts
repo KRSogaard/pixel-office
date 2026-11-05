@@ -14,6 +14,7 @@ export interface HudActions {
   help: () => void;
   list: () => void;
   stats: () => void;
+  people: () => void;
 }
 
 /** Top bar: counts, connection, privacy toggle, zoom. Also drives the tab title + favicon. */
@@ -37,7 +38,8 @@ export class Hud {
         <button data-a="stats" title="Production stats and trophies (sidebar)">📊</button>
         <button data-a="list" title="List view: everyone as a table">☰</button>
         <button data-a="replay" title="Replay: what happened while you were away">⏪</button>
-        <button data-a="settings" title="Office layout settings">⚙</button>
+        <button data-a="settings" class="admin-only" title="Office layout settings">⚙</button>
+        <button data-a="people" class="admin-only" title="People and TV links">👥</button>
         <button data-a="help" class="help-btn" title="What am I looking at?">?</button>
       </div>
       <label class="hud-toggle" title="Hide prompts and messages (for screen sharing)">
@@ -81,6 +83,7 @@ export class Hud {
     root.querySelector<HTMLButtonElement>('[data-a="settings"]')!.onclick = actions.settings;
     root.querySelector<HTMLButtonElement>('[data-a="help"]')!.onclick = actions.help;
     root.querySelector<HTMLButtonElement>('[data-a="list"]')!.onclick = actions.list;
+    root.querySelector<HTMLButtonElement>('[data-a="people"]')!.onclick = actions.people;
     root.querySelector<HTMLButtonElement>('[data-a="stats"]')!.onclick = actions.stats;
     this.replayFlag = root.querySelector(".hud-replay-flag")!;
     const privacy = root.querySelector<HTMLInputElement>(".privacy")!;

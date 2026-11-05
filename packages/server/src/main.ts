@@ -10,7 +10,8 @@ import { loadConfig } from "./config.js";
 import { createApp } from "./http.js";
 import { Hub } from "./hub.js";
 import { startReaper } from "./reaper.js";
-import { loadSecrets } from "./secrets.js";
+import { loadSecrets, rotateAdminToken } from "./secrets.js";
+import { UserError, UsersStore } from "./users.js";
 import { SettingsStore } from "./settings.js";
 import { StatsTracker } from "./stats.js";
 import { SCENARIOS } from "./simulator/scenarios.js";
@@ -24,7 +25,14 @@ Usage:
   pixel-office simulate <scenario|file.jsonl> [--url URL] [--token T] [--speed N] [--loops N]
                                              Feed fake agents into a running server
                                              Scenarios: ${Object.keys(SCENARIOS).join(", ")}
-  pixel-office token                         Print the ingest token
+  pixel-office token                         Print the shared ingest token
+  pixel-office token --admin --rotate        Make a new admin token (the setup key) and print it once
+  pixel-office user add <name>               Add a person; prints their own ingest token once
+  pixel-office user list                     List people
+  pixel-office user remove <name>            Remove a person (their token stops working)
+  pixel-office display add <name>            Add a TV / screen; prints its link (open it once on the screen)
+  pixel-office display list                  List screens
+  pixel-office display remove <name>         Remove a screen (it is logged out)
   pixel-office install-opencode              Install the OpenCode plugin into ~/.config/opencode/plugins
 
 Configuration is via PIXEL_OFFICE_* environment variables — see README.md.`;
@@ -37,10 +45,12 @@ async function main(): Promise<void> {
       token: { type: "string" },
       speed: { type: "string" },
       loops: { type: "string" },
+      admin: { type: "boolean" },
+      rotate: { type: "boolean" },
       help: { type: "boolean", short: "h" },
     },
   });
-  const [command = "serve", arg] = positionals;
+  const [command = "serve", arg, ...rest] = positionals;
   if (values.help) return void console.log(USAGE);
 
   switch (command) {
@@ -62,8 +72,18 @@ async function main(): Promise<void> {
     }
     case "token": {
       const config = loadConfig();
+      if (values.admin) {
+        if (!values.rotate) {
+          throw new Error("The admin token is stored hashed and can't be shown again. Use `pixel-office token --admin --rotate` to make a new one.");
+        }
+        const token = rotateAdminToken(config.dataDir);
+        return void console.log(`New admin token (shown once; restart the server to apply):\n  ${token}\n\nLog in with it, or open  /admin?token=${token}`);
+      }
       return void console.log(loadSecrets(config.dataDir, config).secrets.ingestToken);
     }
+    case "user":
+    case "display":
+      return manage(command, arg, rest.join(" "));
     case "install-opencode":
       return installOpenCode();
     default:
@@ -72,32 +92,91 @@ async function main(): Promise<void> {
   }
 }
 
+/** `user add|list|remove` and `display add|list|remove`, straight on the data dir. */
+function manage(kind: "user" | "display", action: string | undefined, name: string): void {
+  const config = loadConfig();
+  const users = new UsersStore(config.dataDir);
+  const need = () => {
+    if (!name.trim()) throw new Error(`${kind} ${action} needs a name.\n\n${USAGE}`);
+  };
+  try {
+    if (kind === "user" && action === "add") {
+      need();
+      const { user, token } = users.addUser(name);
+      console.log(`Added ${user.name}. Their ingest token (shown once):\n  ${token}\n`);
+      console.log("In Claude Code: /plugin install pixel-office@pixel-office, then enter the server URL and this token.");
+      console.log("Already installed? Change the token with /config (or /plugin) under pixel-office's settings.");
+      console.log("OpenCode: export PIXEL_OFFICE_TOKEN=<this token> next to PIXEL_OFFICE_URL.");
+      return;
+    }
+    if (kind === "user" && action === "list") {
+      const list = users.listUsers();
+      if (!list.length) return void console.log("No people yet. Add one with `pixel-office user add <name>`.");
+      for (const u of list) console.log(`${u.name}\tadded ${new Date(u.createdAt).toLocaleString()}\t${u.lastSeenAt ? `last seen ${new Date(u.lastSeenAt).toLocaleString()}` : "not seen yet"}`);
+      return;
+    }
+    if (kind === "user" && action === "remove") {
+      need();
+      if (!users.removeUserByName(name)) throw new Error(`No one called "${name}".`);
+      return void console.log(`Removed ${name}. Their token no longer works.`);
+    }
+    if (kind === "display" && action === "add") {
+      need();
+      const { display, key } = users.addDisplay(name);
+      console.log(`Added screen "${display.name}". Open this once on it (prefix your server's address):\n  /tv?key=${key}`);
+      return;
+    }
+    if (kind === "display" && action === "list") {
+      const list = users.listDisplays();
+      if (!list.length) return void console.log("No screens yet. Add one with `pixel-office display add <name>`.");
+      for (const d of list) console.log(`${d.name}\tadded ${new Date(d.createdAt).toLocaleString()}`);
+      return;
+    }
+    if (kind === "display" && action === "remove") {
+      need();
+      if (!users.removeDisplayByName(name)) throw new Error(`No screen called "${name}".`);
+      return void console.log(`Removed screen "${name}". It is logged out.`);
+    }
+  } catch (err) {
+    if (err instanceof UserError) throw new Error(err.message);
+    throw err;
+  }
+  console.log(USAGE);
+  process.exitCode = 1;
+}
+
 function runServe(): void {
   const config = loadConfig();
   const { secrets, generated } = loadSecrets(config.dataDir, config);
+  const users = new UsersStore(config.dataDir);
   const stats = new StatsTracker({ dataDir: config.dataDir });
   const hub = new Hub({ recordPath: config.recordPath, historyMs: config.historyMs, stats });
   const settings = new SettingsStore(config.dataDir);
-  const app = createApp({ config, secrets, hub, settings, stats, adapters: createAdapters() });
+  const app = createApp({ config, secrets, hub, settings, stats, users, adapters: createAdapters() });
 
   const server = serve({ fetch: app.fetch, port: config.port, hostname: config.host }, (info) => {
     console.log(`pixel-office listening on http://${config.host}:${info.port}`);
     if (!config.webDir) console.log("  (web app not found — run `pnpm build` or set PIXEL_OFFICE_WEB_DIR)");
     if (config.recordPath) console.log(`  recording events to ${config.recordPath}`);
   }) as Server;
-  attachWebSocket(server, hub, secrets, settings, stats);
+  attachWebSocket(server, hub, secrets, settings, stats, users);
   startReaper(hub, config);
 
-  if (generated.password || generated.ingestToken) {
-    const lines = ["", "  First run — generated credentials (shown once; saved in the data dir, password hashed):"];
+  if (generated.password || generated.ingestToken || generated.adminToken) {
+    const lines = ["", "  First run — generated credentials (shown once; saved in the data dir, password and admin token hashed):"];
     if (generated.password) lines.push(`    Web login password : ${generated.password}`);
     if (generated.ingestToken) lines.push(`    Ingest token       : ${generated.ingestToken}`);
-    lines.push("  Set PIXEL_OFFICE_PASSWORD / PIXEL_OFFICE_INGEST_TOKEN to choose your own.", "");
+    if (generated.adminToken) {
+      lines.push(`    Admin token        : ${generated.adminToken}`);
+      lines.push(`      setup link       : http://${config.host}:${config.port}/admin?token=${generated.adminToken}`);
+    }
+    lines.push("  Set PIXEL_OFFICE_PASSWORD / PIXEL_OFFICE_INGEST_TOKEN / PIXEL_OFFICE_ADMIN_TOKEN to choose your own.", "");
     console.log(lines.join("\n"));
   }
 
   const shutdown = () => {
     stats.flush();
+    users.flush();
     server.close(() => process.exit(0));
   };
   process.on("SIGINT", shutdown);

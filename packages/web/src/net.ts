@@ -6,6 +6,7 @@ import {
   type OfficeSettings,
   type OfficeState,
   type OfficeStats,
+  type Role,
   type ServerMessage,
 } from "@pixel-office/protocol";
 
@@ -28,6 +29,8 @@ export class OfficeStore {
   private statsListeners = new Set<(s: OfficeStats) => void>();
   status: ConnectionStatus = "connecting";
   mode: StoreMode = "live";
+  /** Admins can change settings and people; viewers (TV links) only watch. */
+  role: Role = "viewer";
   private live: OfficeState = emptyState();
   private listeners = new Set<Listener>();
   private statusListeners = new Set<(s: ConnectionStatus) => void>();
@@ -97,6 +100,17 @@ export class OfficeStore {
       body: JSON.stringify(settings),
     });
     if (!res.ok) throw new Error(`saving settings failed: ${res.status}`);
+  }
+
+  /** Ask the server who we are. */
+  async loadRole(): Promise<Role> {
+    try {
+      const res = await fetch("/api/me", { credentials: "same-origin" });
+      if (res.ok) this.role = ((await res.json()) as { role: Role }).role;
+    } catch {
+      // keep the safe default (viewer)
+    }
+    return this.role;
   }
 
   connect(): void {

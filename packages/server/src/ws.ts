@@ -7,6 +7,7 @@ import type { Hub } from "./hub.js";
 import type { Secrets } from "./secrets.js";
 import type { SettingsStore } from "./settings.js";
 import type { StatsTracker } from "./stats.js";
+import type { UsersStore } from "./users.js";
 
 const SNAPSHOT_EVERY_MS = 30_000;
 const PING_EVERY_MS = 25_000;
@@ -37,7 +38,14 @@ function reject(socket: Duplex, status: number, text: string): void {
   socket.destroy();
 }
 
-export function attachWebSocket(server: Server, hub: Hub, secrets: Secrets, settings: SettingsStore, stats?: StatsTracker): () => void {
+export function attachWebSocket(
+  server: Server,
+  hub: Hub,
+  secrets: Secrets,
+  settings: SettingsStore,
+  stats?: StatsTracker,
+  users?: UsersStore,
+): () => void {
   const wss = new WebSocketServer({ noServer: true, maxPayload: 4 * 1024 });
   const alive = new WeakMap<WebSocket, boolean>();
   const send = (ws: WebSocket, msg: ServerMessage) => {
@@ -48,7 +56,7 @@ export function attachWebSocket(server: Server, hub: Hub, secrets: Secrets, sett
     const path = (req.url ?? "").split("?")[0];
     if (path !== "/ws") return reject(socket, 404, "Not Found");
     if (!originMatches(req.headers.origin, req.headers.host)) return reject(socket, 403, "Forbidden");
-    if (!isAuthed(secrets, readCookie(req.headers.cookie, SESSION_COOKIE))) return reject(socket, 401, "Unauthorized");
+    if (!isAuthed(secrets, readCookie(req.headers.cookie, SESSION_COOKIE), Date.now(), users)) return reject(socket, 401, "Unauthorized");
     wss.handleUpgrade(req, socket, head, (ws) => wss.emit("connection", ws, req));
   });
 

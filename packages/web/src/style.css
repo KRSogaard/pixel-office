@@ -210,6 +210,26 @@ button {
   line-height: 1.5;
 }
 
+.tag-person {
+  padding: 0 5px;
+  color: #11131a;
+  background: var(--person, #9097a6);
+  font-weight: 700;
+}
+
+.tag-name {
+  padding-left: 4px;
+}
+
+.tag-project {
+  color: #f2e6c9;
+  font-weight: 700;
+}
+
+.tag-why.quiet {
+  opacity: 0.75;
+}
+
 .tag-sub {
   padding: 0 4px;
   color: #1d1f27;
@@ -354,7 +374,7 @@ button {
 }
 
 /* Crowded tags (a huddle, a busy room) drop their "why" line. */
-.tag.crowded:not(.selected):not(.waiting) .tag-why {
+.tag.crowded:not(.selected):not(.waiting) .tag-reason {
   display: none;
 }
 
@@ -571,7 +591,8 @@ button {
 }
 
 #settings,
-#help {
+#help,
+#people {
   position: absolute;
   top: 12px;
   left: 50%;
@@ -591,7 +612,8 @@ button {
 }
 
 #settings.open,
-#help.open {
+#help.open,
+#people.open {
   display: block;
 }
 
@@ -989,6 +1011,104 @@ button {
     transform: translateY(-20px);
     opacity: 0;
   }
+}
+
+/* Admin-only buttons are hidden for viewers. */
+body:not(.admin) .admin-only {
+  display: none;
+}
+
+/* People & TV links. */
+#people section {
+  margin-top: 12px;
+}
+
+#people button,
+#people input {
+  font: inherit;
+  color: inherit;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  padding: 2px 8px;
+}
+
+.people {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 6px 0;
+}
+
+.people td {
+  padding: 3px 4px;
+  border-bottom: 1px solid var(--line);
+}
+
+.people td:last-child {
+  text-align: right;
+}
+
+#people .add {
+  display: flex;
+  gap: 6px;
+}
+
+#people .add input {
+  flex: 1;
+}
+
+.secret {
+  margin-top: 10px;
+  padding: 8px 10px;
+  background: #1f2a22;
+  border: 1px solid #3d6b4a;
+}
+
+.secret code {
+  display: block;
+  margin: 6px 0;
+  padding: 4px 6px;
+  background: #11151c;
+  word-break: break-all;
+  user-select: all;
+}
+
+.secret pre {
+  margin: 4px 0;
+  padding: 6px;
+  background: #11151c;
+  white-space: pre-wrap;
+}
+
+#people .err {
+  color: var(--hot);
+}
+
+/* TV mode: a screen on the wall. */
+body.tv #hud .hud-tools,
+body.tv #hud .hud-toggle,
+body.tv #hud .hud-zoom,
+body.tv #hud .hud-logout,
+body.tv #panel {
+  display: none !important;
+}
+
+body.tv .tag {
+  font-size: clamp(11px, calc(var(--zoom) * 4.2px), 16px);
+}
+
+body.tv .team-label,
+body.tv .room-sign {
+  font-size: clamp(10px, calc(var(--zoom) * 3.6px), 14px);
+}
+
+body.tv #sidebar {
+  width: 290px;
+  font-size: 14px;
+}
+
+body.tv-idle,
+body.tv-idle * {
+  cursor: none !important;
 }
 
 /* --- panel --------------------------------------------------------------- */

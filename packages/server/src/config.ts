@@ -8,6 +8,8 @@ export interface Config {
   dataDir: string;
   password?: string;
   ingestToken?: string;
+  /** Setup key: logs in as admin (form or /admin?token=…). */
+  adminToken?: string;
   /** true/false forces the cookie's Secure flag; undefined = decide per request from x-forwarded-proto. */
   cookieSecure?: boolean;
   idleAfterMs: number;
@@ -52,6 +54,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     dataDir: resolve(env.PIXEL_OFFICE_DATA_DIR || "./data"),
     ...(env.PIXEL_OFFICE_PASSWORD ? { password: env.PIXEL_OFFICE_PASSWORD } : {}),
     ...(env.PIXEL_OFFICE_INGEST_TOKEN ? { ingestToken: env.PIXEL_OFFICE_INGEST_TOKEN } : {}),
+    ...(env.PIXEL_OFFICE_ADMIN_TOKEN ? { adminToken: env.PIXEL_OFFICE_ADMIN_TOKEN } : {}),
     ...(cookieSecure !== undefined ? { cookieSecure } : {}),
     idleAfterMs: int(env.PIXEL_OFFICE_IDLE_AFTER_MS, 10 * 60_000),
     leaveAfterMs: int(env.PIXEL_OFFICE_LEAVE_AFTER_MS, 30 * 60_000),

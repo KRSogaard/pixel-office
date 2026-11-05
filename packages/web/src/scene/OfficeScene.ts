@@ -247,7 +247,7 @@ export class OfficeScene extends Phaser.Scene {
       const color = this.sessionColor(t.sessionId);
       this.deps.overlay.teamLabel(
         t.sessionId,
-        `${manager ? `${t.project} · ${manager.name}` : t.project}${manager?.branch ? ` · ⎇ ${manager.branch}` : ""}`,
+        `${manager ? `${t.project} · ${manager.name}` : t.project}${manager?.user ? ` · ${manager.user}` : ""}${manager?.branch ? ` · ⎇ ${manager.branch}` : ""}`,
         color,
         this.toScreen((t.x + t.w / 2) * TILE, t.y * TILE + 7, cam),
       );

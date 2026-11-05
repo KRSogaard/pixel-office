@@ -44,7 +44,7 @@ export function loginPage(error?: string): string {
   <h1>pixel<span>-office</span></h1>
   <p>Sign in to watch your agents work.</p>
   ${error ? `<div class="err">${esc(error)}</div>` : ""}
-  <label for="password">Password</label>
+  <label for="password">Password or admin token</label>
   <input id="password" name="password" type="password" autocomplete="current-password" autofocus required>
   <button type="submit">Enter the office</button>
 </form>

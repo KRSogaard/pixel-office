@@ -37,6 +37,11 @@ const base = {
   label: z.string().max(80).optional(),
   project: z.object({ path: z.string().max(500), name: z.string().max(120) }),
   ts: z.number().int().nonnegative(),
+  /**
+   * The person whose agent this is. Set by the server from the ingest token
+   * (anything a client sends here is overwritten), absent for the shared token.
+   */
+  user: z.string().max(40).optional(),
 };
 
 export const agentEventSchema = z.discriminatedUnion("kind", [
@@ -183,6 +188,25 @@ export const ACHIEVEMENTS = [
 ] as const;
 
 export type AchievementId = (typeof ACHIEVEMENTS)[number]["id"];
+
+/** A person who sends agents to the office (one ingest token each). */
+export interface OfficeUser {
+  id: string;
+  name: string;
+  createdAt: number;
+  /** Last time one of their agents sent an event. */
+  lastSeenAt?: number;
+}
+
+/** A read-only link for a screen (TV) in the office. */
+export interface DisplayLink {
+  id: string;
+  name: string;
+  createdAt: number;
+}
+
+/** Who is looking at the office: "admin" can change settings and people, "viewer" only watches. */
+export type Role = "admin" | "viewer";
 
 /** Messages the server sends to browsers over the WebSocket. */
 export type ServerMessage =

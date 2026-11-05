@@ -44,10 +44,13 @@ interface Tag {
   /** Name line + "why" line; its size is what de-cluttering measures. */
   stack: HTMLDivElement;
   card: HTMLDivElement;
+  person: HTMLSpanElement;
   name: HTMLSpanElement;
   sub: HTMLSpanElement;
   icon: HTMLSpanElement;
   why: HTMLDivElement;
+  project: HTMLElement;
+  reason: HTMLSpanElement;
   bubble: HTMLDivElement;
   bubbleUntil: number;
   /** While crowded, the "why" line is hidden so tags fit; kept a moment to avoid flicker. */
@@ -81,23 +84,29 @@ export class Overlay {
       const stack = el("div", "tag-stack");
       const card = el("div", "tag-card");
       const line = el("div", "tag-line");
-      const badge = el("span", `badge badge-${badgeClass(agent.source)}`);
-      badge.textContent = agent.source === "claude" ? "C" : agent.source === "opencode" ? "O" : agent.source === "visitor" ? "★" : "•";
-      badge.title = agent.source;
+      const person = el("span", "tag-person");
       const name = el("span", "tag-name");
       const sub = el("span", "tag-sub");
       const icon = el("span", "tag-icon");
-      line.append(badge, name, sub, icon);
+      line.append(person, name, sub, icon);
       const why = el("div", "tag-why");
+      const project = el("b", "tag-project");
+      const reason = el("span", "tag-reason");
+      why.append(project, reason);
       card.append(line, why);
       const bubble = el("div", "bubble");
       stack.append(bubble, card);
       root.append(stack);
       root.addEventListener("click", onClick);
       this.root.append(root);
-      tag = { root, stack, card, name, sub, icon, why, bubble, bubbleUntil: 0, crowdedUntil: 0 };
+      tag = { root, stack, card, person, name, sub, icon, why, project, reason, bubble, bubbleUntil: 0, crowdedUntil: 0 };
       this.tags.set(agent.id, tag);
     }
+    // Whose agent: a chip in that person's own colour (visitors get a ★).
+    const who = agent.source === "visitor" ? "★" : agent.user ?? "";
+    tag.person.textContent = who;
+    tag.person.hidden = !who;
+    tag.person.style.setProperty("--person", agent.source === "visitor" ? "#c77dff" : personColor(agent.user ?? ""));
     tag.name.textContent = agent.name;
     tag.sub.textContent = agent.parentId ? `sub${agent.label ? ` · ${agent.label}` : ""}` : "";
     tag.sub.hidden = !agent.parentId;
@@ -106,9 +115,13 @@ export class Overlay {
     tag.card.style.setProperty("--session", color);
     tag.root.style.setProperty("--session-line", ctx.sessionColor === undefined ? "rgba(255,255,255,.55)" : color);
 
-    const why = this.whyText(agent, ctx);
-    tag.why.textContent = why;
-    tag.why.hidden = !why || agent.status === "idle" || agent.status === "ended";
+    // Second line: the project first, then why it's working.
+    const visitor = agent.source === "visitor";
+    const why = visitor ? "" : this.whyText(agent, ctx);
+    tag.project.textContent = visitor ? "" : agent.project.name;
+    tag.reason.textContent = why ? ` · ${why}` : "";
+    tag.why.hidden = visitor || agent.status === "ended";
+    tag.why.classList.toggle("quiet", agent.status === "idle");
     tag.root.title = this.tooltip(agent, ctx);
     tag.root.classList.toggle("waiting", agent.status === "waiting");
     tag.root.classList.toggle("idle", agent.status === "idle");
@@ -127,7 +140,8 @@ export class Overlay {
   private tooltip(agent: AgentState, ctx: TagContext): string {
     const call = agent.openCalls[agent.openCalls.length - 1];
     const lines = [
-      `${agent.name}${agent.label ? ` (${agent.label})` : ""} — ${agent.project.name}`,
+      `${agent.name}${agent.label ? ` (${agent.label})` : ""} — ${agent.project.name}${agent.user ? ` · ${agent.user}'s agent` : ""}`,
+      agent.source === "claude" ? "Claude Code" : agent.source === "opencode" ? "OpenCode" : "",
       agent.parentId ? `Sub-agent of ${ctx.parentName ?? agent.parentId}` : "",
       call ? `Now: ${this.privacy ? call.tool : call.summary}` : `Now: ${agent.activity}`,
     ];
@@ -339,13 +353,17 @@ function mark(t: TodoItem): string {
   return t.status === "completed" ? "☑" : t.status === "in_progress" ? "◐" : "☐";
 }
 
+/** A stable, readable colour per person (same name → same colour in every browser). */
+export function personColor(name: string): string {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
+  return `hsl(${h % 360}, 70%, 68%)`;
+}
+
 function hex(color: number): string {
   return `#${color.toString(16).padStart(6, "0")}`;
 }
 
-function badgeClass(source: string): string {
-  return source === "claude" || source === "opencode" || source === "visitor" ? source : "other";
-}
 
 function iconOnly(kind: Utterance["kind"]): string {
   return kind === "report" ? "done" : kind === "delegate" ? "👥" : kind === "message" ? "💬" : "";
