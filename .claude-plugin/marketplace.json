@@ -1,0 +1,12 @@
+{
+  "name": "pixel-office",
+  "description": "A pixel-art office for your coding agents",
+  "owner": { "name": "Kasper Sogaard" },
+  "plugins": [
+    {
+      "name": "pixel-office",
+      "source": "./plugins/claude-code",
+      "description": "Shows your Claude Code sessions as little people in a self-hosted pixel-art office"
+    }
+  ]
+}

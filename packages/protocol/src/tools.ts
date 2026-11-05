@@ -1,0 +1,123 @@
+import type { ToolCategory } from "./events.js";
+
+/**
+ * Tool names → category. Keys are lower-cased so Claude Code ("Read") and
+ * OpenCode ("read") share one table.
+ */
+const CATEGORY_BY_TOOL: Record<string, ToolCategory> = {
+  edit: "edit",
+  write: "edit",
+  multiedit: "edit",
+  notebookedit: "edit",
+  patch: "edit",
+  apply_patch: "edit",
+
+  read: "read",
+  grep: "read",
+  glob: "read",
+  ls: "read",
+  list: "read",
+  lsp: "read",
+  codesearch: "read",
+  notebookread: "read",
+
+  bash: "shell",
+  bashoutput: "shell",
+  killshell: "shell",
+  powershell: "shell",
+  monitor: "shell",
+
+  webfetch: "web",
+  websearch: "web",
+
+  agent: "delegate",
+  task: "delegate",
+
+  sendmessage: "message",
+};
+
+export function categorizeTool(tool: string): ToolCategory {
+  if (tool.startsWith("mcp__")) return "mcp";
+  return CATEGORY_BY_TOOL[tool.toLowerCase()] ?? "other";
+}
+
+type Input = Record<string, unknown> | undefined | null;
+
+function str(input: Input, ...keys: string[]): string | undefined {
+  if (!input) return undefined;
+  for (const k of keys) {
+    const v = input[k];
+    if (typeof v === "string" && v.trim()) return v.trim();
+  }
+  return undefined;
+}
+
+function basename(p: string): string {
+  return p.split(/[\\/]/).filter(Boolean).pop() ?? p;
+}
+
+function host(url: string): string {
+  try {
+    return new URL(url).host;
+  } catch {
+    return url;
+  }
+}
+
+/**
+ * A short human description of a tool call: "Read app.ts", "Bash: npm test".
+ * Never includes file contents or other large inputs.
+ */
+export function summarizeTool(tool: string, input: Input): string {
+  if (tool.startsWith("mcp__")) {
+    const [, server = "", name = ""] = tool.split("__");
+    return `${server}: ${name}`;
+  }
+  const t = tool.toLowerCase();
+  const file = str(input, "file_path", "filePath", "notebook_path", "path");
+  switch (t) {
+    case "read":
+    case "edit":
+    case "write":
+    case "multiedit":
+    case "notebookedit":
+    case "notebookread":
+      return file ? `${tool} ${basename(file)}` : tool;
+    case "bash":
+    case "powershell": {
+      const d = str(input, "description") ?? str(input, "command");
+      return d ? `${tool}: ${d}` : tool;
+    }
+    case "grep":
+    case "glob": {
+      const p = str(input, "pattern");
+      return p ? `${tool} "${p}"` : tool;
+    }
+    case "ls":
+    case "list":
+      return file ? `${tool} ${basename(file)}` : tool;
+    case "webfetch": {
+      const u = str(input, "url");
+      return u ? `Fetch ${host(u)}` : tool;
+    }
+    case "websearch": {
+      const q = str(input, "query");
+      return q ? `Search "${q}"` : tool;
+    }
+    case "agent":
+    case "task": {
+      const d = str(input, "description") ?? str(input, "subagent_type");
+      return d ? `Delegate: ${d}` : "Delegate";
+    }
+    case "sendmessage": {
+      const to = str(input, "to", "recipient");
+      return to ? `Message ${to}` : "Message";
+    }
+    case "skill": {
+      const s = str(input, "skill", "name");
+      return s ? `Skill ${s}` : tool;
+    }
+    default:
+      return tool;
+  }
+}

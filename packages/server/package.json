@@ -1,0 +1,29 @@
+{
+  "name": "@pixel-office/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": { "pixel-office": "./dist/server.js" },
+  "scripts": {
+    "dev": "PIXEL_OFFICE_DATA_DIR=../../data tsx watch src/main.ts serve",
+    "build": "esbuild src/main.ts --bundle --platform=node --format=esm --target=node22 --outfile=dist/server.js --banner:js=\"#!/usr/bin/env node\nimport { createRequire as __cr } from 'node:module'; const require = __cr(import.meta.url);\"",
+    "simulate": "tsx src/main.ts simulate",
+    "test": "vitest run",
+    "typecheck": "tsc -p ."
+  },
+  "dependencies": {
+    "@hono/node-server": "^2.1.6",
+    "@pixel-office/protocol": "workspace:*",
+    "hono": "^4.13.16",
+    "ws": "^8.22.1",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "@types/ws": "^8.18.2",
+    "esbuild": "^0.28.2",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.0"
+  }
+}
