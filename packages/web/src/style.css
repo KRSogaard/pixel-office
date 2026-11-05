@@ -1215,6 +1215,27 @@ body.tv-idle * {
   z-index: 10;
 }
 
+.tv-exit .muted {
+  max-width: 22em;
+  font-size: 11px;
+}
+
+/* Fullscreen hides the top bar's spacing issue on iPads with a notch area. */
+body {
+  padding-top: env(safe-area-inset-top);
+}
+
+.hud-fs {
+  font: inherit;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  padding: 2px 8px;
+}
+
+.hud-fs.on {
+  background: #3d4a3a;
+}
+
 .tv-exit form {
   margin: 0;
 }

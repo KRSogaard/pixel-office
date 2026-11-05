@@ -1,5 +1,6 @@
 import type { OfficeState } from "@pixel-office/protocol";
 import type { ConnectionStatus } from "../net.js";
+import { canFullscreen, isFullscreen, isInstalledApp, onFullscreenChange, toggleFullscreen } from "./fullscreen.js";
 import { personColor } from "./overlay.js";
 
 export interface HudActions {
@@ -48,6 +49,7 @@ export class Hud {
       <label class="hud-toggle" title="Hide prompts and messages (for screen sharing)">
         <input type="checkbox" class="privacy" /> privacy
       </label>
+      <button class="hud-fs" data-a="fullscreen" title="Fullscreen">⛶</button>
       <div class="hud-zoom">
         <button data-a="out" title="Zoom out">−</button>
         <button data-a="fit" title="Fit">▣</button>
@@ -62,6 +64,11 @@ export class Hud {
     root.querySelector<HTMLButtonElement>('[data-a="in"]')!.onclick = actions.zoomIn;
     root.querySelector<HTMLButtonElement>('[data-a="out"]')!.onclick = actions.zoomOut;
     root.querySelector<HTMLButtonElement>('[data-a="fit"]')!.onclick = actions.fit;
+    // Fullscreen: hidden where the browser can't (iPhone) or when already a home-screen app.
+    const fs = root.querySelector<HTMLButtonElement>('[data-a="fullscreen"]')!;
+    fs.hidden = !canFullscreen() || isInstalledApp();
+    fs.onclick = () => void toggleFullscreen();
+    onFullscreenChange(() => fs.classList.toggle("on", isFullscreen()));
     const sound = root.querySelector<HTMLButtonElement>('[data-a="sound"]')!;
     const desktop = root.querySelector<HTMLButtonElement>('[data-a="desktop"]')!;
     const sfx = root.querySelector<HTMLButtonElement>('[data-a="sfx"]')!;

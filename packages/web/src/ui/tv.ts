@@ -1,23 +1,33 @@
+import { canFullscreen, HOME_SCREEN_TIP, isFullscreen, isInstalledApp, onFullscreenChange, toggleFullscreen } from "./fullscreen.js";
+
 /**
  * TV mode: for a screen on the office wall. Used automatically for TV codes
  * (viewer role), or with `?tv` in the URL. No buttons, bigger name tags, the
  * office always fitted to the screen, the mouse hidden when idle, and the
  * screen kept awake.
  *
- * Moving the mouse shows a small bar for a few seconds with the way out: a
- * viewer can log in as admin (handy when a TV code was opened in your own
- * browser), an admin can leave TV mode.
+ * Moving the mouse or touching the screen shows a small bar for a few seconds:
+ * a Fullscreen button (iPads included), and the way out — a TV can log in as a
+ * person (handy when a TV code was opened in your own browser), a person can
+ * leave TV mode.
  */
 export function startTvMode(fit: () => void, role: "admin" | "member" | "viewer"): void {
   document.body.classList.add("tv");
   const exit = document.createElement("div");
   exit.className = "tv-exit";
+  const fsButton = canFullscreen() && !isInstalledApp() ? `<button type="button" class="tv-fs">⛶ Fullscreen</button>` : "";
+  const tip = !canFullscreen() && !isInstalledApp() ? `<span class="muted">${HOME_SCREEN_TIP}</span>` : "";
   exit.innerHTML =
     role === "viewer"
-      ? `<span>📺 This browser is logged in as a TV (watch only).</span>
+      ? `<span>📺 This browser is logged in as a TV (watch only).</span>${fsButton}${tip}
          <form method="post" action="/logout"><button type="submit">Log in as yourself</button></form>`
-      : `<span>📺 TV mode</span><a href="/">Exit TV mode</a>`;
+      : `<span>📺 TV mode</span>${fsButton}${tip}<a href="/">Exit TV mode</a>`;
   document.body.append(exit);
+  const fs = exit.querySelector<HTMLButtonElement>(".tv-fs");
+  if (fs) {
+    fs.onclick = () => void toggleFullscreen();
+    onFullscreenChange(() => (fs.textContent = isFullscreen() ? "⛶ Exit fullscreen" : "⛶ Fullscreen"));
+  }
   localStorage.setItem("po.helpSeen", "1");
   document.getElementById("help")?.classList.remove("open");
 
@@ -35,6 +45,9 @@ export function startTvMode(fit: () => void, role: "admin" | "member" | "viewer"
     idle = setTimeout(() => document.body.classList.add("tv-idle"), 4000);
   };
   window.addEventListener("mousemove", wake);
+  // iPads have no mouse: a touch shows the bar too.
+  window.addEventListener("touchstart", wake, { passive: true });
+  window.addEventListener("pointerdown", wake);
   wake();
 
   keepAwake();

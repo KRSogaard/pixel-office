@@ -103,6 +103,7 @@ const BAR: Row[] = [
   { name: "⚙", what: "Office layout settings (shared with everyone). Admins only." },
   { name: "👥", what: "People and TV screens: give each person their own token (their agents carry their name; “New token” replaces it), and add screens for the office — each gets a 6-letter code like abc-def to type in on the TV. Admins only." },
   { name: "privacy", what: "Hide prompts and messages, e.g. when screen sharing." },
+  { name: "⛶", what: "Fullscreen (iPads too). On an iPad or iPhone you can also tap Share → Add to Home Screen: the office then opens full screen like an app." },
   { name: "− ▣ +", what: "Zoom out, fit the office, zoom in. You can also drag and scroll." },
   { name: "Your name", what: "Who you're logged in as (★ = admin). Click it to get a new token for yourself or log out." },
   { name: "Green square", what: "Connected to the server. Red: reconnecting." },

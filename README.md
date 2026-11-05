@@ -222,6 +222,11 @@ pnpm start display remove "Office TV" # logs that screen out
 On the TV, open the office (`http://<server>:8790`) and type the code into the **TV code** box
 on the login page — or go straight to `http://<server>:8790/tv/kmb-tqr`. That browser stays
 logged in for a year as a **viewer**: it can watch, but can't change settings or people.
+**Full screen on an iPad:** tap the ⛶ button (in TV mode, touch the screen first to show it).
+For a TV that stays full screen across restarts, open the office in Safari and tap
+**Share → Add to Home Screen**: the "Office" icon opens it like an app, with no browser bars.
+A home-screen app keeps its own login, so type the TV code once more inside it.
+
 **iPad / tablet as the TV:** browsers only allow "keep the screen on" on https pages, so on a
 plain-http office the TV keeps itself awake by quietly looping a tiny silent video. If a yellow
 "Tap to keep this screen on" button appears, tap it once. To be safe, also set the iPad's
