@@ -55,9 +55,13 @@ export class Seasonal {
       if (this.tree) christmasTree(g, this.tree.x * TILE, this.tree.y * TILE);
     }
     if (s.birthday) {
-      const r = o.boss;
-      balloons(g, (r.x - 2) * TILE + 8, r.y * TILE + 2);
-      balloons(g, (r.x + 3) * TILE + 8, r.y * TILE + 2);
+      // Balloons at both ends of the reception counter.
+      const y = o.tiles.findIndex((row) => row.includes("X"));
+      if (y >= 0) {
+        const row = o.tiles[y]!;
+        balloons(g, row.indexOf("X") * TILE + 4, y * TILE);
+        balloons(g, row.lastIndexOf("X") * TILE + 12, y * TILE);
+      }
     }
   }
 
@@ -72,7 +76,7 @@ export class Seasonal {
     if (this.season.newYear && now - this.lastConfetti > 6000) {
       this.lastConfetti = now;
       const o = this.office();
-      confetti(this.scene, Phaser.Math.Between(4, o.width - 4) * TILE, (o.bus.y - 2) * TILE);
+      confetti(this.scene, Phaser.Math.Between(4, o.width - 4) * TILE, ((o.rooms[0]?.y ?? 1) + (o.rooms[0]?.h ?? 7) + 4) * TILE);
     }
   }
 }

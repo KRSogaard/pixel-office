@@ -186,9 +186,7 @@ export function generateOffice(plan: OfficePlan): Office {
   const teamBandH = Math.max(7, bandHeights.reduce((a, b) => a + b, 0)) + 1;
 
   const TOP = 1 + ROOM_H + 1;
-  // Service strip: 6 rows of lobby, then one clear row for the main conveyor belt.
-  const STRIP = 7;
-  const BUS = TOP + STRIP - 1;
+  const STRIP = 6;
   const H = TOP + STRIP + teamBandH + 1;
   const g = new Grid(W, H, ".");
 
@@ -232,9 +230,6 @@ export function generateOffice(plan: OfficePlan): Office {
   g.put(0, sy + 3, "D");
   let sx = 3;
   g.put(sx, sy + 1, "X".repeat(rw));
-  // Your spot: behind the counter, facing the agents who need you.
-  const boss = { x: sx + Math.floor(rw / 2), y: sy };
-  g.put(boss.x, boss.y, "y");
   g.put(sx, sy + 2, "x".repeat(rw));
   g.put(sx, sy + 3, row(rw, (i) => (i % 2 ? "." : "x")));
   sx += rw + 3;
@@ -250,8 +245,6 @@ export function generateOffice(plan: OfficePlan): Office {
   g.put(sx, sy + 2, row(fc * 2 - 1, (i) => (i % 2 ? "." : "f")));
   g.put(1, sy + 5, "P");
   g.put(W - 2, sy + 5, "P");
-  // The production board hangs on the wall over the filing cabinets.
-  const statsBoard = { x: Math.min(W - 4, sx + fc - 1), y: TOP - 1 };
 
   // Team band.
   const teams: TeamArea[] = [];
@@ -283,9 +276,6 @@ export function generateOffice(plan: OfficePlan): Office {
     height: H,
     rooms: roomAreas,
     ...(silo ? { silo } : {}),
-    bus: { y: BUS, x0: 1, x1: W - 2 },
-    boss,
-    statsBoard,
     tiles: g.cells,
     walkable,
     spots,

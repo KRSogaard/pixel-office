@@ -16,7 +16,13 @@ import "./style.css";
 const store = new OfficeStore();
 const overlay = new Overlay(document.getElementById("overlay")!);
 const sfx = new Sfx();
-const board = new StatsBoard(document.getElementById("overlay")!);
+const board = new StatsBoard(document.getElementById("sidebar")!, () => {
+  // The stage changed size: let Phaser pick it up, then fit the office again.
+  requestAnimationFrame(() => {
+    game.scale.refresh();
+    scene.fit();
+  });
+});
 const toasts = new AchievementToasts(document.getElementById("toasts")!, () => sfx.fanfare());
 store.onStats((s) => toasts.observe(s));
 let selected: string | undefined;
@@ -60,9 +66,10 @@ const hud = new Hud(document.getElementById("hud")!, {
   settings: () => settings.toggle(),
   help: () => help.toggle(),
   list: () => list.toggle(store.state),
+  stats: () => board.toggle(),
 });
 
-new Phaser.Game({
+const game = new Phaser.Game({
   type: Phaser.AUTO,
   parent: "stage",
   pixelArt: true,

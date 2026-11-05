@@ -271,9 +271,6 @@ button {
 .badge-opencode {
   background: var(--opencode);
 }
-.badge-boss {
-  background: #f0c45a;
-}
 .badge-other {
   background: var(--other);
 }
@@ -839,47 +836,41 @@ button {
   width: 12em;
 }
 
-/* Production board on the lobby wall. */
-.stats-board {
-  position: absolute;
-  left: 0;
-  top: 0;
-  --zoom: 3;
-  font-size: clamp(8px, calc(var(--zoom) * 2.6px), 11px);
-  translate: -50% 0;
-  width: 17em;
-  padding: 4px 6px 5px;
-  white-space: nowrap;
+/* Production board: a sidebar beside the office, toggled with 📊. */
+#workspace {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+
+#sidebar {
+  display: none;
+  width: 250px;
+  flex: none;
+  overflow-y: auto;
+  padding: 10px 12px;
   background: #11151c;
   color: #c8ffd8;
-  border: 2px solid #3b3f4a;
-  border-top: 3px solid #d9a83a;
-  box-shadow:
-    0 0 10px rgba(90, 240, 122, 0.12),
-    2px 2px 0 rgba(0, 0, 0, 0.4);
-  pointer-events: auto;
-  cursor: pointer;
+  border-right: 2px solid #11131a;
+  box-shadow: 2px 0 0 var(--line);
+  z-index: 3;
+}
+
+#sidebar.open {
+  display: block;
 }
 
 .sb-head {
-  display: flex;
-  justify-content: space-between;
-  gap: 8px;
   color: #d9a83a;
   font-weight: 700;
   letter-spacing: 0.5px;
-  margin-bottom: 3px;
-}
-
-.sb-peak {
-  color: #6b8f78;
-  font-weight: 400;
+  margin-bottom: 6px;
 }
 
 .sb-rows {
   display: grid;
-  grid-template-columns: 1.4em 1fr auto;
-  gap: 0 4px;
+  grid-template-columns: 1.6em 1fr auto;
+  gap: 2px 6px;
 }
 
 .sb-rows b {
@@ -891,7 +882,7 @@ button {
   display: flex;
   align-items: flex-end;
   gap: 1px;
-  height: 20px;
+  height: 30px;
   margin-top: 4px;
   border-bottom: 1px solid #2b3a30;
 }
@@ -902,29 +893,42 @@ button {
   opacity: 0.8;
 }
 
-.sb-sub {
-  margin-top: 6px;
-  color: #d9a83a;
+.sb-hours {
+  display: flex;
+  justify-content: space-between;
+  color: #6b8f78;
+  font-size: 9px;
 }
 
-.sb-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
+.sb-sub {
+  margin: 12px 0 4px;
+  color: #d9a83a;
+  font-size: 10px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
 }
 
 .sb-trophies {
-  white-space: normal;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 3px;
-  font-size: 1.3em;
+  display: grid;
+  gap: 2px;
 }
 
-.sb-trophies span {
-  filter: grayscale(1) brightness(0.4);
+.sb-trophies div {
+  display: grid;
+  grid-template-columns: 1.8em 1fr;
+  align-items: center;
+  color: #4c5a50;
 }
 
-.sb-trophies span.won {
+.sb-trophies div span:first-child {
+  filter: grayscale(1) brightness(0.45);
+}
+
+.sb-trophies div.won {
+  color: #c8ffd8;
+}
+
+.sb-trophies div.won span:first-child {
   filter: none;
 }
 

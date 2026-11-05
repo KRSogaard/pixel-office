@@ -93,10 +93,9 @@ because it's purely about how things look.
 | **Stuck flame** | A flame over the head when an agent has been on one tool call for 10+ minutes. | `Character.setStuck` |
 | **List view** | ☰: everyone as a table, grouped by session, sessions that need you first. | `ui/listview.ts` |
 | **Windows and clock** | Windows show a skyline following the time of day; a wall clock with real hands. | `scene/decor.ts` |
-| **Conveyor belts** | The main bus: a belt row between the lobby and the team areas with a spur into the git room. Every `git commit` pops a crate off the agent's desk; it rides to the silo and fills the cargo gauge (commits not yet pushed). A launch empties it. | `scene/belts.ts`, gauge in `scene/silo.ts` |
+| **Logistic robots** | Every `git commit` sends a little flying robot from the agent's desk to the silo with a crate; it fills the cargo gauge (commits not yet pushed). A launch empties it. (Replaced conveyor belts, which took a whole row of floor.) | `scene/drones.ts`, gauge in `scene/silo.ts` |
 | **Bugs** | Each failed tool call lets a bug loose; it wanders. A passing test run squashes that session's bugs; 9+ bugs swarm the server room; bugs leave after 20 min. | `scene/bugs.ts` |
-| **You** | Your character (★, name from settings) stands behind the reception counter; agents that need you queue in front. Prompts: you walk to the agent's desk with a note. | `scene/boss.ts` |
-| **Production board** | Wall board in the lobby: today's launches, commits, tests and pass rate, edits, bugs, prompts, tool calls per hour; click for all-time and the trophy cabinet. Counters are kept and saved by the server (`/api/stats`, `stats` message). | `ui/board.ts`, `server/src/stats.ts` |
+| **Production sidebar** | 📊 a sidebar beside the office (not over it): today's launches, commits, tests and pass rate, edits, bugs, fires, prompts, tool calls per hour, all-time numbers and the trophy cabinet. Counters are kept and saved by the server (`/api/stats`, `stats` message). | `ui/board.ts`, `server/src/stats.ts` |
 | **Achievements** | 12 trophies (Liftoff, Space Program, Pyromaniac, Green Wall, Crunch Time, Delegator, Night Owl, Marathon, Thousand Cuts, Big Brain, Living Dangerously, Bug Squasher), unlocked by the server, announced with a toast and a fanfare. | `ACHIEVEMENTS` in protocol |
 | **Gossip** | Idle agents in the lounge chat about recent happenings (launches, fires, scary commands, medics, ducks, pizza, squashed bugs), or small talk. | `scene/antics.ts` |
 | **Seasons** | Christmas tree and snowy windows in winter, pumpkins at Halloween, confetti at New Year, balloons and party hats on the office's birthday. `?date=YYYY-MM-DD` previews. | `office/season.ts`, `scene/seasonal.ts` |
@@ -376,7 +375,7 @@ reappears on its next event. The reaper cleans up anything left hanging.
 
 ## 9. Not built (ideas from the first draft you haven't decided on)
 
-- **You in the office**: a "boss" character with a corner office; prompts would be you walking
-  to the agent's desk, permission requests would come to your office.
+- **You in the office**: tried (a character behind the reception counter who walked each
+  prompt to the agent) and removed again — it didn't add enough.
 - **Inferred interactions**: two unrelated agents editing the same file meet at the water cooler
   with a ⚡ bubble as a conflict warning. Useful, but inferred rather than real communication.

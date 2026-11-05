@@ -170,7 +170,6 @@ describe("settings", () => {
     teamsPerRow: 2,
     rugs: false,
     plants: true,
-    bossName: "Kasper",
   };
 
   it("serves defaults, then saves and persists valid settings", async () => {
@@ -198,8 +197,6 @@ describe("settings", () => {
     expect((await send(good, { "x-po-csrf": "1" })).status).toBe(401);
     expect((await send({ ...good, teamsPerRow: 9 }, { cookie, "x-po-csrf": "1" })).status).toBe(400);
     expect((await send({ ...good, roomOrder: ["mail", "mail", "server", "library"] }, { cookie, "x-po-csrf": "1" })).status).toBe(400);
-    expect((await send({ ...good, bossName: "   " }, { cookie, "x-po-csrf": "1" })).status).toBe(400);
-    expect((await send({ ...good, bossName: "x".repeat(31) }, { cookie, "x-po-csrf": "1" })).status).toBe(400);
   });
 });
 

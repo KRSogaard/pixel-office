@@ -10,25 +10,9 @@ const seasonOn = (d: string, since?: string) =>
 describe("office extras", () => {
   const office = generateOffice({ rooms: MIN_ROOMS, teams: [{ sessionId: "s", project: "p", workerSlots: 3 }] });
 
-  it("has a clear row for the conveyor belt and a route from it to the silo", () => {
-    const { y, x0, x1 } = office.bus;
-    for (let x = x0; x <= x1; x++) expect(office.walkable[y]![x], `bus at ${x}`).toBe(true);
-    const git = office.rooms.find((r) => r.kind === "git")!;
-    const path = findPath(office.walkable, { x: git.door.x, y }, { x: office.silo!.x + 1, y: office.silo!.y + 3 });
-    expect(path.length).toBeGreaterThan(0);
-  });
-
-  it("puts you behind the reception counter, reachable from the door", () => {
-    const counter = office.tiles[office.boss.y + 1]![office.boss.x];
-    expect(counter).toBe("X");
-    const door = office.spots.find((s) => s.kind === "door")!;
-    expect(findPath(office.walkable, door, office.boss).length).toBeGreaterThan(0);
-  });
-
-  it("gives every team a printer and hangs the production board on a wall", () => {
+  it("gives every team a printer", () => {
     const t = office.teams[0]!;
     expect(office.tiles[t.printer.y]![t.printer.x]).toBe("Y");
-    expect(office.tiles[office.statsBoard.y]![office.statsBoard.x]).toBe("#");
   });
 });
 

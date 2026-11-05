@@ -1,40 +1,42 @@
 import { ACHIEVEMENTS, type OfficeStats } from "@pixel-office/protocol";
-import type { ScreenPoint } from "./overlay.js";
 
 /**
- * The production board on the lobby wall, Factorio-style: today's launches,
- * commits, test runs and pass rate, edits, bugs on the floor, prompts, and a
- * sparkline of tool calls per hour. Click it for the all-time numbers and the
- * trophy cabinet.
+ * The production board, Factorio-style, in a sidebar next to the office: today's
+ * launches, commits, test runs and pass rate, edits, bugs loose, prompts, a
+ * sparkline of tool calls per hour, the all-time numbers and the trophy cabinet.
+ * The 📊 button shows or hides it.
  */
 export class StatsBoard {
-  private el: HTMLDivElement;
-  private expanded = false;
   private key = "";
 
-  constructor(root: HTMLElement) {
-    this.el = document.createElement("div");
-    this.el.className = "stats-board";
-    this.el.title = "Production stats — click for all time and trophies";
-    this.el.addEventListener("click", (e) => {
-      e.stopPropagation();
-      this.expanded = !this.expanded;
-      this.key = "";
-    });
-    root.append(this.el);
+  constructor(
+    private root: HTMLElement,
+    /** Called after the sidebar opens or closes, so the office can re-fit. */
+    private onToggle: () => void,
+  ) {
+    root.classList.toggle("open", localStorage.getItem("po.sidebar") !== "0");
   }
 
-  render(stats: OfficeStats | undefined, bugs: number, p: ScreenPoint | undefined): void {
-    if (!stats || !p) {
-      this.el.hidden = true;
-      return;
-    }
-    this.el.hidden = false;
-    this.el.style.transform = `translate(${Math.round(p.x)}px, ${Math.round(p.y)}px)`;
-    this.el.style.setProperty("--zoom", String(p.scale));
-    const key = JSON.stringify([stats, bugs, this.expanded]);
+  get isOpen(): boolean {
+    return this.root.classList.contains("open");
+  }
+
+  toggle(): void {
+    this.root.classList.toggle("open");
+    localStorage.setItem("po.sidebar", this.isOpen ? "1" : "0");
+    this.key = "";
+    this.onToggle();
+  }
+
+  render(stats: OfficeStats | undefined, bugs: number): void {
+    if (!this.isOpen) return;
+    const key = JSON.stringify([stats, bugs]);
     if (key === this.key) return;
     this.key = key;
+    if (!stats) {
+      this.root.innerHTML = `<div class="sb-head">PRODUCTION</div><p class="muted">Waiting for the server…</p>`;
+      return;
+    }
 
     const t = stats.today;
     const pass = t.testRuns ? `${Math.round((t.testPasses / t.testRuns) * 100)}%` : "–";
@@ -44,32 +46,37 @@ export class StatsBoard {
       ["🧪", "tests", `${t.testPasses}/${t.testRuns} · ${pass}`],
       ["✏", "edits", String(t.edits)],
       ["🐛", "bugs loose", String(bugs)],
+      ["🔥", "lab fires", String(t.fires)],
       ["💬", "prompts", String(t.prompts)],
+      ["👥", "peak working", String(t.peakWorking)],
     ];
     const max = Math.max(1, ...stats.hourly);
     const spark = stats.hourly
-      .map((v, h) => `<i style="height:${Math.max(1, Math.round((v / max) * 18))}px" title="${h}:00 — ${v} tool calls"></i>`)
+      .map((v, h) => `<i style="height:${Math.max(1, Math.round((v / max) * 28))}px" title="${h}:00 — ${v} tool calls"></i>`)
       .join("");
-    let more = "";
-    if (this.expanded) {
-      const a = stats.allTime;
-      const unlocked = new Set(stats.achievements.map((x) => x.id));
-      more = `
-        <div class="sb-sub">All time · since ${new Date(a.since).toLocaleDateString()}</div>
-        <div class="sb-grid">
-          <span>🚀 ${a.launches}</span><span>📦 ${a.commits}</span><span>🧪 ${a.testPasses}/${a.testRuns}</span>
-          <span>✏ ${a.edits}</span><span>🔥 ${a.fires}</span><span>😱 ${a.scary}</span>
-        </div>
-        <div class="sb-sub">Trophy cabinet · ${unlocked.size}/${ACHIEVEMENTS.length}</div>
-        <div class="sb-trophies">${ACHIEVEMENTS.map(
-          (x) => `<span class="${unlocked.has(x.id) ? "won" : ""}" title="${x.title} — ${x.desc}">${x.icon}</span>`,
-        ).join("")}</div>`;
-    }
-    this.el.innerHTML = `
-      <div class="sb-head">PRODUCTION · today <span class="sb-peak">peak ${t.peakWorking} working</span></div>
+    const a = stats.allTime;
+    const unlocked = new Map(stats.achievements.map((x) => [x.id, x.at]));
+    this.root.innerHTML = `
+      <div class="sb-head">PRODUCTION · today</div>
       <div class="sb-rows">${rows.map(([i, l, v]) => `<span>${i}</span><span>${l}</span><b>${v}</b>`).join("")}</div>
+      <div class="sb-sub">Tool calls per hour</div>
       <div class="sb-spark">${spark}</div>
-      ${more}`;
+      <div class="sb-hours"><span>0</span><span>6</span><span>12</span><span>18</span><span>24</span></div>
+      <div class="sb-sub">All time · since ${new Date(a.since).toLocaleDateString()}</div>
+      <div class="sb-rows">
+        <span>🚀</span><span>launches</span><b>${a.launches}</b>
+        <span>📦</span><span>commits</span><b>${a.commits}</b>
+        <span>🧪</span><span>tests passed</span><b>${a.testPasses}/${a.testRuns}</b>
+        <span>✏</span><span>edits</span><b>${a.edits}</b>
+        <span>🔥</span><span>lab fires</span><b>${a.fires}</b>
+        <span>😱</span><span>scary commands</span><b>${a.scary}</b>
+      </div>
+      <div class="sb-sub">Trophy cabinet · ${unlocked.size}/${ACHIEVEMENTS.length}</div>
+      <div class="sb-trophies">${ACHIEVEMENTS.map((x) => {
+        const at = unlocked.get(x.id);
+        const when = at ? ` — won ${new Date(at).toLocaleDateString()}` : " — locked";
+        return `<div class="${at ? "won" : ""}" title="${x.desc}${when}"><span>${x.icon}</span><span>${x.title}</span></div>`;
+      }).join("")}</div>`;
   }
 }
 

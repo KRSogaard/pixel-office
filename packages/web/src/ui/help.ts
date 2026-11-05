@@ -24,9 +24,8 @@ const ROOMS_TOP: Row[] = [
 
 const ROOMS_MIDDLE: Row[] = [
   { name: "Front door (left wall)", what: "Agents walk in when a session starts and out when it ends." },
-  { name: "Reception counter", what: "You stand behind it (★). Agents that need you — a permission prompt or a question — queue up in front of it, waving with a red !. When you send a prompt, you walk it over to the agent's desk." },
-  { name: "Conveyor belt", what: "The main bus. Every git commit pops a crate off the agent's desk; it rides the belt into the git room and loads into the rocket." },
-  { name: "Production board", what: "On the lobby wall: today's launches, commits, tests and pass rate, edits, bugs, prompts, and activity per hour. Click it for all-time numbers and the trophy cabinet." },
+  { name: "Reception counter", what: "The agent needs you: a permission prompt or a question. It waves, with a red ! — go to your terminal." },
+  { name: "Flying robots", what: "Every git commit sends a little robot from the agent's desk to the silo with a crate. The crate loads into the rocket." },
   { name: "Lounge sofas", what: "Idle: the agent finished its turn and is waiting for your next prompt." },
   { name: "Coffee machine", what: "A coffee break: the agent hit a rate limit or the API is overloaded." },
   { name: "Globe desks", what: "On the web — WebFetch and WebSearch." },
@@ -85,7 +84,7 @@ const EVENTS: Row[] = [
   { name: "Pizza", what: "Five or more agents working at once: crunch time." },
   { name: "Grey smoke + a bug", what: "A tool call failed: a bug escapes and scuttles around. Passing tests squash that session's bugs. Nine or more and they swarm the server room." },
   { name: "Gossip", what: "Idle agents in the lounge chat about what just happened in the office." },
-  { name: "🏆 Toast", what: "An achievement was unlocked. See them all on the production board." },
+  { name: "🏆 Toast", what: "An achievement was unlocked. See them all in the 📊 sidebar." },
   { name: "Seasons", what: "A Christmas tree and snow in winter, pumpkins at Halloween, confetti at New Year, and party hats on the office's birthday." },
   { name: "Sparkles", what: "A sub-agent just appeared next to its manager." },
   { name: "Dark office, lamps on", what: "Night time where you are. The windows show the city outside, and the clock is real." },
@@ -97,6 +96,7 @@ const BAR: Row[] = [
   { name: "🔔", what: "Bell when an agent needs you or finishes." },
   { name: "🖥", what: "Desktop notifications while this tab is in the background." },
   { name: "🔊", what: "Sound effects: rocket launches, the lab alarm, Byte's meow, squashed bugs, keyboards." },
+  { name: "📊", what: "Production sidebar: today's launches, commits, tests and pass rate, bugs, activity per hour, all-time numbers and the trophy cabinet." },
   { name: "☰", what: "List view: everyone in a table (good on a phone)." },
   { name: "⏪", what: "Replay the last two hours." },
   { name: "⚙", what: "Office layout settings (shared with everyone)." },

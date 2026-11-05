@@ -25,7 +25,6 @@ export const settingsSchema = z.object({
   teamsPerRow: z.number().int().min(1).max(4),
   rugs: z.boolean(),
   plants: z.boolean(),
-  bossName: z.string().trim().min(1).max(30),
 }) satisfies z.ZodType<OfficeSettings>;
 
 export type SettingsListener = (s: OfficeSettings) => void;

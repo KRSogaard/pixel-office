@@ -10,8 +10,7 @@ import { OfficePlanner, planKey } from "../office/planner.js";
 import type { OfficeStore } from "../net.js";
 import type { Overlay, ScreenPoint } from "../ui/overlay.js";
 import { Antics } from "./antics.js";
-import { Belts } from "./belts.js";
-import { BOSS_ID, Boss } from "./boss.js";
+import { Drones } from "./drones.js";
 import { Bugs } from "./bugs.js";
 import { Seasonal } from "./seasonal.js";
 import type { Sfx } from "../ui/sounds.js";
@@ -73,9 +72,8 @@ export class OfficeScene extends Phaser.Scene {
   private silo!: RocketSilo;
   private antics!: Antics;
   private decor!: WallDecor;
-  private belts!: Belts;
+  private drones!: Drones;
   private bugs!: Bugs;
-  private boss!: Boss;
   private seasonal!: Seasonal;
   private actors = new Map<string, Actor>();
   private planner = new OfficePlanner();
@@ -128,7 +126,7 @@ export class OfficeScene extends Phaser.Scene {
       if (who) this.deps.overlay.say(who.agent.id, { kind: "message", text: "🚀 Shipped!" }, this.now);
       this.deps.sfx.rocket();
     });
-    this.belts = new Belts(this, () => this.office, () => this.silo.addCargo());
+    this.drones = new Drones(this, () => this.office, () => this.silo.addCargo());
     this.bugs = new Bugs(this, () => this.office);
     this.seasonal = new Seasonal(this, () => this.office, () => this.deps.store.stats?.allTime.since);
     this.seasonal.relocate();
@@ -139,17 +137,6 @@ export class OfficeScene extends Phaser.Scene {
     });
     this.decor = new WallDecor(this, () => this.office, () => this.seasonal.season.snow);
     this.decor.relocate();
-    this.boss = new Boss(this, {
-      office: () => this.office,
-      beside: (agentId, from) => {
-        const target = this.actors.get(agentId);
-        if (!target) return undefined;
-        const at = target.c.destination?.tile ?? target.c.tile;
-        const tile = this.nearestOpenTile(at, from);
-        return tile && { tile, facing: faceToward(tile, at), pose: "stand" };
-      },
-      say: (id, text) => this.deps.overlay.say(id, { kind: "message", text }, this.now),
-    });
     this.antics = new Antics({
       scene: this,
       extras: this.extras,
@@ -203,9 +190,6 @@ export class OfficeScene extends Phaser.Scene {
       points.set(id, this.toScreen(actor.c.x, actor.c.y - 27, cam));
       if (actor.c.destination?.pose === "type" && actor.c.arrived && Math.random() < 0.05) this.deps.sfx.click();
     }
-    this.boss.update(Math.min(delta, 100), time);
-    this.deps.overlay.ensure(this.bossAgent(), {}, () => {});
-    points.set(BOSS_ID, this.toScreen(this.boss.c.x, this.boss.c.y - 27, cam));
     this.deps.overlay.placeAll(points, time);
     this.drawTeamLinks(time);
     this.labelTeams(cam);
@@ -213,11 +197,9 @@ export class OfficeScene extends Phaser.Scene {
     this.extras.update(Math.min(delta, 100), time);
     this.antics.tick(time);
     this.decor.update(time);
-    this.belts.update(Math.min(delta, 100), time);
     this.bugs.update(Math.min(delta, 100), time);
     this.seasonal.update(time);
-    const sb = this.office.statsBoard;
-    this.deps.board.render(this.deps.store.stats, this.bugs.count, this.toScreen((sb.x + 1) * TILE, (sb.y + 1) * TILE + 2, cam));
+    this.deps.board.render(this.deps.store.stats, this.bugs.count);
     if (Math.floor(time / 500) !== Math.floor((time - delta) / 500)) this.lighting.update(this.lightSpots());
     // Shrinking happens on a timer, not on an event, so re-plan now and then.
     if (Math.floor(time / 1000) !== Math.floor((time - delta) / 1000)) this.replan(this.deps.store.state);
@@ -491,9 +473,7 @@ export class OfficeScene extends Phaser.Scene {
     this.pet.relocate();
     this.extras.relocate();
     this.decor.relocate();
-    this.belts.layout();
     this.bugs.relocate();
-    this.boss.relocate();
     this.silo.relocate();
     this.seasonal.relocate();
     if (!this.userMovedCamera) this.fit();
@@ -655,11 +635,6 @@ export class OfficeScene extends Phaser.Scene {
         ]);
         return;
       }
-      case "prompt": {
-        // You walk the prompt over to the agent's desk.
-        this.boss.deliver(actor.agent.id, u.text);
-        return;
-      }
       default:
         say(actor, u.kind, u.text)();
     }
@@ -684,7 +659,7 @@ export class OfficeScene extends Phaser.Scene {
     }
   }
 
-  /** Every new `git commit` sends a crate from the agent's desk down the belt to the silo. */
+  /** Every new `git commit` sends a robot with a crate from the agent's desk to the silo. */
   private shipCommits(actor: Actor, agent: AgentState): void {
     for (const call of agent.recentTools) {
       if (actor.seenCalls?.has(call.callId)) continue;
@@ -692,28 +667,8 @@ export class OfficeScene extends Phaser.Scene {
       if (!/\bgit commit\b/i.test(call.summary)) continue;
       const seat = this.allocator.seatFor(agent);
       const from = seat ? { x: seat.x * TILE + 8, y: (seat.y - 1) * TILE + 8 } : { x: actor.c.x, y: actor.c.y };
-      this.belts.ship(from);
+      this.drones.ship(from);
     }
-  }
-
-  /** You, as an agent-shaped record for the name tag. */
-  private bossAgent(): AgentState {
-    const name = this.deps.store.settings.bossName || "You";
-    return {
-      id: BOSS_ID,
-      source: "boss",
-      sessionId: BOSS_ID,
-      name,
-      project: { path: "", name: "reception" },
-      status: "working",
-      activity: "other",
-      activitySince: 0,
-      openCalls: [],
-      recentTools: [],
-      pendingDelegations: [],
-      startedAt: 0,
-      lastEventAt: 0,
-    };
   }
 
   /** A failed sub-agent: smoke, a sad bubble, and the medics come with a stretcher. */

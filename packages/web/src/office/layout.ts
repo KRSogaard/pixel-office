@@ -16,7 +16,7 @@
  * Tile legend — spots (walkable, agents stand or sit there):
  *   l  library           r  server rack terminal m  mailroom
  *   g  globe desk        f  filing cabinet       j  lab bench spot
- *   z  git console spot  y  your spot (behind the reception counter)
+ *   z  git console spot
  *   k  lounge sofa seat  x  reception (waiting on you)
  *   a  worker desk seat  q  manager's chair
  */
@@ -31,7 +31,6 @@ export type SpotKind =
   | "filing"
   | "lab"
   | "git"
-  | "boss"
   | "lounge"
   | "reception"
   | "seat"
@@ -83,12 +82,7 @@ export interface Office {
   rooms: RoomArea[];
   /** Top-left tile of the rocket silo in the git room. */
   silo?: { x: number; y: number };
-  /** The main conveyor belt: a clear row from x0 to x1. */
-  bus: { y: number; x0: number; x1: number };
-  /** Where you stand: behind the reception counter. */
-  boss: { x: number; y: number };
-  /** Wall tile where the production board hangs. */
-  statsBoard: { x: number; y: number };
+
   /** Layout chars, [y][x]. */
   tiles: string[][];
   walkable: boolean[][];
@@ -106,7 +100,6 @@ export const SPOT_KIND: Record<string, SpotKind> = {
   f: "filing",
   j: "lab",
   z: "git",
-  y: "boss",
   k: "lounge",
   x: "reception",
   a: "seat",
@@ -148,7 +141,7 @@ export function floorAt(tiles: string[][], x: number, y: number): Floor {
 
 function facingFor(tiles: string[][], x: number, y: number, kind: SpotKind): Facing {
   if (kind === "door") return "right";
-  if (kind === "lounge" || kind === "boss") return "down";
+  if (kind === "lounge") return "down";
   if (BLOCKING.has(tiles[y - 1]?.[x] ?? "#")) return "up";
   if (BLOCKING.has(tiles[y + 1]?.[x] ?? "#")) return "down";
   return "up";

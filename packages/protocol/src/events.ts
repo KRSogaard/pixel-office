@@ -130,8 +130,6 @@ export interface OfficeSettings {
   teamsPerRow: number;
   rugs: boolean;
   plants: boolean;
-  /** What your own character in the office is called. */
-  bossName: string;
 }
 
 export const DEFAULT_SETTINGS: OfficeSettings = {
@@ -140,7 +138,6 @@ export const DEFAULT_SETTINGS: OfficeSettings = {
   teamsPerRow: 3,
   rugs: true,
   plants: true,
-  bossName: "You",
 };
 
 /** Counters behind the production board. */

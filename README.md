@@ -23,10 +23,9 @@ What's in the office:
 - **Gags with meaning**: confetti when tests pass, a burning bench after two failures, sweat
   and gasps at `rm -rf`, a courier for MCP calls, the printer for docs, medics for a failed
   sub-agent, a rubber duck for long thinks, pizza when five agents are busy.
-- **A conveyor belt** carrying every commit's crate to the rocket silo, **bugs** that escape
-  from failures and get squashed by passing tests, and **you** at the front desk walking
-  prompts over to your agents.
-- **A production board** with today's numbers, **achievements** with a fanfare, lounge
+- **Flying robots** carrying every commit's crate to the rocket silo, **bugs** that escape
+  from failures and get squashed by passing tests.
+- **A production sidebar (📊)** with today's numbers, **achievements** with a fanfare, lounge
   **gossip** about what just happened, and **seasonal** decorations.
 - **Day and night** following your clock, desk lamps after dark, Byte the office cat, and
   **🔊 sound effects**.
