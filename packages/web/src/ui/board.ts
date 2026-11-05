@@ -62,7 +62,7 @@ export class StatsBoard {
       <div class="sb-sub">Tool calls per hour</div>
       <div class="sb-spark">${spark}</div>
       <div class="sb-hours"><span>0</span><span>6</span><span>12</span><span>18</span><span>24</span></div>
-      <div class="sb-sub">All time · since ${new Date(a.since).toLocaleDateString()}</div>
+      <div class="sb-sub">All time${a.since ? ` · since ${new Date(a.since).toLocaleDateString()}` : ""}</div>
       <div class="sb-rows">
         <span>🚀</span><span>launches</span><b>${a.launches}</b>
         <span>📦</span><span>commits</span><b>${a.commits}</b>

@@ -36,10 +36,13 @@ export function loginPage(error?: string): string {
     color: #1b1d2b; background: #f4b860; border: 3px solid #0f1020; box-shadow: 4px 4px 0 #0f1020;
   }
   button:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0 #0f1020; }
+  .forms { display: grid; gap: 18px; justify-items: center; }
+  .tv input { text-align: center; font-size: 22px; letter-spacing: 6px; text-transform: lowercase; }
   .err { margin: 0 0 14px; padding: 8px; background: #5b2333; border: 3px solid #0f1020; color: #ffd6dc; font-size: 13px; }
 </style>
 </head>
 <body>
+<div class="forms">
 <form method="post" action="/login">
   <h1>pixel<span>-office</span></h1>
   <p>Sign in to watch your agents work.</p>
@@ -48,6 +51,12 @@ export function loginPage(error?: string): string {
   <input id="password" name="password" type="password" autocomplete="current-password" autofocus required>
   <button type="submit">Enter the office</button>
 </form>
+<form method="post" action="/tv" class="tv">
+  <label for="code">Setting up a TV? Enter its code</label>
+  <input id="code" name="code" placeholder="abc-def" maxlength="9" autocomplete="off" autocapitalize="off" spellcheck="false" required>
+  <button type="submit">Show the office</button>
+</form>
+</div>
 </body>
 </html>`;
 }

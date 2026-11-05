@@ -26,3 +26,16 @@ describe("settings store", () => {
     expect(s.rugs).toBe(false);
   });
 });
+
+describe("web version", () => {
+  it("changes when the web build changes, and is 'none' without one", async () => {
+    const { webVersion } = await import("../src/version.js");
+    const dir = mkdtempSync(join(tmpdir(), "po-ver-"));
+    expect(webVersion(dir)).toBe("none");
+    writeFileSync(join(dir, "index.html"), '<script src="/assets/index-aaa.js">');
+    const a = webVersion(dir);
+    writeFileSync(join(dir, "index.html"), '<script src="/assets/index-bbb.js">');
+    expect(webVersion(dir)).not.toBe(a);
+    expect(webVersion(undefined)).toBe("none");
+  });
+});

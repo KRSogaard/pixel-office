@@ -122,11 +122,15 @@ going to the lounge. When tags crowd together they drop their "why" line for a m
   `project · manager · person · ⎇ branch`. The list view and the detail panel show the person.
 - **Roles**: the password or the admin token (`po_a_…`, printed on first start;
   `/admin?token=…` logs you in) make you an *admin* — you can change ⚙ settings and 👥 people.
-  A **TV link** (`/tv?key=po_d_…`, created in 👥 or with `pixel-office display add <name>`)
-  logs a screen in as a *viewer* for a year: it can watch, not change anything. Removing the
-  link logs the screen out.
+  A **TV code** (6 letters, `abc-def`, created in 👥 or with `pixel-office display add <name>`),
+  typed into the login page's "TV code" box or opened as `/tv/abc-def`, logs a screen in as a
+  *viewer* for a year: it can watch, not change anything. Removing the screen logs it out.
+  "New token" / "New code" replace a person's token or a screen's code.
 - **TV mode** (viewers, or `?tv`): no buttons, bigger tags, the office always fitted to the
   screen, the mouse hidden when idle, and a screen wake lock.
+- **Auto-update**: the server sends the web build's id (a hash of `index.html`) on connect and
+  re-checks it every 10 s; a browser that sees a different id than it started with shows
+  "New version" and reloads — so a TV picks up updates on its own.
 - Tokens and keys are stored only as SHA-256 hashes (`DATA_DIR/users.json`, `secrets.json`).
 
 ## 2. How agents connect

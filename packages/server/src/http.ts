@@ -180,14 +180,22 @@ export function createApp(deps: AppDeps): Hono {
     return c.redirect("/?people");
   });
 
-  // A screen (TV): /tv?key=<display key> logs this browser in as a viewer for a year.
-  app.get("/tv", (c) => {
-    if (!allowAttempt(c)) return c.redirect("/login");
-    const display = users?.findDisplayByKey(c.req.query("key") ?? "");
-    if (!display) return c.redirect("/login");
+  // A screen (TV): its 6-letter code logs this browser in as a viewer for a year.
+  // /tv/abc-def, /tv?key=abc-def, or the "TV code" box on the login page (POST /tv).
+  const tvLogin = (c: Context, code: string, fail: () => Response) => {
+    if (!allowAttempt(c)) return fail();
+    const display = users?.findDisplayByKey(code);
+    if (!display) return fail();
     attempts.delete(clientIp(c));
     setSession(c, signSession(secrets.sessionSecret, clock() + VIEWER_TTL_MS, { displayId: display.id }), VIEWER_TTL_MS);
-    return c.redirect("/?tv");
+    return c.redirect("/?tv", 303);
+  };
+  app.get("/tv", (c) => tvLogin(c, c.req.query("key") ?? "", () => c.redirect("/login")));
+  app.get("/tv/:code", (c) => tvLogin(c, c.req.param("code"), () => c.redirect("/login")));
+  app.post("/tv", bodyLimit({ maxSize: 1024, onError: (c) => c.body(null, 413) }), async (c) => {
+    const form = await c.req.parseBody().catch(() => ({}) as Record<string, unknown>);
+    const code = typeof form.code === "string" ? form.code : "";
+    return tvLogin(c, code, () => c.html(loginPage("That TV code didn't work."), 401));
   });
 
   app.get("/api/me", (c) => {
@@ -239,6 +247,14 @@ export function createApp(deps: AppDeps): Hono {
       throw err;
     }
   });
+  // A new token for someone; their old one stops working right away.
+  app.post("/api/users/:id/token", (c) => {
+    const denied = requireAdmin(c, true);
+    if (denied) return denied;
+    const token = users?.regenerateUserToken(c.req.param("id"));
+    return token ? c.json({ token }) : c.body(null, 404);
+  });
+
   app.delete("/api/users/:id", (c) => {
     const denied = requireAdmin(c, true);
     if (denied) return denied;
@@ -254,12 +270,19 @@ export function createApp(deps: AppDeps): Hono {
     const body = (await c.req.json().catch(() => ({}))) as { name?: unknown };
     try {
       const { display, key } = users.addDisplay(body.name, clock());
-      return c.json({ display, key, url: `/tv?key=${key}` }, 201);
+      return c.json({ display, key, code: key, url: `/tv/${key}` }, 201);
     } catch (err) {
       if (err instanceof UserError) return c.json({ error: err.message }, 400);
       throw err;
     }
   });
+  app.post("/api/displays/:id/code", (c) => {
+    const denied = requireAdmin(c, true);
+    if (denied) return denied;
+    const code = users?.regenerateDisplayCode(c.req.param("id"));
+    return code ? c.json({ code, url: `/tv/${code}` }) : c.body(null, 404);
+  });
+
   app.delete("/api/displays/:id", (c) => {
     const denied = requireAdmin(c, true);
     if (denied) return denied;

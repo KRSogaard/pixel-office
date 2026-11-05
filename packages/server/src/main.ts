@@ -16,6 +16,7 @@ import { SettingsStore } from "./settings.js";
 import { StatsTracker } from "./stats.js";
 import { SCENARIOS } from "./simulator/scenarios.js";
 import { simulateRecording, simulateScenario } from "./simulator/run.js";
+import { webVersion } from "./version.js";
 import { attachWebSocket } from "./ws.js";
 
 const USAGE = `pixel-office — a pixel-art office for your coding agents
@@ -30,7 +31,8 @@ Usage:
   pixel-office user add <name>               Add a person; prints their own ingest token once
   pixel-office user list                     List people
   pixel-office user remove <name>            Remove a person (their token stops working)
-  pixel-office display add <name>            Add a TV / screen; prints its link (open it once on the screen)
+  pixel-office user token <name>             Give a person a new token (the old one stops working)
+  pixel-office display add <name>            Add a TV / screen; prints its 6-letter code (abc-def)
   pixel-office display list                  List screens
   pixel-office display remove <name>         Remove a screen (it is logged out)
   pixel-office install-opencode              Install the OpenCode plugin into ~/.config/opencode/plugins
@@ -115,6 +117,14 @@ function manage(kind: "user" | "display", action: string | undefined, name: stri
       for (const u of list) console.log(`${u.name}\tadded ${new Date(u.createdAt).toLocaleString()}\t${u.lastSeenAt ? `last seen ${new Date(u.lastSeenAt).toLocaleString()}` : "not seen yet"}`);
       return;
     }
+    if (kind === "user" && action === "token") {
+      need();
+      const id = users.findUserIdByName(name);
+      const token = id && users.regenerateUserToken(id);
+      if (!token) throw new Error(`No one called "${name}".`);
+      console.log(`New token for ${name} (shown once; the old one no longer works):\n  ${token}`);
+      return;
+    }
     if (kind === "user" && action === "remove") {
       need();
       if (!users.removeUserByName(name)) throw new Error(`No one called "${name}".`);
@@ -123,7 +133,7 @@ function manage(kind: "user" | "display", action: string | undefined, name: stri
     if (kind === "display" && action === "add") {
       need();
       const { display, key } = users.addDisplay(name);
-      console.log(`Added screen "${display.name}". Open this once on it (prefix your server's address):\n  /tv?key=${key}`);
+      console.log(`Added screen "${display.name}". Its TV code:\n\n    ${key}\n\nOn the screen, open the office and type the code in the "TV code" box (or go to /tv/${key}).`);
       return;
     }
     if (kind === "display" && action === "list") {
@@ -159,7 +169,7 @@ function runServe(): void {
     if (!config.webDir) console.log("  (web app not found — run `pnpm build` or set PIXEL_OFFICE_WEB_DIR)");
     if (config.recordPath) console.log(`  recording events to ${config.recordPath}`);
   }) as Server;
-  attachWebSocket(server, hub, secrets, settings, stats, users);
+  attachWebSocket(server, hub, secrets, settings, stats, users, () => webVersion(config.webDir));
   startReaper(hub, config);
 
   if (generated.password || generated.ingestToken || generated.adminToken) {

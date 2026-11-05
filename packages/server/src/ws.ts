@@ -13,6 +13,7 @@ const SNAPSHOT_EVERY_MS = 30_000;
 const PING_EVERY_MS = 25_000;
 /** Stats go out at most this often, and only when they changed. */
 const STATS_EVERY_MS = 5000;
+const VERSION_EVERY_MS = 10_000;
 
 function readCookie(header: string | undefined, name: string): string | undefined {
   if (!header) return undefined;
@@ -45,6 +46,8 @@ export function attachWebSocket(
   settings: SettingsStore,
   stats?: StatsTracker,
   users?: UsersStore,
+  /** The web app's build id (see version.ts); re-checked every few seconds. */
+  version: () => string = () => "none",
 ): () => void {
   const wss = new WebSocketServer({ noServer: true, maxPayload: 4 * 1024 });
   const alive = new WeakMap<WebSocket, boolean>();
@@ -67,7 +70,19 @@ export function attachWebSocket(
     send(ws, { t: "snapshot", state: hub.snapshot });
     send(ws, { t: "settings", settings: settings.get() });
     if (stats) send(ws, { t: "stats", stats: stats.get() });
+    send(ws, { t: "version", id: currentVersion });
   });
+
+  // A new build of the web app (`pnpm build` while running, or a restart with a new one):
+  // tell every browser so it reloads.
+  let currentVersion = version();
+  const versionTimer = setInterval(() => {
+    const id = version();
+    if (id === currentVersion) return;
+    currentVersion = id;
+    for (const ws of wss.clients) send(ws, { t: "version", id });
+  }, VERSION_EVERY_MS);
+  versionTimer.unref();
 
   let statsSent = stats?.changes ?? 0;
   const statsTimer = setInterval(() => {
@@ -108,6 +123,7 @@ export function attachWebSocket(
     unsubscribeSettings();
     clearInterval(snapshotTimer);
     clearInterval(statsTimer);
+    clearInterval(versionTimer);
     clearInterval(pingTimer);
     wss.close();
   };

@@ -26,6 +26,9 @@ export class OfficeStore {
   state: OfficeState = emptyState();
   settings: OfficeSettings = DEFAULT_SETTINGS;
   stats: OfficeStats | undefined;
+  /** Build id of the web app this page was loaded from (see the server's version.ts). */
+  version: string | undefined;
+  private versionListeners = new Set<(id: string) => void>();
   private statsListeners = new Set<(s: OfficeStats) => void>();
   status: ConnectionStatus = "connecting";
   mode: StoreMode = "live";
@@ -49,6 +52,11 @@ export class OfficeStore {
     fn(this.status);
   }
 
+  /** Called when the server starts serving a newer build of the web app. */
+  onNewVersion(fn: (id: string) => void): void {
+    this.versionListeners.add(fn);
+  }
+
   onStats(fn: (s: OfficeStats) => void): void {
     this.statsListeners.add(fn);
     if (this.stats) fn(this.stats);
@@ -64,6 +72,12 @@ export class OfficeStore {
     if (msg.t === "settings") {
       this.settings = { ...DEFAULT_SETTINGS, ...msg.settings };
       for (const fn of this.settingsListeners) fn(this.settings);
+      return;
+    }
+    if (msg.t === "version") {
+      // The first id is the build this page came from; a different one later means a new build.
+      if (this.version === undefined) this.version = msg.id;
+      else if (msg.id !== this.version) for (const fn of this.versionListeners) fn(msg.id);
       return;
     }
     if (msg.t === "stats") {

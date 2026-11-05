@@ -101,16 +101,20 @@ const BAR: Row[] = [
   { name: "☰", what: "List view: everyone in a table (good on a phone)." },
   { name: "⏪", what: "Replay the last two hours." },
   { name: "⚙", what: "Office layout settings (shared with everyone). Admins only." },
-  { name: "👥", what: "People and TV links: give each person their own token (their agents carry their name), and make read-only links for screens in the office. Admins only." },
+  { name: "👥", what: "People and TV screens: give each person their own token (their agents carry their name; “New token” replaces it), and add screens for the office — each gets a 6-letter code like abc-def to type in on the TV. Admins only." },
   { name: "privacy", what: "Hide prompts and messages, e.g. when screen sharing." },
   { name: "− ▣ +", what: "Zoom out, fit the office, zoom in. You can also drag and scroll." },
   { name: "Green square", what: "Connected to the server. Red: reconnecting." },
 ];
 
 export class HelpPanel {
-  constructor(private root: HTMLElement) {
+  /** `autoOpen`: open on the first visit (not when arriving to set up people, or on a TV). */
+  constructor(
+    private root: HTMLElement,
+    autoOpen = true,
+  ) {
     this.render();
-    if (!localStorage.getItem(SEEN_KEY)) this.open();
+    if (autoOpen && !localStorage.getItem(SEEN_KEY)) this.open();
   }
 
   toggle(): void {

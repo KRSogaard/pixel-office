@@ -168,15 +168,28 @@ describe("TV links and viewers", () => {
   it("logs a screen in as a viewer for a year and opens TV mode", async () => {
     const { app, users, secrets } = setup();
     const { key } = users.addDisplay("Office TV");
-    const res = await app.request(`/tv?key=${key}`);
-    expect(res.status).toBe(302);
+    expect(key).toMatch(/^[a-z]{3}-[a-z]{3}$/);
+    const res = await app.request(`/tv/${key}`);
+    expect(res.status).toBe(303);
     expect(res.headers.get("location")).toBe("/?tv");
     expect(res.headers.get("set-cookie")).toMatch(/Max-Age=31536000/);
     const s = readSession(secrets.sessionSecret, cookieOf(res).split("=")[1]);
     expect(s?.role).toBe("viewer");
 
-    const bad = await app.request("/tv?key=po_d_wrong");
+    const bad = await app.request("/tv/aaa-aaa");
     expect(bad.headers.get("location")).toBe("/login");
+  });
+
+  it("accepts the code typed on the login page, in any case or spacing", async () => {
+    const { app, users } = setup();
+    const { key } = users.addDisplay("Kitchen TV");
+    const typed = key.toUpperCase().replace("-", " ");
+    const ok = await app.request("/tv", { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: `code=${encodeURIComponent(typed)}` });
+    expect(ok.status).toBe(303);
+    expect(ok.headers.get("location")).toBe("/?tv");
+    const bad = await app.request("/tv", { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: "code=zzz-zzz" });
+    expect(bad.status).toBe(401);
+    expect(await bad.text()).toContain("That TV code didn");
   });
 
   it("lets a viewer watch but not change anything", async () => {
@@ -233,8 +246,40 @@ describe("admin API", () => {
     const d = await app.request("/api/displays", { method: "POST", headers: h, body: JSON.stringify({ name: "Office TV" }) });
     expect(d.status).toBe(201);
     const { display, key, url } = (await d.json()) as { display: { id: string }; key: string; url: string };
-    expect(url).toBe(`/tv?key=${key}`);
+    expect(url).toBe(`/tv/${key}`);
     expect(((await (await app.request("/api/displays", { headers: { cookie: admin } })).json()) as unknown[]).length).toBe(1);
     expect((await app.request(`/api/displays/${display.id}`, { method: "DELETE", headers: h })).status).toBe(204);
+  });
+});
+
+describe("tokens and codes", () => {
+  it("makes readable 6-letter TV codes and normalizes what people type", async () => {
+    const { newTvCode, normalizeTvCode } = await import("../src/users.js");
+    for (let i = 0; i < 200; i++) expect(newTvCode()).toMatch(/^[abcdefghjkmnpqrstuvwxyz]{3}-[abcdefghjkmnpqrstuvwxyz]{3}$/);
+    expect(normalizeTvCode(" KMB tqr ")).toBe("kmb-tqr");
+    expect(normalizeTvCode("kmbtqr")).toBe("kmb-tqr");
+    expect(normalizeTvCode("kmb-tq")).toBeUndefined();
+    expect(normalizeTvCode("kmo-tqr")).toBeUndefined(); // no o, i or l
+  });
+
+  it("regenerates a person's token: the new one works, the old one doesn't", async () => {
+    const { app, users } = setup();
+    const { user, token } = users.addUser("Morten");
+    const admin = cookieOf(await app.request("/login", { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: "password=hunter2" }));
+    const res = await app.request(`/api/users/${user.id}/token`, { method: "POST", headers: { cookie: admin, "x-po-csrf": "1" } });
+    expect(res.status).toBe(200);
+    const { token: fresh } = (await res.json()) as { token: string };
+    expect(fresh).not.toBe(token);
+    expect(users.findUserByToken(token)).toBeUndefined();
+    expect(users.findUserByToken(fresh)?.name).toBe("Morten");
+  });
+
+  it("gives a screen a new code; the old code stops working", async () => {
+    const { users } = setup();
+    const { display, key } = users.addDisplay("Lobby");
+    const fresh = users.regenerateDisplayCode(display.id)!;
+    expect(fresh).toMatch(/^[a-z]{3}-[a-z]{3}$/);
+    expect(users.findDisplayByKey(key)).toBeUndefined();
+    expect(users.findDisplayByKey(fresh)?.name).toBe("Lobby");
   });
 });

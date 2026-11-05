@@ -1079,6 +1079,16 @@ body:not(.admin) .admin-only {
   white-space: pre-wrap;
 }
 
+.tv-code {
+  margin: 8px 0;
+  font-size: 34px;
+  font-weight: 700;
+  letter-spacing: 8px;
+  text-align: center;
+  color: #f0c45a;
+  user-select: all;
+}
+
 #people .err {
   color: var(--hot);
 }

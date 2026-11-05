@@ -166,16 +166,18 @@ Admin token        : po_a_…
 ```
 
 Open the setup link (or log in with the admin token instead of the password) to land in the
-⚙ **People** panel as an admin. The token is stored hashed and can't be shown again; to get a
+👥 **People** panel as an admin. The token is stored hashed and can't be shown again; to get a
 new one: `pixel-office token --admin --rotate` (restart the server afterwards). You can also
 pin it with `PIXEL_OFFICE_ADMIN_TOKEN`.
 
 ### Add a person
 
-In ⚙ **People**, add a name — their token is shown **once**. Or on the server:
+In 👥 **People**, add a name — their token is shown **once**. Lost it? **New token** gives them
+a fresh one (the old one stops working). Or on the server:
 
 ```sh
 pixel-office user add Morten        # prints Morten's token once
+pixel-office user token Morten      # a new token; the old one stops working
 pixel-office user list
 pixel-office user remove Morten     # his token stops working
 ```
@@ -189,17 +191,21 @@ pose as someone else. The shared ingest token keeps working, without a name.
 
 ### Put the office on a TV
 
-In ⚙ **TV links**, create a link — or on the server:
+In 👥 **TV screens**, add a screen — you get a 6-letter code like **`kmb-tqr`**. Or on the server:
 
 ```sh
-pixel-office display add "Office TV"   # prints /tv?key=po_d_…
+pixel-office display add "Office TV"   # prints its code, e.g. kmb-tqr
 pixel-office display list
 pixel-office display remove "Office TV" # logs that screen out
 ```
 
-Open `http://<server>:8790/tv?key=po_d_…` **once** on the TV. That browser stays logged in for a
-year as a **viewer**: it can watch, but can't change settings or people. Removing the link logs
-the screen out.
+On the TV, open the office (`http://<server>:8790`) and type the code into the **TV code** box
+on the login page — or go straight to `http://<server>:8790/tv/kmb-tqr`. That browser stays
+logged in for a year as a **viewer**: it can watch, but can't change settings or people.
+When you update the server (`git pull && pnpm start`), open browsers — the TV included —
+notice the new version and reload themselves. Removing the screen logs it out; **New code** replaces a lost code (a TV that's already logged
+in stays logged in). Codes skip i, l and o so they're easy to read; wrong guesses count
+against the login rate limit.
 
 ## Development
 

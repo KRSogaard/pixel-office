@@ -213,4 +213,6 @@ export type ServerMessage =
   | { t: "snapshot"; state: import("./state.js").OfficeState }
   | { t: "event"; e: AgentEvent }
   | { t: "settings"; settings: OfficeSettings }
-  | { t: "stats"; stats: OfficeStats };
+  | { t: "stats"; stats: OfficeStats }
+  /** Which build of the web app the server is serving; browsers reload when it changes. */
+  | { t: "version"; id: string };

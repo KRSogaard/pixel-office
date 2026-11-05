@@ -58,6 +58,27 @@ function newSecret(prefix: string): string {
   return prefix + randomBytes(32).toString("base64url");
 }
 
+/** Letters for TV codes: no i, l or o, so a code is easy to read off a screen and type. */
+const CODE_LETTERS = "abcdefghjkmnpqrstuvwxyz";
+
+/** A TV code: six letters written "abc-def" (23^6 ≈ 148 million codes). */
+export function newTvCode(): string {
+  let s = "";
+  while (s.length < 6) {
+    const b = randomBytes(1)[0]!;
+    // Skip the top of the byte range so every letter is equally likely.
+    if (b < 256 - (256 % CODE_LETTERS.length)) s += CODE_LETTERS[b % CODE_LETTERS.length];
+  }
+  return `${s.slice(0, 3)}-${s.slice(3)}`;
+}
+
+/** "ABC DEF", "abcdef", " abc-def " → "abc-def"; anything else → undefined. */
+export function normalizeTvCode(input: string): string | undefined {
+  const letters = input.toLowerCase().replace(/[^a-z]/g, "");
+  if (letters.length !== 6 || [...letters].some((c) => !CODE_LETTERS.includes(c))) return undefined;
+  return `${letters.slice(0, 3)}-${letters.slice(3)}`;
+}
+
 function cleanName(name: unknown): string {
   if (typeof name !== "string") throw new UserError("invalid", "name must be a string");
   const n = name.trim();
@@ -145,14 +166,42 @@ export class UsersStore {
     return this.data.displays.map(publicDisplay);
   }
 
+  /** Give someone a new token; the old one stops working at once. */
+  regenerateUserToken(id: string): string | undefined {
+    this.refresh();
+    const u = this.data.users.find((x) => x.id === id);
+    if (!u) return undefined;
+    const token = newSecret(USER_PREFIX);
+    u.tokenHash = hashToken(token);
+    this.save();
+    return token;
+  }
+
+  findUserIdByName(name: string): string | undefined {
+    return this.findByName(this.data.users, name)?.id;
+  }
+
   addDisplay(name: unknown, now = Date.now()): { display: DisplayLink; key: string } {
     this.refresh();
     const n = cleanName(name);
-    const key = newSecret(DISPLAY_PREFIX);
+    let key = newTvCode();
+    while (this.findDisplayByKey(key)) key = newTvCode();
     const stored: StoredDisplay = { id: randomUUID(), name: n, keyHash: hashToken(key), createdAt: now };
     this.data.displays.push(stored);
     this.save();
     return { display: publicDisplay(stored), key };
+  }
+
+  /** A new TV code for a screen. Screens already logged in stay logged in. */
+  regenerateDisplayCode(id: string): string | undefined {
+    this.refresh();
+    const d = this.data.displays.find((x) => x.id === id);
+    if (!d) return undefined;
+    let code = newTvCode();
+    while (this.findDisplayByKey(code)) code = newTvCode();
+    d.keyHash = hashToken(code);
+    this.save();
+    return code;
   }
 
   removeDisplay(id: string): boolean {
@@ -169,10 +218,12 @@ export class UsersStore {
     return d ? this.removeDisplay(d.id) : false;
   }
 
+  /** A TV code (any spacing/case) — or a long key from before TV codes existed. */
   findDisplayByKey(key: string): DisplayLink | undefined {
-    if (!key.startsWith(DISPLAY_PREFIX)) return undefined;
+    const code = key.startsWith(DISPLAY_PREFIX) ? key : normalizeTvCode(key);
+    if (!code) return undefined;
     this.refresh();
-    const h = hashToken(key);
+    const h = hashToken(code);
     let found: StoredDisplay | undefined;
     for (const d of this.data.displays) if (sameHash(h, d.keyHash)) found = d;
     return found && publicDisplay(found);

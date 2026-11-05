@@ -27,6 +27,15 @@ const board = new StatsBoard(document.getElementById("sidebar")!, () => {
 });
 const toasts = new AchievementToasts(document.getElementById("toasts")!, () => sfx.fanfare());
 store.onStats((s) => toasts.observe(s));
+
+// The server has a new build: say so briefly, then reload (great for a TV nobody touches).
+store.onNewVersion(() => {
+  const note = document.createElement("div");
+  note.className = "toast";
+  note.innerHTML = `<span class="toast-icon">✨</span><div><b>New version</b><div class="muted">Reloading…</div></div>`;
+  document.getElementById("toasts")!.append(note);
+  setTimeout(() => location.reload(), 2000);
+});
 let selected: string | undefined;
 
 const panel = new Panel(document.getElementById("panel")!, () => select(undefined));
@@ -45,7 +54,8 @@ const replay = new Replay(document.getElementById("replay")!, store, () => {
 });
 const settings = new SettingsPanel(document.getElementById("settings")!, store);
 const people = new PeoplePanel(document.getElementById("people")!);
-const help = new HelpPanel(document.getElementById("help")!);
+const startParams = new URLSearchParams(location.search);
+const help = new HelpPanel(document.getElementById("help")!, !startParams.has("people") && !startParams.has("tv"));
 const list = new ListView(document.getElementById("list")!, (id) => select(id), (sessionId) => scene.colorOf(sessionId));
 
 const hud = new Hud(document.getElementById("hud")!, {
