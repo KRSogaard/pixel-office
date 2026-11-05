@@ -88,7 +88,7 @@ const EVENTS: Row[] = [
   { name: "Seasons", what: "A Christmas tree and snow in winter, pumpkins at Halloween, confetti at New Year, and party hats on the office's birthday." },
   { name: "Sparkles", what: "A sub-agent just appeared next to its manager." },
   { name: "Dark office, lamps on", what: "Night time where you are. The windows show the city outside, and the clock is real." },
-  { name: "★ Visitors", what: "Now and then someone drops by: the Visionary CEO on a scooter, the Consultant, the Lost Intern, the Investor (who reads today's numbers), Grandpa Cobol with his walking stick — and the Auditor, who turns up after a scary command." },
+  { name: "★ Visitors", what: "Now and then someone drops by: Elon Musk on a scooter, Donald Trump, the Consultant, the Lost Intern, the Investor (who reads today's numbers), Grandpa Cobol with his walking stick — and the Auditor, who turns up after a scary command." },
   { name: "Orange cat", what: "Byte, the office cat. Click for a purr. Sometimes sits on keyboards." },
 ];
 

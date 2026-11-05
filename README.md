@@ -27,7 +27,7 @@ What's in the office:
   from failures and get squashed by passing tests.
 - **A production sidebar (📊)** with today's numbers, **achievements** with a fanfare, lounge
   **gossip** about what just happened, and **seasonal** decorations.
-- **Visitors** dropping by now and then — the Visionary CEO, the Consultant, the Lost Intern,
+- **Visitors** dropping by now and then — Elon Musk, Donald Trump, the Consultant, the Lost Intern,
   the Investor, Grandpa Cobol, and the Auditor (after a scary command).
 - **Day and night** following your clock, desk lamps after dark, Byte the office cat, and
   **🔊 sound effects**.

@@ -6,19 +6,21 @@ import type { Point } from "../office/pathfind.js";
 import { Character, type Destination, type Step } from "./Character.js";
 
 /**
- * Visitors: fictional characters who drop by now and then, wander a few stops,
- * say something silly, and leave. Most come at random (every 3–8 minutes);
+ * Visitors: familiar faces and office characters who drop by now and then,
+ * wander a few stops, say something silly, and leave. Most come at random
+ * (every 3–8 minutes);
  * some react to what's really going on — the Auditor turns up after a scary
  * command, the Investor comments on today's numbers.
  *
  * `?visitors=fast` in the URL brings one every ~20 seconds, for a preview.
  */
 
-export type VisitorKind = "ceo" | "consultant" | "intern" | "auditor" | "investor" | "grandpa";
+export type VisitorKind = "ceo" | "trump" | "consultant" | "intern" | "auditor" | "investor" | "grandpa";
 
 const skin = { skin: "#f6d3b3", skinShade: "#e3b48f" };
 const LOOKS: Record<VisitorKind, Appearance> = {
   ceo: { ...skin, hair: "#2b2118", hairStyle: 0, shirt: "#1d1f27", shirtShade: "#111216", pants: "#3d4a8a", shoes: "#e8e8e8" },
+  trump: { ...skin, hair: "#e2b75c", hairStyle: 2, shirt: "#2f3a56", shirtShade: "#e8e8e8", pants: "#2f3a56", shoes: "#1e1e22" },
   consultant: { ...skin, hair: "#5a3a22", hairStyle: 2, shirt: "#2f3a56", shirtShade: "#e8e8e8", pants: "#2f3a56", shoes: "#1e1e22" },
   intern: { ...skin, hair: "#a5682f", hairStyle: 1, shirt: "#6fbf73", shirtShade: "#4f9a52", pants: "#46566e", shoes: "#e8e8e8" },
   auditor: { skin: "#eac09a", skinShade: "#d19f77", hair: "#7d8590", hairStyle: 0, shirt: "#5c6370", shirtShade: "#3b3f4a", pants: "#3b3f4a", shoes: "#1e1e22" },
@@ -27,7 +29,8 @@ const LOOKS: Record<VisitorKind, Appearance> = {
 };
 
 const NAMES: Record<VisitorKind, string> = {
-  ceo: "The Visionary CEO",
+  ceo: "Elon Musk",
+  trump: "Donald Trump",
   consultant: "The Consultant",
   intern: "The Lost Intern",
   auditor: "The Auditor",
@@ -44,6 +47,15 @@ const LINES: Record<VisitorKind, string[]> = {
     "I had an idea in the shower. Drop everything.",
     "Why isn't this on the blockchain yet?",
     "Great. Now do it 10× faster.",
+    "I'll buy the repository and rename it X.",
+    "What if the compiler was also a car?",
+    "This office needs more lasers.",
+  ],
+  trump: [
+    "This is the best code I have ever seen, and trust me, I know code.",
+    "Nobody refactors like me. Everybody says so.",
+    "We're going to build a firewall, and the bugs are going to pay for it.",
+    "This codebase is huge. The biggest. Possibly ever.",
   ],
   consultant: [
     "Have you considered microservices?",
@@ -52,6 +64,9 @@ const LINES: Record<VisitorKind, string[]> = {
     "Have you tried a framework for your framework?",
     "We should align on the alignment.",
     "That'll be four hours, billed as eight.",
+    "That's not a bug. It's an unmonetized feature.",
+    "Let's take this offline. Then back online. Billable both ways.",
+    "I can optimize that, but first we'll need a committee.",
   ],
   intern: [
     "Is this the git room? Which branch am I on?",
@@ -60,6 +75,9 @@ const LINES: Record<VisitorKind, string[]> = {
     "Wait, the AIs do all the work?",
     "Is this the coffee machine? It says SILO.",
     "Do I have to go to the stand-up?",
+    "I ran npm install and now my laptop is hot.",
+    "Can I force-push if I leave a nice note?",
+    "The error says 'skill issue'. Is that a dependency?",
   ],
   auditor: [
     "I'll need a word about that command.",
@@ -67,8 +85,18 @@ const LINES: Record<VisitorKind, string[]> = {
     "Do we have a change ticket for this?",
     "I'll be taking notes. Carry on.",
     "Interesting. Very interesting.",
+    "Who approved this semicolon?",
+    "I'll need receipts. Even the digital ones.",
+    "I see someone clicked the dangerous merge button.",
   ],
-  investor: [],
+  investor: [
+    "Love the energy here.",
+    "What's the burn rate on these tokens?",
+    "Is it AI-native though?",
+    "Can we put this on a slide?",
+    "What's the exit strategy for this semicolon?",
+    "I don't understand it, but I love the valuation.",
+  ],
   grandpa: [
     "Back in my day we compiled overnight.",
     "Is that a mouse? We used punch cards.",
@@ -76,6 +104,9 @@ const LINES: Record<VisitorKind, string[]> = {
     "COBOL never needed a framework.",
     "I'll just rest my eyes for a minute.",
     "We had one byte. And we were grateful.",
+    "The cloud? In my day, that meant rain in the server room.",
+    "Debugging used to involve actual moths.",
+    "My first computer had less memory than this sandwich.",
   ],
 };
 
@@ -126,7 +157,7 @@ export class Visitors {
   update(dtMs: number, now: number): void {
     if (now > this.nextAt && this.visitors.length < 2) {
       this.nextAt = now + Phaser.Math.Between(NEXT_MS[0]!, NEXT_MS[1]!);
-      const kinds: VisitorKind[] = ["ceo", "consultant", "intern", "investor", "grandpa"];
+      const kinds: VisitorKind[] = ["ceo", "trump", "consultant", "intern", "investor", "grandpa"];
       const choices = kinds.filter((k) => k !== this.lastKind);
       this.arrive(choices[Math.floor(Math.random() * choices.length)]!);
     }
@@ -177,6 +208,8 @@ export class Visitors {
     switch (v.kind) {
       case "ceo":
         return [toAgent(), line(), hold(2600), this.goto(v, () => this.spot("git"), run), line(), hold(2600), toAgent(), line(), hold(2600)];
+      case "trump":
+        return [toAgent(), line(), hold(3200), this.goto(v, () => this.spot("git")), line(), hold(3200)];
       case "consultant":
         return [toAgent(), line(), hold(2800), toAgent(), line(), hold(2800), say("📄 I'll leave my invoice here."), hold(2000)];
       case "intern":
@@ -190,7 +223,7 @@ export class Visitors {
         return [toAgent(who), say(target ? LINES.auditor[0]! : pick(LINES.auditor)), hold(3000), say("📋 *writes something down*"), hold(2200)];
       }
       case "investor":
-        return [toSpot("git"), say(this.investorLine("launches")), hold(3000), toSpot("lab"), say(this.investorLine("tests")), hold(3000), toAgent(), say(pick(["Love the energy here.", "What's the burn rate on these tokens?", "Is it AI-native though?"])), hold(2600)];
+        return [toSpot("git"), say(this.investorLine("launches")), hold(3000), toSpot("lab"), say(this.investorLine("tests")), hold(3000), toAgent(), line(), hold(2600)];
       case "grandpa":
         return [toSpot("lounge"), { type: "do", fn: () => v.c.goTo({ tile: v.c.tile, facing: "down", pose: "lounge" }) }, line(), hold(4000), line(), hold(9000), say("Zzz…"), hold(5000), line(), hold(2600)];
     }
@@ -251,6 +284,9 @@ export class Visitors {
         g.fillStyle(0x7d8590, 1).fillRect(x + 4, y - 14, 1, 13);
         g.fillStyle(0x3b3f4a, 1).fillRect(x + 2, y - 14, 5, 1);
         g.fillStyle(0x1d1f27, 1).fillRect(x - 6, y, 3, 2).fillRect(x + 3, y, 3, 2);
+        break;
+      case "trump": // red tie
+        g.fillStyle(0xc0504d, 1).fillRect(x, y - 14, 1, 5);
         break;
       case "consultant": // laptop under the arm
         g.fillStyle(0xa9b0ba, 1).fillRect(x + 4, y - 13, 6, 4);

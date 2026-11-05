@@ -850,7 +850,8 @@ export class OfficeScene extends Phaser.Scene {
 
 /** What the office says after each kind of visitor leaves. */
 const VISITOR_GOSSIP: Record<VisitorKind, [string, string]> = {
-  ceo: ["Did the CEO just say Mars again?", "Q3. Sure."],
+  ceo: ["Did Elon just say Mars again?", "Q3. Sure."],
+  trump: ["Donald Trump says our code is the best.", "Tremendous. Everyone says so."],
   consultant: ["Who let the consultant in?", "That chat cost us $2,000."],
   intern: ["Did anyone help the intern find the exit?", "He's in the silo."],
   auditor: ["The Auditor was here 😬", "Act natural."],
