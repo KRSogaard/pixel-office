@@ -1173,6 +1173,33 @@ body.tv-idle * {
   cursor: none !important;
 }
 
+/* Keep-awake video: invisible, but it must be "on screen" for iOS to count it. */
+.keep-awake {
+  position: fixed;
+  left: 0;
+  bottom: 0;
+  width: 2px;
+  height: 2px;
+  opacity: 0.01;
+  pointer-events: none;
+}
+
+.tap-awake {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  translate: -50% 0;
+  padding: 12px 20px;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 700;
+  color: #11131a;
+  background: #f0c45a;
+  border: 3px solid #11131a;
+  box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.45);
+  z-index: 20;
+}
+
 /* The way out of TV mode: shown while the mouse moves, gone when it's idle. */
 .tv-exit {
   position: fixed;

@@ -129,7 +129,7 @@ describe("admin login", () => {
     const me = await app.request("/api/me", { headers: { cookie: cookieOf(res) } });
     expect(await me.json()).toEqual({ role: "admin" });
     const bad = await app.request("/admin?token=po_a_wrong");
-    expect(bad.headers.get("location")).toBe("/login");
+    expect(bad.headers.get("location")).toMatch(/^\/login/);
     expect(bad.headers.get("set-cookie")).toBeNull();
   });
 
@@ -140,7 +140,7 @@ describe("admin login", () => {
     for (const secret of ["shared-tok", token, key]) {
       expect((await app.request("/login", form(secret))).status).toBe(401);
       const link = await app.request(`/admin?token=${encodeURIComponent(secret)}`);
-      expect(link.headers.get("location")).toBe("/login");
+      expect(link.headers.get("location")).toMatch(/^\/login/);
     }
   });
 
@@ -148,7 +148,7 @@ describe("admin login", () => {
     const { app } = setup();
     for (let i = 0; i < 10; i++) await app.request("/admin?token=po_a_wrong");
     const blocked = await app.request(`/admin?token=${ADMIN_TOKEN}`);
-    expect(blocked.headers.get("location")).toBe("/login");
+    expect(blocked.headers.get("location")).toMatch(/^\/login/);
   });
 
   it("generates the admin token once, stores only its hash, and can rotate it", () => {
@@ -177,7 +177,7 @@ describe("TV links and viewers", () => {
     expect(s?.role).toBe("viewer");
 
     const bad = await app.request("/tv/aaa-aaa");
-    expect(bad.headers.get("location")).toBe("/login");
+    expect(bad.headers.get("location")).toMatch(/^\/login/);
   });
 
   it("accepts the code typed on the login page, in any case or spacing", async () => {
@@ -214,7 +214,7 @@ describe("TV links and viewers", () => {
     const viewer = cookieOf(await app.request(`/tv?key=${key}`));
     users.removeDisplay(display.id);
     expect((await app.request("/api/state", { headers: { cookie: viewer } })).status).toBe(401);
-    expect((await app.request("/", { headers: { cookie: viewer } })).headers.get("location")).toBe("/login");
+    expect((await app.request("/", { headers: { cookie: viewer } })).headers.get("location")).toMatch(/^\/login/);
   });
 
   it("treats old cookies without a role as admin", async () => {
@@ -397,3 +397,27 @@ describe("name + token login", () => {
     expect(store.hasAdmins()).toBe(false);
   });
 });
+
+describe("admin link after rotating", () => {
+  it("accepts a token rotated while the server runs, and says why a bad link failed", async () => {
+    const { loadSecrets, rotateAdminToken } = await import("../src/secrets.js");
+    const dataDir = mkdtempSync(join(tmpdir(), "po-rot-"));
+    const { secrets } = loadSecrets(dataDir, {});
+    const app = createApp({
+      config: { trustProxy: false, webDir: undefined, dataDir },
+      secrets,
+      hub: new Hub(),
+      settings: new SettingsStore(dataDir),
+      users: new UsersStore(dataDir),
+      adapters: createAdapters(),
+    });
+    const fresh = rotateAdminToken(dataDir); // like `pnpm start token --admin --rotate` in another terminal
+    const ok = await app.request(`/admin?token=${fresh}`);
+    expect(ok.headers.get("location")).toBe("/?people");
+
+    const bad = await app.request("/admin?token=po_a_nope");
+    expect(bad.headers.get("location")).toBe("/login?e=admin");
+    expect(await (await app.request("/login?e=admin")).text()).toContain("admin link didn");
+  });
+});
+

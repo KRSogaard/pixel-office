@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { readFile, stat } from "node:fs/promises";
 import { extname, join, normalize, resolve, sep } from "node:path";
 import { getConnInfo } from "@hono/node-server/conninfo";
@@ -22,7 +23,7 @@ const LOGIN_WINDOW_MS = 15 * 60 * 1000;
 const LOGIN_MAX_ATTEMPTS = 10;
 
 export interface AppDeps {
-  config: Pick<Config, "cookieSecure" | "trustProxy" | "webDir">;
+  config: Pick<Config, "cookieSecure" | "trustProxy" | "webDir"> & Partial<Pick<Config, "dataDir" | "adminToken">>;
   secrets: Secrets;
   hub: Hub;
   settings: SettingsStore;
@@ -40,6 +41,7 @@ const MIME: Record<string, string> = {
   ".json": "application/json",
   ".png": "image/png",
   ".svg": "image/svg+xml",
+  ".mp4": "video/mp4",
   ".ico": "image/x-icon",
   ".woff2": "font/woff2",
   ".txt": "text/plain; charset=utf-8",
@@ -78,6 +80,26 @@ export function createApp(deps: AppDeps): Hono {
   const clock = deps.clock ?? Date.now;
   const attempts = new Map<string, { count: number; resetAt: number }>();
   const app = new Hono();
+
+  /**
+   * Is this the admin token? If not, look at secrets.json once more: a token made
+   * with `pnpm start token --admin --rotate` while the server runs then works
+   * right away, without a restart. (An env-pinned admin token always wins.)
+   */
+  const adminTokenOk = (presented: string | undefined): boolean => {
+    if (isAdminToken(secrets, presented)) return true;
+    if (!presented || config.adminToken || !config.dataDir) return false;
+    try {
+      const stored = JSON.parse(readFileSync(join(config.dataDir, "secrets.json"), "utf8")) as { adminTokenHash?: string };
+      if (stored.adminTokenHash && stored.adminTokenHash !== secrets.adminTokenHash) {
+        secrets.adminTokenHash = stored.adminTokenHash;
+        return isAdminToken(secrets, presented);
+      }
+    } catch {
+      // no file / unreadable: keep what we have
+    }
+    return false;
+  };
 
   const clientIp = (c: Context): string => {
     if (config.trustProxy) {
@@ -165,7 +187,13 @@ export function createApp(deps: AppDeps): Hono {
     },
   );
 
-  app.get("/login", (c) => (authed(c) ? c.redirect("/") : c.html(loginPage())));
+  // `?e=` explains why a link sent you here (a bad admin link, or too many tries).
+  const LOGIN_ERRORS: Record<string, string> = {
+    admin: "That admin link didn't work: the admin token isn't right. Make a new one with `pnpm start token --admin --rotate` on the server.",
+    wait: "Too many attempts. Try again in a few minutes.",
+    tv: "That TV code didn't work.",
+  };
+  app.get("/login", (c) => (authed(c) ? c.redirect("/") : c.html(loginPage(LOGIN_ERRORS[c.req.query("e") ?? ""]))));
 
   // Log in with your name and your personal token (the one in your Claude plugin).
   // The admin token works too (name ignored) — the setup / emergency key. Until
@@ -187,7 +215,7 @@ export function createApp(deps: AppDeps): Hono {
       return c.redirect("/", 303);
     }
     const bootstrapPassword = !!secrets.passwordHash && !users?.hasAdmins() && verifyPassword(secret, secrets.passwordHash);
-    if (!isAdminToken(secrets, secret) && !bootstrapPassword) return fail();
+    if (!adminTokenOk(secret) && !bootstrapPassword) return fail();
     attempts.delete(clientIp(c));
     setSession(c, signSession(secrets.sessionSecret, clock() + SESSION_TTL_MS), SESSION_TTL_MS);
     return c.redirect("/", 303);
@@ -195,8 +223,8 @@ export function createApp(deps: AppDeps): Hono {
 
   // Setup link: /admin?token=<admin token> logs in as admin and opens the People panel.
   app.get("/admin", (c) => {
-    if (!allowAttempt(c)) return c.redirect("/login");
-    if (!isAdminToken(secrets, c.req.query("token"))) return c.redirect("/login");
+    if (!allowAttempt(c)) return c.redirect("/login?e=wait");
+    if (!adminTokenOk(c.req.query("token"))) return c.redirect("/login?e=admin");
     attempts.delete(clientIp(c));
     setSession(c, signSession(secrets.sessionSecret, clock() + SESSION_TTL_MS), SESSION_TTL_MS);
     return c.redirect("/?people");
@@ -212,8 +240,8 @@ export function createApp(deps: AppDeps): Hono {
     setSession(c, signSession(secrets.sessionSecret, clock() + VIEWER_TTL_MS, { displayId: display.id }), VIEWER_TTL_MS);
     return c.redirect("/?tv", 303);
   };
-  app.get("/tv", (c) => tvLogin(c, c.req.query("key") ?? "", () => c.redirect("/login")));
-  app.get("/tv/:code", (c) => tvLogin(c, c.req.param("code"), () => c.redirect("/login")));
+  app.get("/tv", (c) => tvLogin(c, c.req.query("key") ?? "", () => c.redirect("/login?e=tv")));
+  app.get("/tv/:code", (c) => tvLogin(c, c.req.param("code"), () => c.redirect("/login?e=tv")));
   app.post("/tv", bodyLimit({ maxSize: 1024, onError: (c) => c.body(null, 413) }), async (c) => {
     const form = await c.req.parseBody().catch(() => ({}) as Record<string, unknown>);
     const code = typeof form.code === "string" ? form.code : "";

@@ -181,7 +181,7 @@ own name + token; keep the admin token as the emergency key.
 
 Upgrading an older install that had a shared password: it keeps working until someone has
 the admin role, so you can log in with it once and make yourself an admin. The token is stored hashed and can't be shown again; to get a
-new one: `pnpm start token --admin --rotate` (restart the server afterwards). You can also
+new one: `pnpm start token --admin --rotate` (a running server picks it up right away). You can also
 pin it with `PIXEL_OFFICE_ADMIN_TOKEN`.
 
 > **Running commands on the server.** From a clone, run them in the repo folder with
@@ -222,6 +222,11 @@ pnpm start display remove "Office TV" # logs that screen out
 On the TV, open the office (`http://<server>:8790`) and type the code into the **TV code** box
 on the login page — or go straight to `http://<server>:8790/tv/kmb-tqr`. That browser stays
 logged in for a year as a **viewer**: it can watch, but can't change settings or people.
+**iPad / tablet as the TV:** browsers only allow "keep the screen on" on https pages, so on a
+plain-http office the TV keeps itself awake by quietly looping a tiny silent video. If a yellow
+"Tap to keep this screen on" button appears, tap it once. To be safe, also set the iPad's
+Settings → Display & Brightness → Auto-Lock → Never (and keep it plugged in).
+
 When you update the server (`git pull && pnpm start`), open browsers — the TV included —
 notice the new version and reload themselves. Removing the screen logs it out; **New code** replaces a lost code (a TV that's already logged
 in stays logged in). Codes skip i, l and o so they're easy to read; wrong guesses count
