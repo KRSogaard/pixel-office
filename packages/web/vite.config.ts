@@ -1,6 +1,6 @@
 import { defineConfig } from "vite";
 
-const server = process.env.PIXEL_OFFICE_DEV_SERVER ?? "http://127.0.0.1:4790";
+const server = process.env.PIXEL_OFFICE_DEV_SERVER ?? "http://127.0.0.1:8790";
 
 export default defineConfig({
   server: {

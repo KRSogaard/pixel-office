@@ -20,7 +20,7 @@ docker compose up -d                       # or: pnpm install && pnpm build && p
 docker compose logs pixel-office           # shows the generated password + ingest token
 ```
 
-1. Open http://127.0.0.1:4790 and log in with the password.
+1. Open http://127.0.0.1:8790 and log in with the password.
 2. In Claude Code run `/plugin marketplace add KRSogaard/pixel-office`, then
    `/plugin install pixel-office@pixel-office`, and enter the server URL and ingest token when asked.
 3. Start a Claude Code session — a new person walks into the office.
@@ -43,7 +43,7 @@ docker compose logs pixel-office   # first start prints the generated password +
 ```sh
 pnpm install
 pnpm build
-pnpm start                         # http://127.0.0.1:4790
+pnpm start                         # http://127.0.0.1:8790
 ```
 
 Open the URL, log in with the password, and you'll see an empty office.
@@ -54,7 +54,7 @@ All optional, via environment variables:
 
 | Variable | Default | |
 |---|---|---|
-| `PIXEL_OFFICE_PORT` | `4790` | |
+| `PIXEL_OFFICE_PORT` | `8790` | |
 | `PIXEL_OFFICE_HOST` | `127.0.0.1` (`0.0.0.0` in Docker) | Interface to bind. |
 | `PIXEL_OFFICE_DATA_DIR` | `./data` (`/data` in Docker) | Holds `secrets.json`. |
 | `PIXEL_OFFICE_PASSWORD` | generated on first start | Password for the website. |
@@ -102,7 +102,7 @@ POST normalized events (see `packages/protocol/src/events.ts`) to
 
 ```sh
 pnpm install
-pnpm --filter @pixel-office/server dev       # server on :4790 (data in ./data)
+pnpm --filter @pixel-office/server dev       # server on :8790 (data in ./data)
 pnpm --filter @pixel-office/web dev          # web on :5173, proxies to the server
 pnpm simulate busy-day --token <token>       # fake agents: busy-day, delegation-tree,
                                              # permission-storm, two-tools, team

@@ -18,13 +18,13 @@ COPY --from=build /src/packages/web/dist /app/web
 COPY plugins /app/plugins
 ENV NODE_ENV=production \
     PIXEL_OFFICE_HOST=0.0.0.0 \
-    PIXEL_OFFICE_PORT=4790 \
+    PIXEL_OFFICE_PORT=8790 \
     PIXEL_OFFICE_DATA_DIR=/data \
     PIXEL_OFFICE_WEB_DIR=/app/web
 USER office
 VOLUME /data
-EXPOSE 4790
+EXPOSE 8790
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s \
-  CMD wget -qO- http://127.0.0.1:4790/health >/dev/null || exit 1
+  CMD wget -qO- http://127.0.0.1:8790/health >/dev/null || exit 1
 ENTRYPOINT ["node", "/app/server.js"]
 CMD ["serve"]

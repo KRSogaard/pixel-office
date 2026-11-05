@@ -45,7 +45,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   const cookieSecure = bool(env.PIXEL_OFFICE_COOKIE_SECURE);
   const webDir = findWebDir(env.PIXEL_OFFICE_WEB_DIR);
   return {
-    port: int(env.PIXEL_OFFICE_PORT, 4790),
+    port: int(env.PIXEL_OFFICE_PORT, 8790),
     host: env.PIXEL_OFFICE_HOST || "127.0.0.1",
     dataDir: resolve(env.PIXEL_OFFICE_DATA_DIR || "./data"),
     ...(env.PIXEL_OFFICE_PASSWORD ? { password: env.PIXEL_OFFICE_PASSWORD } : {}),

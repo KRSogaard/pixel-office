@@ -4,7 +4,7 @@ services:
     image: pixel-office:latest
     restart: unless-stopped
     ports:
-      - "4790:4790"
+      - "8790:8790"
     environment:
       # Leave these unset to have them generated on first start (printed once in `docker compose logs`).
       PIXEL_OFFICE_PASSWORD: ${PIXEL_OFFICE_PASSWORD:-}

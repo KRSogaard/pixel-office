@@ -9,7 +9,7 @@
     "server_url": {
       "type": "string",
       "title": "pixel-office server URL",
-      "description": "Where your pixel-office server runs, e.g. https://office.example.com or http://127.0.0.1:4790",
+      "description": "Where your pixel-office server runs, e.g. https://office.example.com or http://127.0.0.1:8790",
       "required": true
     },
     "token": {
