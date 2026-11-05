@@ -38,6 +38,9 @@ Usage:
   pixel-office display remove <name>         Remove a screen (it is logged out)
   pixel-office install-opencode              Install the OpenCode plugin into ~/.config/opencode/plugins
 
+From a clone, run these in the repo folder as \`pnpm start <command>\`
+(e.g. \`pnpm start user list\`). With Docker: \`docker compose exec pixel-office node server.js <command>\`.
+
 Configuration is via PIXEL_OFFICE_* environment variables — see README.md.`;
 
 async function main(): Promise<void> {
@@ -115,7 +118,7 @@ function manage(kind: "user" | "display", action: string | undefined, name: stri
     }
     if (kind === "user" && action === "list") {
       const list = users.listUsers();
-      if (!list.length) return void console.log("No people yet. Add one with `pixel-office user add <name>`.");
+      if (!list.length) return void console.log("No people yet. Add one with `pnpm start user add <name>` (or in 👥 People).");
       for (const u of list) console.log(`${u.name}\t${u.role}\tadded ${new Date(u.createdAt).toLocaleString()}\t${u.lastSeenAt ? `last seen ${new Date(u.lastSeenAt).toLocaleString()}` : "not seen yet"}`);
       return;
     }
@@ -151,7 +154,7 @@ function manage(kind: "user" | "display", action: string | undefined, name: stri
     }
     if (kind === "display" && action === "list") {
       const list = users.listDisplays();
-      if (!list.length) return void console.log("No screens yet. Add one with `pixel-office display add <name>`.");
+      if (!list.length) return void console.log("No screens yet. Add one with `pnpm start display add <name>` (or in 👥 People).");
       for (const d of list) console.log(`${d.name}\tadded ${new Date(d.createdAt).toLocaleString()}`);
       return;
     }

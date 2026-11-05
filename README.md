@@ -94,8 +94,8 @@ All optional, via environment variables:
 | `PIXEL_OFFICE_HOST` | `127.0.0.1` (`0.0.0.0` in Docker) | Interface to bind. |
 | `PIXEL_OFFICE_DATA_DIR` | `./data` (`/data` in Docker) | Holds `secrets.json`. |
 | `PIXEL_OFFICE_PASSWORD` | none | The old shared website password. Only logs in until someone has the admin role (for upgrading older installs). |
-| `PIXEL_OFFICE_INGEST_TOKEN` | generated on first start | Shared token agents send events with (no name). `pixel-office token` prints it. |
-| `PIXEL_OFFICE_ADMIN_TOKEN` | generated on first start | Setup key: log in with it or open `/admin?token=…`. Stored hashed; `pixel-office token --admin --rotate` makes a new one. |
+| `PIXEL_OFFICE_INGEST_TOKEN` | generated on first start | Shared token agents send events with (no name). `pnpm start token` prints it. |
+| `PIXEL_OFFICE_ADMIN_TOKEN` | generated on first start | Setup key: log in with it or open `/admin?token=…`. Stored hashed; `pnpm start token --admin --rotate` makes a new one. |
 | `PIXEL_OFFICE_TRUST_PROXY` | off | Turn on behind a TLS reverse proxy so the real client IP and `https` are honoured. |
 | `PIXEL_OFFICE_COOKIE_SECURE` | auto | Force the login cookie's `Secure` flag on/off. |
 | `PIXEL_OFFICE_IDLE_AFTER_MS` | 10 min | Silent working agents are sent to the lounge after this. |
@@ -181,8 +181,12 @@ own name + token; keep the admin token as the emergency key.
 
 Upgrading an older install that had a shared password: it keeps working until someone has
 the admin role, so you can log in with it once and make yourself an admin. The token is stored hashed and can't be shown again; to get a
-new one: `pixel-office token --admin --rotate` (restart the server afterwards). You can also
+new one: `pnpm start token --admin --rotate` (restart the server afterwards). You can also
 pin it with `PIXEL_OFFICE_ADMIN_TOKEN`.
+
+> **Running commands on the server.** From a clone, run them in the repo folder with
+> `pnpm start <command>` (e.g. `pnpm start user list`); with Docker,
+> `docker compose exec pixel-office node server.js <command>`.
 
 ### Add a person
 
@@ -191,11 +195,11 @@ it? **New token** gives them a fresh one (the old one stops working); people can
 their own. Or on the server:
 
 ```sh
-pixel-office user add Morten        # prints Morten's token once (--admin to make him an admin)
-pixel-office user role Morten admin # or: member
-pixel-office user token Morten      # a new token; the old one stops working
-pixel-office user list
-pixel-office user remove Morten     # his token stops working
+pnpm start user add Morten        # prints Morten's token once (--admin to make him an admin)
+pnpm start user role Morten admin # or: member
+pnpm start user token Morten      # a new token; the old one stops working
+pnpm start user list
+pnpm start user remove Morten     # his token stops working
 ```
 
 Morten logs in to the office with his name and that token, and sets up the Claude Code
@@ -210,9 +214,9 @@ pose as someone else. The shared ingest token keeps working, without a name.
 In 👥 **TV screens**, add a screen — you get a 6-letter code like **`kmb-tqr`**. Or on the server:
 
 ```sh
-pixel-office display add "Office TV"   # prints its code, e.g. kmb-tqr
-pixel-office display list
-pixel-office display remove "Office TV" # logs that screen out
+pnpm start display add "Office TV"   # prints its code, e.g. kmb-tqr
+pnpm start display list
+pnpm start display remove "Office TV" # logs that screen out
 ```
 
 On the TV, open the office (`http://<server>:8790`) and type the code into the **TV code** box
