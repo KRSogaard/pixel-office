@@ -1,6 +1,7 @@
 import Phaser from "phaser";
 import { OfficeStore } from "./net.js";
 import { OfficeScene } from "./scene/OfficeScene.js";
+import { HelpPanel } from "./ui/help.js";
 import { Hud } from "./ui/hud.js";
 import { Overlay } from "./ui/overlay.js";
 import { Notifier } from "./ui/notify.js";
@@ -28,6 +29,7 @@ const replay = new Replay(document.getElementById("replay")!, store, () => {
   hud.setReplay(store.mode === "replay");
 });
 const settings = new SettingsPanel(document.getElementById("settings")!, store);
+const help = new HelpPanel(document.getElementById("help")!);
 
 const hud = new Hud(document.getElementById("hud")!, {
   zoomIn: () => scene.zoomBy(1.25),
@@ -46,6 +48,7 @@ const hud = new Hud(document.getElementById("hud")!, {
     else void replay.openAt(30).catch((err) => console.warn("[pixel-office] replay", err));
   },
   settings: () => settings.toggle(),
+  help: () => help.toggle(),
 });
 
 new Phaser.Game({

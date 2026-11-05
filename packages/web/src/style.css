@@ -467,7 +467,8 @@ button {
   color: var(--muted);
 }
 
-#settings {
+#settings,
+#help {
   position: absolute;
   top: 12px;
   left: 50%;
@@ -486,8 +487,60 @@ button {
   z-index: 4;
 }
 
-#settings.open {
+#settings.open,
+#help.open {
   display: block;
+}
+
+#help {
+  width: 560px;
+}
+
+#help section {
+  margin-top: 12px;
+}
+
+.help-rows {
+  display: grid;
+  grid-template-columns: 11em 1fr;
+  gap: 3px 12px;
+  margin: 0;
+}
+
+.help-rows dt {
+  font-weight: 700;
+}
+
+.help-rows dd {
+  margin: 0;
+  color: #c9cfdb;
+}
+
+.help-icons {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 4px 12px;
+}
+
+.help-icon {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.help-icon canvas {
+  width: 24px;
+  height: 24px;
+  image-rendering: pixelated;
+  background: #3a3528;
+  padding: 2px;
+}
+
+.hud-tools .help-btn {
+  filter: none;
+  opacity: 1;
+  font-weight: 700;
+  color: #f0c45a;
 }
 
 #settings section {
