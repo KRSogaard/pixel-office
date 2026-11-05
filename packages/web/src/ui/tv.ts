@@ -8,14 +8,14 @@
  * viewer can log in as admin (handy when a TV code was opened in your own
  * browser), an admin can leave TV mode.
  */
-export function startTvMode(fit: () => void, role: "admin" | "viewer"): void {
+export function startTvMode(fit: () => void, role: "admin" | "member" | "viewer"): void {
   document.body.classList.add("tv");
   const exit = document.createElement("div");
   exit.className = "tv-exit";
   exit.innerHTML =
     role === "viewer"
       ? `<span>📺 This browser is logged in as a TV (watch only).</span>
-         <form method="post" action="/logout"><button type="submit">Log in as admin</button></form>`
+         <form method="post" action="/logout"><button type="submit">Log in as yourself</button></form>`
       : `<span>📺 TV mode</span><a href="/">Exit TV mode</a>`;
   document.body.append(exit);
   localStorage.setItem("po.helpSeen", "1");

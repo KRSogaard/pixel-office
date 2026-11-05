@@ -6,6 +6,7 @@ import {
   type OfficeSettings,
   type OfficeState,
   type OfficeStats,
+  type Me,
   type Role,
   type ServerMessage,
 } from "@pixel-office/protocol";
@@ -34,6 +35,8 @@ export class OfficeStore {
   mode: StoreMode = "live";
   /** Admins can change settings and people; viewers (TV links) only watch. */
   role: Role = "viewer";
+  /** The logged-in person, if any (not the admin token or a TV). */
+  me: Me["user"];
   private live: OfficeState = emptyState();
   private listeners = new Set<Listener>();
   private statusListeners = new Set<(s: ConnectionStatus) => void>();
@@ -120,7 +123,11 @@ export class OfficeStore {
   async loadRole(): Promise<Role> {
     try {
       const res = await fetch("/api/me", { credentials: "same-origin" });
-      if (res.ok) this.role = ((await res.json()) as { role: Role }).role;
+      if (res.ok) {
+        const me = (await res.json()) as Me;
+        this.role = me.role;
+        this.me = me.user;
+      }
     } catch {
       // keep the safe default (viewer)
     }

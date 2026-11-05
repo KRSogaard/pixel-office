@@ -592,7 +592,8 @@ button {
 
 #settings,
 #help,
-#people {
+#people,
+#me {
   position: absolute;
   top: 12px;
   left: 50%;
@@ -613,7 +614,8 @@ button {
 
 #settings.open,
 #help.open,
-#people.open {
+#people.open,
+#me.open {
   display: block;
 }
 
@@ -1077,6 +1079,56 @@ body:not(.admin) .admin-only {
   padding: 6px;
   background: #11151c;
   white-space: pre-wrap;
+}
+
+.role {
+  padding: 0 4px;
+  font-size: 0.85em;
+  border: 1px solid var(--line);
+}
+
+.role-admin {
+  color: #f0c45a;
+  border-color: #6b5a1e;
+}
+
+#people label input {
+  width: auto;
+}
+
+#me {
+  width: 360px;
+}
+
+#me button {
+  font: inherit;
+  color: inherit;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  padding: 2px 8px;
+}
+
+#me form {
+  margin: 0;
+}
+
+.hud-me {
+  font: inherit;
+  padding: 2px 8px;
+  color: #11131a;
+  background: var(--person, #9097a6);
+  border: none;
+  font-weight: 700;
+}
+
+/* Your own agents: a bright outline around the name tag. */
+.tag.mine .tag-card {
+  box-shadow: 0 0 0 2px var(--session, #fff), 0 0 8px rgba(255, 255, 255, 0.35);
+}
+
+.tag.mine .tag-person::after {
+  content: " (you)";
+  font-weight: 400;
 }
 
 .tv-code {

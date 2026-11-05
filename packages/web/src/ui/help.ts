@@ -43,7 +43,7 @@ const TEAM: Row[] = [
 
 const PEOPLE: Row[] = [
   { name: "Coloured ring", what: "The session colour. A main agent and its sub-agents share it." },
-  { name: "Coloured name chip", what: "Whose agent it is — each person has their own colour. (No chip: the shared token.) Visitors get a ★." },
+  { name: "Coloured name chip", what: "Whose agent it is — each person has their own colour. (No chip: the shared token.) Your own agents are outlined and say “(you)”. Visitors get a ★." },
   { name: "sub · Explore", what: "A sub-agent, and the kind it is." },
   { name: "Second line", what: "The project, then why it's working: the prompt it's on, or “↳ Manager: task” for a sub-agent, or “needs you: …”." },
   { name: "Speech bubbles", what: "☎ your prompt arriving · ✓ a sub-agent reporting back · ! / ? waiting for you · plain: agents talking to each other." },
@@ -104,6 +104,7 @@ const BAR: Row[] = [
   { name: "👥", what: "People and TV screens: give each person their own token (their agents carry their name; “New token” replaces it), and add screens for the office — each gets a 6-letter code like abc-def to type in on the TV. Admins only." },
   { name: "privacy", what: "Hide prompts and messages, e.g. when screen sharing." },
   { name: "− ▣ +", what: "Zoom out, fit the office, zoom in. You can also drag and scroll." },
+  { name: "Your name", what: "Who you're logged in as (★ = admin). Click it to get a new token for yourself or log out." },
   { name: "Green square", what: "Connected to the server. Red: reconnecting." },
 ];
 

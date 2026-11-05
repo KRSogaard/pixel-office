@@ -1,5 +1,6 @@
 import type { OfficeState } from "@pixel-office/protocol";
 import type { ConnectionStatus } from "../net.js";
+import { personColor } from "./overlay.js";
 
 export interface HudActions {
   zoomIn: () => void;
@@ -15,6 +16,7 @@ export interface HudActions {
   list: () => void;
   stats: () => void;
   people: () => void;
+  me: () => void;
 }
 
 /** Top bar: counts, connection, privacy toggle, zoom. Also drives the tab title + favicon. */
@@ -22,6 +24,7 @@ export class Hud {
   private counts: HTMLElement;
   private conn: HTMLElement;
   private replayFlag: HTMLElement;
+  private meButton!: HTMLButtonElement;
   private baseTitle = document.title;
   private lastWaiting = -1;
 
@@ -50,6 +53,7 @@ export class Hud {
         <button data-a="fit" title="Fit">▣</button>
         <button data-a="in" title="Zoom in">+</button>
       </div>
+      <button class="hud-me" title="You" hidden></button>
       <div class="hud-conn" title="Connection"></div>
       <form method="post" action="/logout" class="hud-logout"><button type="submit">log out</button></form>
     `;
@@ -84,6 +88,8 @@ export class Hud {
     root.querySelector<HTMLButtonElement>('[data-a="help"]')!.onclick = actions.help;
     root.querySelector<HTMLButtonElement>('[data-a="list"]')!.onclick = actions.list;
     root.querySelector<HTMLButtonElement>('[data-a="people"]')!.onclick = actions.people;
+    this.meButton = root.querySelector(".hud-me")!;
+    this.meButton.onclick = actions.me;
     root.querySelector<HTMLButtonElement>('[data-a="stats"]')!.onclick = actions.stats;
     this.replayFlag = root.querySelector(".hud-replay-flag")!;
     const privacy = root.querySelector<HTMLInputElement>(".privacy")!;
@@ -111,6 +117,14 @@ export class Hud {
       document.title = waiting ? `(${waiting}) ${this.baseTitle}` : this.baseTitle;
       setFavicon(waiting > 0);
     }
+  }
+
+  /** Who's logged in: your name (or "admin" for the admin token), in your own colour. */
+  setMe(name: string | undefined, role: string): void {
+    if (role === "viewer") return;
+    this.meButton.hidden = false;
+    this.meButton.textContent = name ? `${name}${role === "admin" ? " ★" : ""}` : "admin token";
+    this.meButton.style.setProperty("--person", name ? personColor(name) : "#f0c45a");
   }
 
   setReplay(on: boolean): void {

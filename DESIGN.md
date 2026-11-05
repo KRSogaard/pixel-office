@@ -120,8 +120,13 @@ going to the lounge. When tags crowd together they drop their "why" line for a m
 - **Who's who on screen**: name tags start with a chip in the person's own colour, then the
   agent's name; the second line starts with the project. Team labels read
   `project · manager · person · ⎇ branch`. The list view and the detail panel show the person.
-- **Roles**: the password or the admin token (`po_a_…`, printed on first start;
-  `/admin?token=…` logs you in) make you an *admin* — you can change ⚙ settings and 👥 people.
+- **Login and roles**: people log in with their **name and their own token** (the one in
+  their Claude plugin). Each person is a *member* (watch, renew their own token) or an
+  *admin* (also ⚙ settings and 👥 people / screens). The role is looked up on every
+  request, so promoting, demoting or removing someone takes effect at once. The **admin
+  token** (`po_a_…`, printed on first start; `/admin?token=…`) is the setup and emergency
+  key: use it to add yourself as an admin. The old shared password (older installs, or
+  `PIXEL_OFFICE_PASSWORD`) only logs in until someone has the admin role.
   A **TV code** (6 letters, `abc-def`, created in 👥 or with `pixel-office display add <name>`),
   typed into the login page's "TV code" box or opened as `/tv/abc-def`, logs a screen in as a
   *viewer* for a year: it can watch, not change anything. Removing the screen logs it out.

@@ -1,7 +1,8 @@
 const esc = (s: string) =>
   s.replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[ch]!);
 
-export function loginPage(error?: string): string {
+/** The login page. `name` refills the name field after a failed attempt. */
+export function loginPage(error?: string, name = ""): string {
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -36,6 +37,8 @@ export function loginPage(error?: string): string {
     color: #1b1d2b; background: #f4b860; border: 3px solid #0f1020; box-shadow: 4px 4px 0 #0f1020;
   }
   button:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0 #0f1020; }
+  .gap { margin-top: 12px; }
+  .hint { margin: 10px 0 0; font-size: 12px; }
   .forms { display: grid; gap: 18px; justify-items: center; }
   .tv input { text-align: center; font-size: 22px; letter-spacing: 6px; text-transform: lowercase; }
   .err { margin: 0 0 14px; padding: 8px; background: #5b2333; border: 3px solid #0f1020; color: #ffd6dc; font-size: 13px; }
@@ -47,8 +50,11 @@ export function loginPage(error?: string): string {
   <h1>pixel<span>-office</span></h1>
   <p>Sign in to watch your agents work.</p>
   ${error ? `<div class="err">${esc(error)}</div>` : ""}
-  <label for="password">Password or admin token</label>
-  <input id="password" name="password" type="password" autocomplete="current-password" autofocus required>
+  <label for="name">Your name</label>
+  <input id="name" name="name" type="text" autocomplete="username" value="${esc(name)}" autofocus>
+  <label for="token" class="gap">Your token</label>
+  <input id="token" name="token" type="password" autocomplete="current-password" required>
+  <p class="hint">Use the personal token you put in the Claude plugin. Setting up? Paste the admin token (name can stay empty).</p>
   <button type="submit">Enter the office</button>
 </form>
 <form method="post" action="/tv" class="tv">

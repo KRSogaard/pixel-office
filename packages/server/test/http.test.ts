@@ -42,8 +42,11 @@ describe("secrets file", () => {
   it("generates once, then reuses; env wins", () => {
     const dir = mkdtempSync(join(tmpdir(), "po-data-"));
     const first = loadSecrets(dir, {});
-    expect(first.generated.password).toBeTruthy();
+    // No shared password any more on a fresh install: people log in with name + token.
+    expect(first.generated.password).toBeUndefined();
+    expect(first.secrets.passwordHash).toBeUndefined();
     expect(first.generated.ingestToken).toBeTruthy();
+    expect(first.generated.adminToken).toMatch(/^po_a_/);
     const second = loadSecrets(dir, {});
     expect(second.generated).toEqual({});
     expect(second.secrets.ingestToken).toBe(first.secrets.ingestToken);

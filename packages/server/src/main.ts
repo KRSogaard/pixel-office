@@ -28,7 +28,8 @@ Usage:
                                              Scenarios: ${Object.keys(SCENARIOS).join(", ")}
   pixel-office token                         Print the shared ingest token
   pixel-office token --admin --rotate        Make a new admin token (the setup key) and print it once
-  pixel-office user add <name>               Add a person; prints their own ingest token once
+  pixel-office user add <name> [--admin]     Add a person (a member, or an admin); prints their token once
+  pixel-office user role <name> admin|member Make someone an admin or a member
   pixel-office user list                     List people
   pixel-office user remove <name>            Remove a person (their token stops working)
   pixel-office user token <name>             Give a person a new token (the old one stops working)
@@ -85,7 +86,7 @@ async function main(): Promise<void> {
     }
     case "user":
     case "display":
-      return manage(command, arg, rest.join(" "));
+      return manage(command, arg, rest.join(" "), !!values.admin);
     case "install-opencode":
       return installOpenCode();
     default:
@@ -95,7 +96,7 @@ async function main(): Promise<void> {
 }
 
 /** `user add|list|remove` and `display add|list|remove`, straight on the data dir. */
-function manage(kind: "user" | "display", action: string | undefined, name: string): void {
+function manage(kind: "user" | "display", action: string | undefined, name: string, admin = false): void {
   const config = loadConfig();
   const users = new UsersStore(config.dataDir);
   const need = () => {
@@ -104,8 +105,9 @@ function manage(kind: "user" | "display", action: string | undefined, name: stri
   try {
     if (kind === "user" && action === "add") {
       need();
-      const { user, token } = users.addUser(name);
-      console.log(`Added ${user.name}. Their ingest token (shown once):\n  ${token}\n`);
+      const { user, token } = users.addUser(name, admin ? "admin" : "member");
+      console.log(`Added ${user.name} as ${user.role === "admin" ? "an admin" : "a member"}. Their token (shown once):\n  ${token}\n`);
+      console.log(`They log in to the office with their name ("${user.name}") and this token.`);
       console.log("In Claude Code: /plugin install pixel-office@pixel-office, then enter the server URL and this token.");
       console.log("Already installed? Change the token with /config (or /plugin) under pixel-office's settings.");
       console.log("OpenCode: export PIXEL_OFFICE_TOKEN=<this token> next to PIXEL_OFFICE_URL.");
@@ -114,8 +116,19 @@ function manage(kind: "user" | "display", action: string | undefined, name: stri
     if (kind === "user" && action === "list") {
       const list = users.listUsers();
       if (!list.length) return void console.log("No people yet. Add one with `pixel-office user add <name>`.");
-      for (const u of list) console.log(`${u.name}\tadded ${new Date(u.createdAt).toLocaleString()}\t${u.lastSeenAt ? `last seen ${new Date(u.lastSeenAt).toLocaleString()}` : "not seen yet"}`);
+      for (const u of list) console.log(`${u.name}\t${u.role}\tadded ${new Date(u.createdAt).toLocaleString()}\t${u.lastSeenAt ? `last seen ${new Date(u.lastSeenAt).toLocaleString()}` : "not seen yet"}`);
       return;
+    }
+    if (kind === "user" && action === "role") {
+      // `user role <name> admin|member` — the role is the last word, the name is the rest.
+      const words = name.trim().split(/\s+/);
+      const role = words.pop();
+      const who = words.join(" ");
+      if (!who || (role !== "admin" && role !== "member")) throw new Error(`Usage: pixel-office user role <name> admin|member\n\n${USAGE}`);
+      const id = users.findUserIdByName(who);
+      if (!id) throw new Error(`No one called "${who}".`);
+      users.setRole(id, role);
+      return void console.log(`${who} is now ${role === "admin" ? "an admin" : "a member"}.`);
     }
     if (kind === "user" && action === "token") {
       need();
@@ -172,15 +185,16 @@ function runServe(): void {
   attachWebSocket(server, hub, secrets, settings, stats, users, () => webVersion(config.webDir));
   startReaper(hub, config);
 
-  if (generated.password || generated.ingestToken || generated.adminToken) {
-    const lines = ["", "  First run — generated credentials (shown once; saved in the data dir, password and admin token hashed):"];
-    if (generated.password) lines.push(`    Web login password : ${generated.password}`);
-    if (generated.ingestToken) lines.push(`    Ingest token       : ${generated.ingestToken}`);
+  if (generated.ingestToken || generated.adminToken) {
+    const lines = ["", "  First run — generated credentials (shown once; saved in the data dir, admin token hashed):"];
+    if (generated.ingestToken) lines.push(`    Shared ingest token : ${generated.ingestToken}`);
     if (generated.adminToken) {
-      lines.push(`    Admin token        : ${generated.adminToken}`);
-      lines.push(`      setup link       : http://${config.host}:${config.port}/admin?token=${generated.adminToken}`);
+      lines.push(`    Admin token         : ${generated.adminToken}`);
+      lines.push(`      setup link        : http://${config.host}:${config.port}/admin?token=${generated.adminToken}`);
+      lines.push("", "  Open the setup link, then in 👥 People add yourself as an admin. From then on everyone");
+      lines.push("  logs in with their name and their own token; keep the admin token as the emergency key.");
     }
-    lines.push("  Set PIXEL_OFFICE_PASSWORD / PIXEL_OFFICE_INGEST_TOKEN / PIXEL_OFFICE_ADMIN_TOKEN to choose your own.", "");
+    lines.push("  Set PIXEL_OFFICE_INGEST_TOKEN / PIXEL_OFFICE_ADMIN_TOKEN to choose your own.", "");
     console.log(lines.join("\n"));
   }
 

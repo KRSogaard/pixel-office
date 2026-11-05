@@ -58,7 +58,7 @@ export class PeoplePanel {
           <b>${esc(this.secret.name)}'s token</b> — shown only now, copy it:
           <code>${esc(this.secret.value)}</code>
           <button data-copy="${esc(this.secret.value)}">Copy</button>
-          <p class="muted">${esc(this.secret.name)} sets it up in Claude Code:</p>
+          <p class="muted">${esc(this.secret.name)} logs in to the office with their name and this token, and sets up Claude Code:</p>
           <pre>/plugin marketplace add KRSogaard/pixel-office
 /plugin install pixel-office@pixel-office
 Server URL: ${esc(origin)}
@@ -80,11 +80,11 @@ Ingest token: (the token above)</pre>
       ${this.error ? `<p class="err">${esc(this.error)}</p>` : ""}
       ${secret}
       <section><span class="section-title">People</span>
-        <p class="muted">Everyone gets their own token, so their agents carry their name.</p>
+        <p class="muted">Everyone gets their own token: their agents carry their name, and they log in with their name + token. Admins can also manage people, screens and settings.</p>
         <table class="people">
-          ${this.users.map((u) => `<tr><td><b>${esc(u.name)}</b></td><td class="muted">last seen ${when(u.lastSeenAt)}</td><td><button data-new-user="${esc(u.id)}" data-name="${esc(u.name)}">New token</button> <button data-del-user="${esc(u.id)}" data-name="${esc(u.name)}">Remove</button></td></tr>`).join("") || `<tr><td class="muted">Nobody yet.</td></tr>`}
+          ${this.users.map((u) => `<tr><td><b>${esc(u.name)}</b> <span class="role role-${u.role}">${u.role === "admin" ? "admin ★" : "member"}</span></td><td class="muted">last seen ${when(u.lastSeenAt)}</td><td><button data-role="${esc(u.id)}" data-to="${u.role === "admin" ? "member" : "admin"}" data-name="${esc(u.name)}">${u.role === "admin" ? "Make member" : "Make admin"}</button> <button data-new-user="${esc(u.id)}" data-name="${esc(u.name)}">New token</button> <button data-del-user="${esc(u.id)}" data-name="${esc(u.name)}">Remove</button></td></tr>`).join("") || `<tr><td class="muted">Nobody yet.</td></tr>`}
         </table>
-        <form class="add" data-add="user"><input name="name" maxlength="40" placeholder="Name, e.g. Morten" required /><button>Add person</button></form>
+        <form class="add" data-add="user"><input name="name" maxlength="40" placeholder="Name, e.g. Morten" required /><label class="muted"><input type="checkbox" name="admin" /> admin</label><button>Add person</button></form>
       </section>
       <section><span class="section-title">TV screens</span>
         <p class="muted">A 6-letter code that logs a screen in to watch (read-only).</p>
@@ -108,7 +108,8 @@ Ingest token: (the token above)</pre>
         if (!name) return;
         try {
           if (f.dataset.add === "user") {
-            const r = await api<{ user: OfficeUser; token: string }>("POST", "/api/users", { name });
+            const role = new FormData(f).get("admin") ? "admin" : "member";
+            const r = await api<{ user: OfficeUser; token: string }>("POST", "/api/users", { name, role });
             this.secret = { kind: "user", name: r.user.name, value: r.token };
           } else {
             const r = await api<{ display: DisplayLink; code: string }>("POST", "/api/displays", { name });
@@ -117,6 +118,14 @@ Ingest token: (the token above)</pre>
         } catch (err) {
           this.error = String(err instanceof Error ? err.message : err);
         }
+        await this.reload();
+      };
+    });
+    this.root.querySelectorAll<HTMLButtonElement>("[data-role]").forEach((b) => {
+      b.onclick = async () => {
+        await api("PATCH", `/api/users/${b.dataset.role}`, { role: b.dataset.to }).catch((err) => {
+          this.error = String(err instanceof Error ? err.message : err);
+        });
         await this.reload();
       };
     });
@@ -152,6 +161,52 @@ Ingest token: (the token above)</pre>
         this.secret = undefined;
         await this.reload();
       };
+    });
+  }
+}
+
+/** "You": your name and role, a new token for yourself, and log out. */
+export class MePanel {
+  private token: string | undefined;
+
+  constructor(private root: HTMLElement) {}
+
+  async toggle(me: { id: string; name: string } | undefined, role: string): Promise<void> {
+    if (this.root.classList.toggle("open")) this.render(me, role);
+    else this.token = undefined;
+  }
+
+  private render(me: { id: string; name: string } | undefined, role: string): void {
+    const origin = location.origin;
+    this.root.innerHTML = `
+      <div class="set-head"><b>${me ? esc(me.name) : "Admin token"}</b><button class="set-close" title="Close">×</button></div>
+      <p class="muted">${role === "admin" ? "Admin — you can manage people, screens and settings." : "Member — you can watch the office and manage your own token."}
+      ${me ? "Your agents are highlighted in the office." : "You're logged in with the setup key. Add yourself in 👥 People as an admin, then log in with your own name and token."}</p>
+      ${
+        this.token
+          ? `<div class="secret"><b>Your new token</b> — shown only now. Your old one has stopped working.
+             <code>${esc(this.token)}</code><button data-copy="${esc(this.token)}">Copy</button>
+             <p class="muted">Put it in the Claude plugin (/config → pixel-office, server ${esc(origin)}) and use it next time you log in.</p></div>`
+          : ""
+      }
+      <div class="set-actions">
+        ${me ? `<button class="me-new">Get a new token</button>` : "<span></span>"}
+        <form method="post" action="/logout"><button type="submit">Log out</button></form>
+      </div>`;
+    this.root.querySelector<HTMLButtonElement>(".set-close")!.onclick = () => void this.toggle(me, role);
+    this.root.querySelector<HTMLButtonElement>("[data-copy]")?.addEventListener("click", async (e) => {
+      const b = e.currentTarget as HTMLButtonElement;
+      await navigator.clipboard?.writeText(b.dataset.copy!).catch(() => {});
+      b.textContent = "Copied";
+    });
+    this.root.querySelector<HTMLButtonElement>(".me-new")?.addEventListener("click", async () => {
+      if (!confirm("Get a new token? Your current one stops working right away — in the Claude plugin too.")) return;
+      try {
+        this.token = (await api<{ token: string }>("POST", "/api/me/token")).token;
+      } catch (err) {
+        alert(String(err instanceof Error ? err.message : err));
+      }
+      this.render(me, role);
     });
   }
 }

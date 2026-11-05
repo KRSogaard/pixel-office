@@ -16,9 +16,13 @@ import type { DisplayLink, OfficeUser } from "@pixel-office/protocol";
  * `pixel-office user add` works while the server is running.
  */
 
+export type PersonRole = "admin" | "member";
+
 interface StoredUser {
   id: string;
   name: string;
+  /** Missing in users.json from older versions → "member". */
+  role?: PersonRole;
   tokenHash: string;
   createdAt: number;
   lastSeenAt?: number;
@@ -79,6 +83,12 @@ export function normalizeTvCode(input: string): string | undefined {
   return `${letters.slice(0, 3)}-${letters.slice(3)}`;
 }
 
+function cleanRole(role: unknown): PersonRole {
+  if (role === undefined || role === null || role === "") return "member";
+  if (role === "admin" || role === "member") return role;
+  throw new UserError("invalid", 'role must be "admin" or "member"');
+}
+
 function cleanName(name: unknown): string {
   if (typeof name !== "string") throw new UserError("invalid", "name must be a string");
   const n = name.trim();
@@ -112,17 +122,42 @@ export class UsersStore {
     return this.data.users.map(publicUser);
   }
 
-  addUser(name: unknown, now = Date.now()): { user: OfficeUser; token: string } {
+  addUser(name: unknown, role: unknown = "member", now = Date.now()): { user: OfficeUser; token: string } {
     this.refresh();
     const n = cleanName(name);
+    const r = cleanRole(role);
     if (this.data.users.some((u) => u.name.toLowerCase() === n.toLowerCase())) {
       throw new UserError("duplicate", `someone called "${n}" already exists`);
     }
     const token = newSecret(USER_PREFIX);
-    const stored: StoredUser = { id: randomUUID(), name: n, tokenHash: hashToken(token), createdAt: now };
+    const stored: StoredUser = { id: randomUUID(), name: n, role: r, tokenHash: hashToken(token), createdAt: now };
     this.data.users.push(stored);
     this.save();
     return { user: publicUser(stored), token };
+  }
+
+  /** Make someone an admin or a member. Returns the updated person, or undefined if unknown. */
+  setRole(id: string, role: unknown): OfficeUser | undefined {
+    this.refresh();
+    const r = cleanRole(role);
+    const u = this.data.users.find((x) => x.id === id);
+    if (!u) return undefined;
+    u.role = r;
+    this.save();
+    return publicUser(u);
+  }
+
+  /** Is any person an admin? (While nobody is, the old shared password still logs in.) */
+  hasAdmins(): boolean {
+    this.refresh();
+    return this.data.users.some((u) => u.role === "admin");
+  }
+
+  /** A person by id, with their current role. */
+  getUser(id: string): OfficeUser | undefined {
+    this.refresh();
+    const u = this.data.users.find((x) => x.id === id);
+    return u && publicUser(u);
   }
 
   removeUser(id: string): boolean {
@@ -292,7 +327,7 @@ export class UsersStore {
 }
 
 function publicUser(u: StoredUser): OfficeUser {
-  return { id: u.id, name: u.name, createdAt: u.createdAt, ...(u.lastSeenAt ? { lastSeenAt: u.lastSeenAt } : {}) };
+  return { id: u.id, name: u.name, role: u.role ?? "member", createdAt: u.createdAt, ...(u.lastSeenAt ? { lastSeenAt: u.lastSeenAt } : {}) };
 }
 
 function publicDisplay(d: StoredDisplay): DisplayLink {

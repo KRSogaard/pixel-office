@@ -9,7 +9,7 @@ import type { Config } from "./config.js";
 import type { Hub } from "./hub.js";
 import type { SettingsStore } from "./settings.js";
 import { UserError, type UsersStore } from "./users.js";
-import type { AgentEvent } from "@pixel-office/protocol";
+import type { AgentEvent, Me } from "@pixel-office/protocol";
 import { emptyStats, type StatsTracker } from "./stats.js";
 import { loginPage } from "./login-page.js";
 import { isAdminToken, readSession, safeEqual, signSession, verifyPassword, type Secrets, type Session } from "./secrets.js";
@@ -47,8 +47,11 @@ const MIME: Record<string, string> = {
 };
 
 /**
- * The session behind a cookie: admin (password / admin token) or viewer (a TV
- * opened with a display link). A viewer whose display link was revoked is out.
+ * The session behind a cookie:
+ *  - admin: the admin token (or, before anyone is admin, the old shared password);
+ *  - a person: their CURRENT role comes from the users store, so removing or
+ *    demoting someone takes effect on their next request;
+ *  - viewer: a TV logged in with a code; revoking the screen logs it out.
  */
 export function sessionFrom(
   secrets: Secrets,
@@ -57,7 +60,12 @@ export function sessionFrom(
   users?: UsersStore,
 ): Session | undefined {
   const s = readSession(secrets.sessionSecret, cookieValue, now);
-  if (s?.role === "viewer" && !(s.displayId && users?.hasDisplay(s.displayId))) return undefined;
+  if (!s) return undefined;
+  if (s.role === "viewer") return s.displayId && users?.hasDisplay(s.displayId) ? s : undefined;
+  if (s.userId) {
+    const person = users?.getUser(s.userId);
+    return person ? { role: person.role, userId: person.id } : undefined;
+  }
   return s;
 }
 
@@ -90,7 +98,7 @@ export function createApp(deps: AppDeps): Hono {
   const users = deps.users;
   const session = (c: Context) => sessionFrom(secrets, getCookie(c, SESSION_COOKIE), clock(), users);
   const authed = (c: Context) => session(c) !== undefined;
-  /** 401 if not logged in, 403 if only a viewer; undefined when the caller is an admin. */
+  /** 401 if not logged in, 403 for members and viewers; undefined when the caller is an admin. */
   const requireAdmin = (c: Context, mutation = false): Response | undefined => {
     const s = session(c);
     if (!s) return c.body(null, 401);
@@ -159,13 +167,27 @@ export function createApp(deps: AppDeps): Hono {
 
   app.get("/login", (c) => (authed(c) ? c.redirect("/") : c.html(loginPage())));
 
-  // Login with the password or the admin token (same field). Both make you an admin.
+  // Log in with your name and your personal token (the one in your Claude plugin).
+  // The admin token works too (name ignored) — the setup / emergency key. Until
+  // someone has the admin role, the old shared password still works as well.
   app.post("/login", async (c) => {
     if (!allowAttempt(c)) return c.html(loginPage("Too many attempts. Try again in a few minutes."), 429);
     const form = await c.req.parseBody().catch(() => ({}) as Record<string, unknown>);
-    const secret = typeof form.password === "string" ? form.password : "";
-    const ok = !!secret && (isAdminToken(secrets, secret) || verifyPassword(secret, secrets.passwordHash));
-    if (!ok) return c.html(loginPage("Wrong password or admin token."), 401);
+    const name = typeof form.name === "string" ? form.name.trim() : "";
+    // `password` is the field name older login pages used.
+    const secret = typeof form.token === "string" ? form.token.trim() : typeof form.password === "string" ? form.password : "";
+    const fail = () => c.html(loginPage("That name and token don't match.", name), 401);
+    if (!secret) return fail();
+
+    const person = users?.findUserByToken(secret);
+    if (person) {
+      if (person.name.toLowerCase() !== name.toLowerCase()) return fail();
+      attempts.delete(clientIp(c));
+      setSession(c, signSession(secrets.sessionSecret, clock() + SESSION_TTL_MS, { userId: person.id }), SESSION_TTL_MS);
+      return c.redirect("/", 303);
+    }
+    const bootstrapPassword = !!secrets.passwordHash && !users?.hasAdmins() && verifyPassword(secret, secrets.passwordHash);
+    if (!isAdminToken(secrets, secret) && !bootstrapPassword) return fail();
     attempts.delete(clientIp(c));
     setSession(c, signSession(secrets.sessionSecret, clock() + SESSION_TTL_MS), SESSION_TTL_MS);
     return c.redirect("/", 303);
@@ -200,7 +222,20 @@ export function createApp(deps: AppDeps): Hono {
 
   app.get("/api/me", (c) => {
     const s = session(c);
-    return s ? c.json({ role: s.role }) : c.body(null, 401);
+    if (!s) return c.body(null, 401);
+    const person = s.userId ? users?.getUser(s.userId) : undefined;
+    const me: Me = { role: s.role, ...(person ? { user: { id: person.id, name: person.name } } : {}) };
+    return c.json(me);
+  });
+
+  // A person gets a new token for themselves (their old one stops working; they stay logged in).
+  app.post("/api/me/token", (c) => {
+    const s = session(c);
+    if (!s) return c.body(null, 401);
+    if (!s.userId) return c.body(null, 403);
+    if (c.req.header("x-po-csrf") !== "1") return c.body(null, 403);
+    const token = users?.regenerateUserToken(s.userId);
+    return token ? c.json({ token }) : c.body(null, 404);
   });
 
   app.post("/logout", (c) => {
@@ -239,9 +274,9 @@ export function createApp(deps: AppDeps): Hono {
     const denied = requireAdmin(c, true);
     if (denied) return denied;
     if (!users) return c.body(null, 503);
-    const body = (await c.req.json().catch(() => ({}))) as { name?: unknown };
+    const body = (await c.req.json().catch(() => ({}))) as { name?: unknown; role?: unknown };
     try {
-      return c.json(users.addUser(body.name, clock()), 201);
+      return c.json(users.addUser(body.name, body.role, clock()), 201);
     } catch (err) {
       if (err instanceof UserError) return c.json({ error: err.message }, err.code === "duplicate" ? 409 : 400);
       throw err;
@@ -253,6 +288,21 @@ export function createApp(deps: AppDeps): Hono {
     if (denied) return denied;
     const token = users?.regenerateUserToken(c.req.param("id"));
     return token ? c.json({ token }) : c.body(null, 404);
+  });
+
+  // Make someone an admin or a member. (The admin token always works, so demoting
+  // the last admin can't lock you out.)
+  app.patch("/api/users/:id", bodyLimit({ maxSize: 1024, onError: (c) => c.body(null, 413) }), async (c) => {
+    const denied = requireAdmin(c, true);
+    if (denied) return denied;
+    const body = (await c.req.json().catch(() => ({}))) as { role?: unknown };
+    try {
+      const user = users?.setRole(c.req.param("id"), body.role);
+      return user ? c.json(user) : c.body(null, 404);
+    } catch (err) {
+      if (err instanceof UserError) return c.json({ error: err.message }, 400);
+      throw err;
+    }
   });
 
   app.delete("/api/users/:id", (c) => {

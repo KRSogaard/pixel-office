@@ -43,12 +43,13 @@ See [DESIGN.md](DESIGN.md) for how it works.
 git clone https://github.com/KRSogaard/pixel-office.git
 cd pixel-office
 docker compose up -d                       # or: pnpm install && pnpm start
-docker compose logs pixel-office           # shows the generated password + ingest token
+docker compose logs pixel-office           # shows the admin token (setup link) + ingest token
 ```
 
-1. Open http://127.0.0.1:8790 and log in with the password.
+1. Open the **setup link** from the log (`…/admin?token=po_a_…`) and, in 👥 People, add yourself
+   as an admin. You get your personal token; from now on you log in with your name and it.
 2. In Claude Code run `/plugin marketplace add KRSogaard/pixel-office`, then
-   `/plugin install pixel-office@pixel-office`, and enter the server URL and ingest token when asked.
+   `/plugin install pixel-office@pixel-office`, and enter the server URL and your personal token when asked.
 3. Start a Claude Code session — a new person walks into the office.
 
 No agent handy? Watch fake ones: `pnpm simulate busy-day --token <ingest token>`.
@@ -61,7 +62,7 @@ The sections below cover each step in more detail.
 
 ```sh
 docker compose up -d
-docker compose logs pixel-office   # first start prints the generated password + ingest token
+docker compose logs pixel-office   # first start prints the admin token (setup link) + ingest token
 ```
 
 ### From source
@@ -71,17 +72,17 @@ pnpm install
 PIXEL_OFFICE_HOST=0.0.0.0 pnpm start   # builds if needed, then serves http://<this-machine>:8790
 ```
 
-Open the URL, log in with the password, and you'll see an empty office.
+Open the setup link the first start prints, add yourself in 👥 People, and you'll see an
+empty office.
 
 - `PIXEL_OFFICE_HOST=0.0.0.0` lets other machines reach the server. Leave it out and only
   this machine can connect.
 - `pnpm start` rebuilds first whenever the sources changed since the last build (e.g. after
   a `git pull`), and reinstalls dependencies when the lockfile changed. Then it runs
   `packages/server/dist/server.js` with any arguments you pass.
-- The password and ingest token are printed **only on the first start**. The password is
-  stored hashed and can't be shown again; to choose your own, start with
-  `PIXEL_OFFICE_PASSWORD='…' pnpm start`. To see the token again:
-  `node packages/server/dist/server.js token`.
+- The admin token and shared ingest token are printed **only on the first start**. The admin
+  token is stored hashed; `node packages/server/dist/server.js token --admin --rotate` makes a
+  new one. To see the shared ingest token again: `node packages/server/dist/server.js token`.
 
 ### Configuration
 
@@ -92,7 +93,7 @@ All optional, via environment variables:
 | `PIXEL_OFFICE_PORT` | `8790` | |
 | `PIXEL_OFFICE_HOST` | `127.0.0.1` (`0.0.0.0` in Docker) | Interface to bind. |
 | `PIXEL_OFFICE_DATA_DIR` | `./data` (`/data` in Docker) | Holds `secrets.json`. |
-| `PIXEL_OFFICE_PASSWORD` | generated on first start | Password for the website. |
+| `PIXEL_OFFICE_PASSWORD` | none | The old shared website password. Only logs in until someone has the admin role (for upgrading older installs). |
 | `PIXEL_OFFICE_INGEST_TOKEN` | generated on first start | Shared token agents send events with (no name). `pixel-office token` prints it. |
 | `PIXEL_OFFICE_ADMIN_TOKEN` | generated on first start | Setup key: log in with it or open `/admin?token=…`. Stored hashed; `pixel-office token --admin --rotate` makes a new one. |
 | `PIXEL_OFFICE_TRUST_PROXY` | off | Turn on behind a TLS reverse proxy so the real client IP and `https` are honoured. |
@@ -152,38 +153,53 @@ POST normalized events (see `packages/protocol/src/events.ts`) to
 
 ## 5. Multiple people and a TV
 
-One office can show everyone's agents. Each person gets their own ingest token, so their
-agents are labelled with their name; a TV gets a read-only link.
+One office can show everyone's agents. Each person gets their own token: their agents are
+labelled with their name, and they **log in with their name and that token** (the same one
+they put in the Claude plugin). A TV gets a 6-letter code.
+
+**Roles**
+
+| | Watch | Get a new token for themselves | Settings, people, screens |
+|---|---|---|---|
+| **member** | ✓ | ✓ | |
+| **admin** | ✓ | ✓ | ✓ |
+| **TV** (code) | ✓ | | |
 
 ### The admin token (setup key)
 
-On first start the server prints an **admin token** (`po_a_…`) next to the password and the
-shared ingest token, plus a ready-made setup link:
+On first start the server prints an **admin token** (`po_a_…`) next to the shared ingest
+token, plus a ready-made setup link:
 
 ```
 Admin token        : po_a_…
   setup link       : http://<server>:8790/admin?token=po_a_…
 ```
 
-Open the setup link (or log in with the admin token instead of the password) to land in the
-👥 **People** panel as an admin. The token is stored hashed and can't be shown again; to get a
+Open the setup link (or paste the admin token in the login page's token field) to land in
+the 👥 **People** panel as an admin, and **add yourself as an admin**. From then on use your
+own name + token; keep the admin token as the emergency key.
+
+Upgrading an older install that had a shared password: it keeps working until someone has
+the admin role, so you can log in with it once and make yourself an admin. The token is stored hashed and can't be shown again; to get a
 new one: `pixel-office token --admin --rotate` (restart the server afterwards). You can also
 pin it with `PIXEL_OFFICE_ADMIN_TOKEN`.
 
 ### Add a person
 
-In 👥 **People**, add a name — their token is shown **once**. Lost it? **New token** gives them
-a fresh one (the old one stops working). Or on the server:
+In 👥 **People**, add a name (as a member or an admin) — their token is shown **once**. Lost
+it? **New token** gives them a fresh one (the old one stops working); people can also renew
+their own. Or on the server:
 
 ```sh
-pixel-office user add Morten        # prints Morten's token once
+pixel-office user add Morten        # prints Morten's token once (--admin to make him an admin)
+pixel-office user role Morten admin # or: member
 pixel-office user token Morten      # a new token; the old one stops working
 pixel-office user list
 pixel-office user remove Morten     # his token stops working
 ```
 
-Morten then sets up the Claude Code plugin (section 2) with **his own token** instead of the
-shared one. Already installed? Change the token under pixel-office's settings in `/config` (or
+Morten logs in to the office with his name and that token, and sets up the Claude Code
+plugin (section 2) with the same token instead of the shared one. Already installed? Change the token under pixel-office's settings in `/config` (or
 `/plugin`). OpenCode: `export PIXEL_OFFICE_TOKEN=<his token>`.
 
 Everything his agents do carries his name; the server sets it from the token, so nobody can

@@ -9,7 +9,7 @@ import { ListView } from "./ui/listview.js";
 import { Overlay } from "./ui/overlay.js";
 import { Notifier } from "./ui/notify.js";
 import { Panel } from "./ui/panel.js";
-import { PeoplePanel } from "./ui/people.js";
+import { MePanel, PeoplePanel } from "./ui/people.js";
 import { startTvMode } from "./ui/tv.js";
 import { Replay } from "./ui/replay.js";
 import { SettingsPanel } from "./ui/settings.js";
@@ -54,6 +54,7 @@ const replay = new Replay(document.getElementById("replay")!, store, () => {
 });
 const settings = new SettingsPanel(document.getElementById("settings")!, store);
 const people = new PeoplePanel(document.getElementById("people")!);
+const mePanel = new MePanel(document.getElementById("me")!);
 const startParams = new URLSearchParams(location.search);
 const help = new HelpPanel(document.getElementById("help")!, !startParams.has("people") && !startParams.has("tv"));
 const list = new ListView(document.getElementById("list")!, (id) => select(id), (sessionId) => scene.colorOf(sessionId));
@@ -78,6 +79,7 @@ const hud = new Hud(document.getElementById("hud")!, {
   },
   settings: () => settings.toggle(),
   people: () => void people.toggle(),
+  me: () => void mePanel.toggle(store.me, store.role),
   help: () => help.toggle(),
   list: () => list.toggle(store.state),
   stats: () => board.toggle(),
@@ -111,6 +113,8 @@ store.connect();
 const params = new URLSearchParams(location.search);
 void store.loadRole().then((role) => {
   document.body.classList.toggle("admin", role === "admin");
+  hud.setMe(store.me?.name, role);
+  overlay.me = store.me?.name;
   if (role === "viewer" || params.has("tv")) startTvMode(() => scene.fit(), role);
   if (role === "admin" && params.has("people")) void people.toggle();
 });

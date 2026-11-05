@@ -193,6 +193,8 @@ export type AchievementId = (typeof ACHIEVEMENTS)[number]["id"];
 export interface OfficeUser {
   id: string;
   name: string;
+  /** "admin" manages people, screens and settings; "member" watches and manages their own token. */
+  role: "admin" | "member";
   createdAt: number;
   /** Last time one of their agents sent an event. */
   lastSeenAt?: number;
@@ -205,8 +207,20 @@ export interface DisplayLink {
   createdAt: number;
 }
 
-/** Who is looking at the office: "admin" can change settings and people, "viewer" only watches. */
-export type Role = "admin" | "viewer";
+/**
+ * Who is looking at the office:
+ *  - "admin": a person with the admin role, or the admin token — can change settings, people, screens;
+ *  - "member": a person — watches, and can get a new token for themselves;
+ *  - "viewer": a TV code — only watches.
+ */
+export type Role = "admin" | "member" | "viewer";
+
+/** GET /api/me */
+export interface Me {
+  role: Role;
+  /** The logged-in person, if it's a person (not the admin token or a TV). */
+  user?: { id: string; name: string };
+}
 
 /** Messages the server sends to browsers over the WebSocket. */
 export type ServerMessage =

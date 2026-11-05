@@ -283,3 +283,117 @@ describe("tokens and codes", () => {
     expect(users.findDisplayByKey(fresh)?.name).toBe("Lobby");
   });
 });
+
+describe("name + token login", () => {
+  const login = (fields: Record<string, string>) => ({
+    method: "POST",
+    body: new URLSearchParams(fields),
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+  });
+  const me = async (app: ReturnType<typeof setup>["app"], cookie: string) => {
+    const res = await app.request("/api/me", { headers: { cookie } });
+    return res.status === 200 ? await res.json() : res.status;
+  };
+
+  it("logs a person in with their name and token, as their current role", async () => {
+    const { app, users } = setup();
+    const { user, token } = users.addUser("Morten");
+    const res = await app.request("/login", login({ name: "  morten ", token }));
+    expect(res.status).toBe(303);
+    const cookie = cookieOf(res);
+    expect(await me(app, cookie)).toEqual({ role: "member", user: { id: user.id, name: "Morten" } });
+
+    // Promote: takes effect on the very next request, same cookie.
+    users.setRole(user.id, "admin");
+    expect(await me(app, cookie)).toMatchObject({ role: "admin" });
+    expect((await app.request("/api/users", { headers: { cookie } })).status).toBe(200);
+    // Demote: admin APIs are gone at once.
+    users.setRole(user.id, "member");
+    expect((await app.request("/api/users", { headers: { cookie } })).status).toBe(403);
+    // Removed: the session no longer works.
+    users.removeUser(user.id);
+    expect(await me(app, cookie)).toBe(401);
+  });
+
+  it("refuses a token with someone else's name", async () => {
+    const { app, users } = setup();
+    users.addUser("Ada");
+    const { token } = users.addUser("Morten");
+    const res = await app.request("/login", login({ name: "Ada", token }));
+    expect(res.status).toBe(401);
+    expect(await res.text()).toContain("That name and token don");
+    expect(res.headers.get("set-cookie")).toBeNull();
+  });
+
+  it("lets the admin token in with any name, as admin", async () => {
+    const { app } = setup();
+    const res = await app.request("/login", login({ name: "", token: ADMIN_TOKEN }));
+    expect(res.status).toBe(303);
+    expect(await me(app, cookieOf(res))).toEqual({ role: "admin" });
+  });
+
+  it("accepts the old shared password only until someone is an admin", async () => {
+    const { app, users } = setup();
+    const before = await app.request("/login", login({ token: "hunter2" }));
+    expect(before.status).toBe(303);
+    const { user } = users.addUser("Kasper", "admin");
+    expect(user.role).toBe("admin");
+    expect((await app.request("/login", login({ token: "hunter2" }))).status).toBe(401);
+  });
+
+  it("lets a member watch and renew their own token, but not manage the office", async () => {
+    const { app, users } = setup();
+    const { token } = users.addUser("Ada");
+    const cookie = cookieOf(await app.request("/login", login({ name: "Ada", token })));
+    expect((await app.request("/api/state", { headers: { cookie } })).status).toBe(200);
+    expect((await app.request("/api/users", { headers: { cookie } })).status).toBe(403);
+    expect((await app.request("/api/settings", { method: "PUT", headers: { cookie, "x-po-csrf": "1" }, body: "{}" })).status).toBe(403);
+    // Own token: needs the CSRF header; the old token stops working, the session stays.
+    expect((await app.request("/api/me/token", { method: "POST", headers: { cookie } })).status).toBe(403);
+    const renewed = await app.request("/api/me/token", { method: "POST", headers: { cookie, "x-po-csrf": "1" } });
+    expect(renewed.status).toBe(200);
+    const { token: fresh } = (await renewed.json()) as { token: string };
+    expect(users.findUserByToken(token)).toBeUndefined();
+    expect(users.findUserByToken(fresh)?.name).toBe("Ada");
+    expect(await me(app, cookie)).toMatchObject({ role: "member" });
+  });
+
+  it("only people can renew 'their own' token (not the admin token or a TV)", async () => {
+    const { app, admin } = setup();
+    expect((await app.request("/api/me/token", { method: "POST", headers: { cookie: admin, "x-po-csrf": "1" } })).status).toBe(403);
+  });
+
+  it("changes roles with PATCH, and adds people as admins with POST", async () => {
+    const { app, users, admin } = setup();
+    const h = { cookie: admin, "x-po-csrf": "1", "content-type": "application/json" };
+    const created = await app.request("/api/users", { method: "POST", headers: h, body: JSON.stringify({ name: "Lea", role: "admin" }) });
+    const { user } = (await created.json()) as { user: { id: string; role: string } };
+    expect(user.role).toBe("admin");
+    const patched = await app.request(`/api/users/${user.id}`, { method: "PATCH", headers: h, body: JSON.stringify({ role: "member" }) });
+    expect(patched.status).toBe(200);
+    expect(await patched.json()).toMatchObject({ id: user.id, name: "Lea", role: "member" });
+    expect((await app.request(`/api/users/${user.id}`, { method: "PATCH", headers: h, body: JSON.stringify({ role: "boss" }) })).status).toBe(400);
+    expect((await app.request("/api/users/nope", { method: "PATCH", headers: h, body: JSON.stringify({ role: "admin" }) })).status).toBe(404);
+    expect(users.getUser(user.id)?.role).toBe("member");
+  });
+
+  it("keeps old cookies working: plain admin and TV viewer", async () => {
+    const { app, users, secrets } = setup();
+    const oldAdmin = `po_session=${signSession(secrets.sessionSecret, Date.now() + 60_000)}`;
+    expect(await me(app, oldAdmin)).toEqual({ role: "admin" });
+    const { display } = users.addDisplay("TV");
+    const tv = `po_session=${signSession(secrets.sessionSecret, Date.now() + 60_000, { displayId: display.id })}`;
+    expect(await me(app, tv)).toEqual({ role: "viewer" });
+  });
+
+  it("treats people from older users.json files as members", () => {
+    const dir = mkdtempSync(join(tmpdir(), "po-old-"));
+    writeFileSync(
+      join(dir, "users.json"),
+      JSON.stringify({ users: [{ id: "u1", name: "Old", tokenHash: "00", createdAt: 1 }], displays: [] }),
+    );
+    const store = new UsersStore(dir);
+    expect(store.listUsers()[0]).toMatchObject({ name: "Old", role: "member" });
+    expect(store.hasAdmins()).toBe(false);
+  });
+});

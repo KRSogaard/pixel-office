@@ -74,6 +74,8 @@ export class Overlay {
   private popup: HTMLDivElement | undefined;
   private popupKey = "";
   privacy = false;
+  /** The logged-in person's name: their own agents get highlighted. */
+  me: string | undefined;
 
   constructor(private root: HTMLElement) {}
 
@@ -123,6 +125,7 @@ export class Overlay {
     tag.why.hidden = visitor || agent.status === "ended";
     tag.why.classList.toggle("quiet", agent.status === "idle");
     tag.root.title = this.tooltip(agent, ctx);
+    tag.root.classList.toggle("mine", !!this.me && agent.user?.toLowerCase() === this.me.toLowerCase());
     tag.root.classList.toggle("waiting", agent.status === "waiting");
     tag.root.classList.toggle("idle", agent.status === "idle");
   }
