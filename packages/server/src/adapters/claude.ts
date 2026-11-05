@@ -1,5 +1,5 @@
-import { categorizeTool, projectFromPath, summarizeTool, type AgentEvent } from "@pixel-office/protocol";
-import { isObj, str, validEvents, type Adapter, type Obj } from "./common.js";
+import { categorizeTool, projectFromPath, summarizeTool, detailTool, type AgentEvent } from "@pixel-office/protocol";
+import { isObj, str, validEvents, withDetail, type Adapter, type Obj } from "./common.js";
 
 /**
  * Claude Code hook payloads → AgentEvents.
@@ -47,6 +47,7 @@ export function claudeToEvents(payload: unknown, now: number): AgentEvent[] {
         tool: toolName,
         category: categorizeTool(toolName),
         summary: summarizeTool(toolName, toolInput),
+        ...withDetail(detailTool(toolName, toolInput)),
       });
       if (toolName === "SendMessage") {
         const to = str(toolInput, "to") ?? str(toolInput, "recipient");

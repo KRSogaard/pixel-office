@@ -1,4 +1,4 @@
-import { categorizeTool, summarizeTool, type AgentEventInput } from "@pixel-office/protocol";
+import { categorizeTool, detailTool, summarizeTool, type AgentEventInput } from "@pixel-office/protocol";
 
 type Omit2<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
 export type SimEvent = Omit2<AgentEventInput, "ts">;
@@ -73,7 +73,16 @@ class Script {
   /** Start a tool call without ending it; returns its id. */
   open(w: Who, tool: string, input: Record<string, unknown>, d = 400): string {
     const callId = `sim-${this.loop}-${++this.n}`;
-    this.at(d, { ...w, kind: "tool.start", callId, tool, category: categorizeTool(tool), summary: summarizeTool(tool, input) });
+    const detail = detailTool(tool, input);
+    this.at(d, {
+      ...w,
+      kind: "tool.start",
+      callId,
+      tool,
+      category: categorizeTool(tool),
+      summary: summarizeTool(tool, input),
+      ...(detail ? { detail } : {}),
+    });
     return callId;
   }
   close(w: Who, callId: string, d = 400, ok = true) {
@@ -169,9 +178,9 @@ const delegationTree: Scenario = (loop) => {
   const s = new Script(loop).start(lead).prompt(lead, "Refactor the tenant portal auth flow");
   s.tool(lead, "Read", { file_path: "src/auth/session.ts" }, 1500);
   const calls = [
-    s.open(lead, "Agent", { description: "map every auth call site", subagent_type: "Explore" }, 800),
-    s.open(lead, "Agent", { description: "review the session module", subagent_type: "code-reviewer" }, 300),
-    s.open(lead, "Agent", { description: "write tests for token refresh", subagent_type: "test-writer" }, 300),
+    s.open(lead, "Agent", { description: "map every auth call site", prompt: "Find every place the tenant portal reads or writes the auth token and list the files with line numbers", subagent_type: "Explore" }, 800),
+    s.open(lead, "Agent", { description: "review the session module", prompt: "Review src/session for token-expiry bugs and anything that would break if tokens move to httpOnly cookies", subagent_type: "code-reviewer" }, 300),
+    s.open(lead, "Agent", { description: "write tests for token refresh", prompt: "Write unit tests covering token refresh: expired token, refresh failure, concurrent refreshes", subagent_type: "test-writer" }, 300),
   ];
   for (const k of kids) s.start(k, 400);
   const work = [
@@ -228,8 +237,8 @@ const team: Scenario = (loop) => {
   const res = child(lead, `researcher-${loop}`, "researcher");
   const impl = child(lead, `implementer-${loop}`, "implementer");
   const s = new Script(loop).start(lead).prompt(lead, "Ship webhook retries");
-  const c1 = s.open(lead, "Agent", { description: "research retry strategies", subagent_type: "researcher" }, 600);
-  const c2 = s.open(lead, "Agent", { description: "implement the retry queue", subagent_type: "implementer" }, 300);
+  const c1 = s.open(lead, "Agent", { description: "research retry strategies", prompt: "Compare exponential backoff, jitter and dead-letter queues for webhook retries and recommend one", subagent_type: "researcher" }, 600);
+  const c2 = s.open(lead, "Agent", { description: "implement the retry queue", prompt: "Implement a retry queue for failed webhooks using the strategy the researcher recommends", subagent_type: "implementer" }, 300);
   s.start(res, 300).start(impl, 300);
   s.tool(res, "WebSearch", { query: "webhook retry exponential backoff" }, 3000)
     .tool(res, "SendMessage", { to: "implementer", message: "Use exponential backoff, cap at 6 tries" }, 600)

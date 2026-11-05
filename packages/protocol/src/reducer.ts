@@ -21,7 +21,7 @@ export function reduce(state: OfficeState, e: AgentEvent): OfficeState {
   const existing = agents[e.agentId];
   if (!existing && e.kind === "session.end") return next;
 
-  const a: AgentState = existing ? { ...existing } : newAgent(e);
+  const a: AgentState = existing ? { ...existing } : newAgent(e, new Set(Object.values(agents).map((x) => x.name)));
   a.lastEventAt = e.ts;
   if (e.project.name !== "unknown") a.project = e.project;
   if (e.label) a.label = e.label;
@@ -78,6 +78,7 @@ export function reduce(state: OfficeState, e: AgentEvent): OfficeState {
         tool: e.tool,
         category: e.category,
         summary: e.summary ?? e.tool,
+        ...(e.detail ? { detail: e.detail } : {}),
         startedAt: e.ts,
       };
       a.openCalls = [...a.openCalls.filter((c) => c.callId !== e.callId), call];
@@ -138,13 +139,13 @@ export function reduceAll(state: OfficeState, events: Iterable<AgentEvent>): Off
   return s;
 }
 
-function newAgent(e: AgentEvent): AgentState {
+function newAgent(e: AgentEvent, takenNames: ReadonlySet<string>): AgentState {
   return {
     id: e.agentId,
     source: e.source,
     sessionId: e.sessionId,
     ...(e.parentAgentId ? { parentId: e.parentAgentId } : {}),
-    name: nameFor(e.agentId),
+    name: nameFor(e.agentId, takenNames),
     ...(e.label ? { label: e.label } : {}),
     project: e.project,
     status: "idle",
@@ -181,15 +182,21 @@ function claimDelegation(agents: Record<string, AgentState>, child: AgentState, 
   const parentId = child.parentId;
   if (!parentId) return;
   const parent = agents[parentId];
-  if (!parent) return;
+  if (!parent) {
+    if (child.label) child.task = child.label;
+    return;
+  }
   const [callId, ...rest] = parent.pendingDelegations;
   const call = callId ? parent.openCalls.find((c) => c.callId === callId) : undefined;
+  const task = call?.summary.replace(/^Delegate: /, "") ?? child.label;
+  if (task) child.task = task;
+  if (call?.detail) child.taskBrief = call.detail;
   agents[parentId] = {
     ...parent,
     pendingDelegations: rest,
     lastSaid: {
       kind: "delegate",
-      text: call?.summary.replace(/^Delegate: /, "") ?? child.label ?? "Can you take this?",
+      text: task ?? "Can you take this?",
       at: ts,
       withAgentId: child.id,
     },

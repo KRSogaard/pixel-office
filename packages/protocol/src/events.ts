@@ -45,6 +45,8 @@ export const agentEventSchema = z.discriminatedUnion("kind", [
     tool: z.string().min(1).max(120),
     category: z.enum(TOOL_CATEGORIES),
     summary: text.optional(),
+    /** Longer context for the call. For a delegation: the brief handed to the sub-agent. */
+    detail: text.optional(),
   }),
   z.object({ ...base, kind: z.literal("tool.end"), callId: id, ok: z.boolean() }),
   z.object({

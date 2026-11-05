@@ -39,6 +39,8 @@ export class Panel {
       ["Last seen", `${duration(now - a.lastEventAt)} ago`],
     ];
     if (a.label) rows.push(["Role", a.label]);
+    const call = a.openCalls[a.openCalls.length - 1];
+    rows.push(["Doing now", call ? (this.privacy ? call.tool : call.summary) : a.activity]);
     if (a.waiting) rows.push(["Waiting on you", this.privacy ? a.waiting.reason : a.waiting.text ?? a.waiting.reason]);
     if (parent) rows.push(["Reports to", link(parent, () => this.show(parent.id, state))]);
     if (children.length)
@@ -49,8 +51,10 @@ export class Panel {
       rows.map(([k, v]) => div("fact", [span("fact-k", k), typeof v === "string" ? span("fact-v", v) : v])),
     );
 
-    const prompt =
-      a.prompt && !this.privacy ? div("panel-section", [span("section-title", "Working on"), div("prompt", [text(a.prompt)])]) : null;
+    // "Why": a sub-agent's brief from its parent, or the prompt a main agent is on.
+    const why = a.parentId ? (a.taskBrief ?? a.task) : a.prompt;
+    const whyTitle = a.parentId ? `Task from ${parent?.name ?? "its parent"}` : "Working on";
+    const prompt = why && !this.privacy ? div("panel-section", [span("section-title", whyTitle), div("prompt", [text(why)])]) : null;
 
     const tools = div(
       "tools",

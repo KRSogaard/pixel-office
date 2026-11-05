@@ -155,25 +155,50 @@ button {
   overflow: hidden;
 }
 
-/* Name tags & bubbles: positioned at the agent's head, anchored bottom-centre. */
+/* Name tags & bubbles: anchored bottom-centre at the agent's head. The stack
+   grows upward: bubble on top, then the name card (name line + "why" line). */
 .tag {
   position: absolute;
   left: 0;
   top: 0;
-  pointer-events: auto;
-  cursor: pointer;
+  pointer-events: none;
   --zoom: 3;
   font-size: clamp(9px, calc(var(--zoom) * 3.4px), 13px);
   will-change: transform;
 }
 
-.tag-line,
-.bubble {
+.tag-stack {
+  position: absolute;
+  left: 0;
+  bottom: var(--lift, 0px);
+  transform: translate(-50%, 0);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+/* When a tag had to move up to make room, a thin leader line points back to its agent. */
+.tag.lifted::after {
+  content: "";
   position: absolute;
   left: 0;
   bottom: 0;
-  transform: translate(-50%, 0);
-  white-space: nowrap;
+  width: 1px;
+  height: var(--lift, 0px);
+  background: var(--session-line, rgba(255, 255, 255, 0.55));
+}
+
+.tag-card {
+  pointer-events: auto;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  max-width: 19em;
+  background: rgba(20, 22, 30, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-left: 4px solid var(--session, transparent);
 }
 
 .tag-line {
@@ -181,22 +206,45 @@ button {
   align-items: center;
   gap: 3px;
   padding: 0 4px 0 0;
-  background: rgba(20, 22, 30, 0.82);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  white-space: nowrap;
   line-height: 1.5;
 }
 
-.tag.idle .tag-line {
+.tag-sub {
+  padding: 0 4px;
+  color: #1d1f27;
+  background: var(--session, #9097a6);
+  font-size: 0.85em;
+  font-weight: 700;
+}
+
+.tag-why {
+  padding: 0 5px 1px;
+  color: #c9cfdb;
+  font-size: 0.85em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.tag.idle .tag-card {
   opacity: 0.65;
 }
 
-.tag.waiting .tag-line {
+.tag.waiting .tag-card {
   border-color: var(--hot);
+  border-left-color: var(--session, var(--hot));
   box-shadow: 0 0 0 1px var(--hot);
 }
 
-.tag.selected .tag-line {
+.tag.waiting .tag-why {
+  color: #ffb3b3;
+}
+
+.tag.selected .tag-card {
   border-color: #fff;
+  border-left-color: var(--session, #fff);
   box-shadow: 0 0 0 1px #fff;
 }
 
@@ -228,20 +276,17 @@ button {
 }
 
 .bubble {
-  bottom: 2.1em;
-  max-width: 28em;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  position: relative;
+  display: none;
+  width: max-content;
+  max-width: 20em;
+  white-space: normal;
+  line-height: 1.3;
   padding: 3px 7px;
   background: #fdfbf5;
   color: #1d1f27;
   border: 2px solid #1d1f27;
   box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.35);
-  opacity: 0;
-  transform: translate(-50%, 4px);
-  transition:
-    opacity 0.15s steps(3),
-    transform 0.15s steps(3);
 }
 
 .bubble::after {
@@ -259,8 +304,15 @@ button {
 }
 
 .bubble.show {
-  opacity: 1;
-  transform: translate(-50%, 0);
+  display: block;
+  animation: pop-in 0.15s steps(3);
+}
+
+@keyframes pop-in {
+  from {
+    transform: translateY(4px) scale(0.9);
+    opacity: 0;
+  }
 }
 
 .bubble-permission,

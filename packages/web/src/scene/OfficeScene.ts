@@ -1,5 +1,5 @@
 import Phaser from "phaser";
-import type { AgentState, OfficeState, Utterance } from "@pixel-office/protocol";
+import { type AgentState, type OfficeState, type Utterance } from "@pixel-office/protocol";
 import { paintOffice } from "../art/tiles.js";
 import { Allocator } from "../office/allocator.js";
 import { PlaceDebouncer, placeFor } from "../office/director.js";
@@ -38,10 +38,13 @@ export class OfficeScene extends Phaser.Scene {
   private office!: Office;
   private allocator!: Allocator;
   private bg!: Phaser.GameObjects.Image;
+  private links!: Phaser.GameObjects.Graphics;
   private actors = new Map<string, Actor>();
   private projectNames = new Map<string, string>();
   private firstSync = true;
   private selected: string | undefined;
+  /** Session id → colour index, handed out in order of appearance and kept for the page's life. */
+  private sessionColors = new Map<string, number>();
   private delegations = new Map<string, { children: Actor[]; texts: string[] }>();
   private now = 0;
 
@@ -58,6 +61,7 @@ export class OfficeScene extends Phaser.Scene {
     this.allocator = new Allocator(this.office);
     this.textures.addCanvas("office", paintOffice(this.office));
     this.bg = this.add.image(0, 0, "office").setOrigin(0, 0).setDepth(-1);
+    this.links = this.add.graphics().setDepth(99_999);
     this.setupCamera();
     this.deps.store.subscribe((state) => this.sync(state));
   }
@@ -68,14 +72,17 @@ export class OfficeScene extends Phaser.Scene {
     const points = new Map<string, ScreenPoint>();
     for (const [id, actor] of this.actors) {
       if (!actor.c.busyWithScript) this.direct(actor, time);
+      const call = actor.agent.openCalls[actor.agent.openCalls.length - 1];
+      actor.c.setActivity(actor.agent.activity, call?.callId ?? actor.agent.activity, time);
       actor.c.update(Math.min(delta, 100), time);
       if (actor.agent.status === "ended" && !actor.c.busyWithScript && actor.c.arrived && actor.c.destination?.pose === "stand" && this.isDoor(actor.c.tile)) {
         this.despawn(id);
         continue;
       }
-      points.set(id, this.toScreen(actor.c.x, actor.c.y - 26, cam));
+      points.set(id, this.toScreen(actor.c.x, actor.c.y - 27, cam));
     }
     this.deps.overlay.placeAll(points, time);
+    this.drawTeamLinks(time);
     const projects = this.allocator.podProjects();
     for (const pod of this.office.pods) {
       const key = projects.get(pod.index);
@@ -133,7 +140,17 @@ export class OfficeScene extends Phaser.Scene {
       }
       actor.agent = agent;
       actor.gone = false;
-      this.deps.overlay.ensure(agent, () => this.deps.onSelect(agent.id));
+    }
+
+    // Every session gets its own colour (ring under the feet, tag stripe); a
+    // main agent and its sub-agents share it, so you can see who belongs to whom.
+    for (const agent of Object.values(state.agents)) {
+      const actor = this.actors.get(agent.id);
+      if (!actor) continue;
+      const color = this.sessionColor(agent.sessionId);
+      actor.c.setSessionColor(color);
+      const parent = agent.parentId ? state.agents[agent.parentId] : undefined;
+      this.deps.overlay.ensure(agent, { parentName: parent?.name, sessionColor: color }, () => this.deps.onSelect(agent.id));
     }
 
     // Agents that vanished from the state walk out.
@@ -210,6 +227,39 @@ export class OfficeScene extends Phaser.Scene {
     this.updateBounds();
     seat = this.allocator.seatFor(agent.id, agent.project.path);
     return seat;
+  }
+
+  /** Dotted lines from the selected agent to its parent and sub-agents. */
+  private drawTeamLinks(now: number): void {
+    const g = this.links;
+    g.clear();
+    const sel = this.selected ? this.actors.get(this.selected) : undefined;
+    if (!sel) return;
+    const team = [...this.actors.values()].filter(
+      (a) => a !== sel && (a.agent.id === sel.agent.parentId || a.agent.parentId === sel.agent.id),
+    );
+    const color = this.sessionColor(sel.agent.sessionId);
+    const march = Math.floor(now / 120) % 6;
+    for (const other of team) {
+      const x1 = sel.c.x;
+      const y1 = sel.c.y - 10;
+      const x2 = other.c.x;
+      const y2 = other.c.y - 10;
+      const len = Math.hypot(x2 - x1, y2 - y1);
+      for (let d = march; d < len; d += 6) {
+        const t = d / len;
+        g.fillStyle(color, 0.9).fillRect(Math.round(x1 + (x2 - x1) * t) - 1, Math.round(y1 + (y2 - y1) * t) - 1, 2, 2);
+      }
+    }
+  }
+
+  private sessionColor(sessionId: string): number {
+    let i = this.sessionColors.get(sessionId);
+    if (i === undefined) {
+      i = this.sessionColors.size;
+      this.sessionColors.set(sessionId, i);
+    }
+    return sessionColorAt(i);
   }
 
   // --- where should each agent be? -----------------------------------------
@@ -453,6 +503,16 @@ export class OfficeScene extends Phaser.Scene {
   private isDoor(t: Point): boolean {
     return this.office.tiles[t.y]?.[t.x] === "D";
   }
+}
+
+/**
+ * The i-th session colour. Hues step by the golden angle, so consecutive
+ * sessions land far apart on the colour wheel and never look alike.
+ */
+export function sessionColorAt(i: number): number {
+  const hue = ((i * 137.508 + 18) % 360) / 360;
+  const lightness = i % 2 ? 0.55 : 0.65;
+  return Phaser.Display.Color.HSLToColor(hue, 0.85, lightness).color;
 }
 
 function faceToward(from: Point, to: Point): Facing {

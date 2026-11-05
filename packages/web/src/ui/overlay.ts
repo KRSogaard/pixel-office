@@ -39,11 +39,22 @@ export interface ScreenPoint {
 
 interface Tag {
   root: HTMLDivElement;
-  line: HTMLDivElement;
+  /** Name line + "why" line; its size is what de-cluttering measures. */
+  stack: HTMLDivElement;
+  card: HTMLDivElement;
   name: HTMLSpanElement;
+  sub: HTMLSpanElement;
   icon: HTMLSpanElement;
+  why: HTMLDivElement;
   bubble: HTMLDivElement;
   bubbleUntil: number;
+}
+
+export interface TagContext {
+  /** Name of the agent this one works for (sub-agents only). */
+  parentName?: string | undefined;
+  /** The session's colour as 0xRRGGBB, shared by a main agent and its sub-agents. */
+  sessionColor?: number | undefined;
 }
 
 export class Overlay {
@@ -53,35 +64,76 @@ export class Overlay {
 
   constructor(private root: HTMLElement) {}
 
-  ensure(agent: AgentState, onClick: () => void): void {
+  ensure(agent: AgentState, ctx: TagContext, onClick: () => void): void {
     let tag = this.tags.get(agent.id);
     if (!tag) {
       const root = el("div", "tag");
+      const stack = el("div", "tag-stack");
+      const card = el("div", "tag-card");
       const line = el("div", "tag-line");
       const badge = el("span", `badge badge-${badgeClass(agent.source)}`);
       badge.textContent = agent.source === "claude" ? "C" : agent.source === "opencode" ? "O" : "•";
       badge.title = agent.source;
       const name = el("span", "tag-name");
+      const sub = el("span", "tag-sub");
       const icon = el("span", "tag-icon");
-      line.append(badge, name, icon);
+      line.append(badge, name, sub, icon);
+      const why = el("div", "tag-why");
+      card.append(line, why);
       const bubble = el("div", "bubble");
-      root.append(bubble, line);
+      stack.append(bubble, card);
+      root.append(stack);
       root.addEventListener("click", onClick);
       this.root.append(root);
-      tag = { root, line, name, icon, bubble, bubbleUntil: 0 };
+      tag = { root, stack, card, name, sub, icon, why, bubble, bubbleUntil: 0 };
       this.tags.set(agent.id, tag);
     }
-    tag.name.textContent = agent.label && agent.parentId ? `${agent.name} · ${agent.label}` : agent.name;
+    tag.name.textContent = agent.name;
+    tag.sub.textContent = agent.parentId ? `sub${agent.label ? ` · ${agent.label}` : ""}` : "";
+    tag.sub.hidden = !agent.parentId;
     tag.icon.textContent = STATUS_ICON[agent.activity];
+    const color = ctx.sessionColor === undefined ? "transparent" : hex(ctx.sessionColor);
+    tag.card.style.setProperty("--session", color);
+    tag.root.style.setProperty("--session-line", ctx.sessionColor === undefined ? "rgba(255,255,255,.55)" : color);
+
+    const why = this.whyText(agent, ctx);
+    tag.why.textContent = why;
+    tag.why.hidden = !why || agent.status === "idle" || agent.status === "ended";
+    tag.root.title = this.tooltip(agent, ctx);
     tag.root.classList.toggle("waiting", agent.status === "waiting");
     tag.root.classList.toggle("idle", agent.status === "idle");
+  }
+
+  /** The short "why" under the name: the sub-agent's task, or the prompt the agent is on. */
+  private whyText(agent: AgentState, ctx: TagContext): string {
+    const boss = agent.parentId ? `↳ ${ctx.parentName ?? "parent"}` : "";
+    if (this.privacy) return boss;
+    if (agent.status === "waiting" && agent.waiting?.text) return `needs you: ${agent.waiting.text}`;
+    const reason = agent.parentId ? agent.task : agent.prompt;
+    if (!reason) return boss;
+    return boss ? `${boss}: ${reason}` : reason;
+  }
+
+  private tooltip(agent: AgentState, ctx: TagContext): string {
+    const call = agent.openCalls[agent.openCalls.length - 1];
+    const lines = [
+      `${agent.name}${agent.label ? ` (${agent.label})` : ""} — ${agent.project.name}`,
+      agent.parentId ? `Sub-agent of ${ctx.parentName ?? agent.parentId}` : "",
+      call ? `Now: ${this.privacy ? call.tool : call.summary}` : `Now: ${agent.activity}`,
+    ];
+    if (!this.privacy) {
+      if (agent.parentId && (agent.taskBrief || agent.task)) lines.push(`Task: ${agent.taskBrief ?? agent.task}`);
+      else if (agent.prompt) lines.push(`Prompt: ${agent.prompt}`);
+    }
+    return lines.filter(Boolean).join("\n");
   }
 
   say(agentId: string, u: Pick<Utterance, "kind" | "text">, now: number): void {
     const tag = this.tags.get(agentId);
     if (!tag) return;
     const text = this.privacy ? "" : u.text;
-    tag.bubble.textContent = BUBBLE_PREFIX[u.kind] + (text || iconOnly(u.kind));
+    const shown = text.length > 90 ? `${text.slice(0, 89)}…` : text;
+    tag.bubble.textContent = BUBBLE_PREFIX[u.kind] + (shown || iconOnly(u.kind));
     tag.bubble.className = `bubble show bubble-${u.kind}`;
     tag.bubbleUntil = now + Math.min(7000, 2500 + text.length * 45);
   }
@@ -95,26 +147,33 @@ export class Overlay {
    * nudged upward so names stay readable when agents stand side by side.
    */
   placeAll(points: Map<string, ScreenPoint>, now: number): void {
-    const placed: { x: number; y: number; w: number; h: number }[] = [];
+    const placed: { x: number; top: number; bottom: number; w: number }[] = [];
+    // Lowest agents first: they keep their spot, the ones above make way upward.
     const ordered = [...points.entries()].sort((a, b) => b[1].y - a[1].y);
     for (const [id, p] of ordered) {
       const tag = this.tags.get(id);
       if (!tag) continue;
-      const w = tag.line.offsetWidth || 60;
-      const h = tag.line.offsetHeight || 14;
-      let y = p.y;
-      for (let guard = 0; guard < 8; guard++) {
-        const hit = placed.find((r) => Math.abs(r.x - p.x) < (r.w + w) / 2 && Math.abs(r.y - y) < h);
-        if (!hit) break;
-        y = hit.y - h - 1;
-      }
-      placed.push({ x: p.x, y, w, h });
-      tag.root.style.transform = `translate(${Math.round(p.x)}px, ${Math.round(y)}px)`;
-      tag.root.style.setProperty("--zoom", String(p.scale));
       if (tag.bubbleUntil && now > tag.bubbleUntil) {
         tag.bubble.classList.remove("show");
         tag.bubbleUntil = 0;
       }
+      // Measure the whole stack (bubble + card) so bubbles don't pile up either.
+      const w = Math.max(tag.card.offsetWidth, tag.bubble.offsetWidth) || 60;
+      const h = tag.stack.offsetHeight || 14;
+      let bottom = p.y;
+      for (let guard = 0; guard < 12; guard++) {
+        const hit = placed.find((r) => Math.abs(r.x - p.x) < (r.w + w) / 2 + 2 && bottom > r.top && bottom - h < r.bottom);
+        if (!hit) break;
+        bottom = hit.top - 2;
+      }
+      // Never push a tag off the top of the screen; overlapping beats unreadable.
+      bottom = Math.max(bottom, h + 4);
+      placed.push({ x: p.x, top: bottom - h, bottom, w });
+      const lift = Math.max(0, Math.round(p.y - bottom));
+      tag.root.style.transform = `translate(${Math.round(p.x)}px, ${Math.round(p.y)}px)`;
+      tag.root.style.setProperty("--zoom", String(p.scale));
+      tag.root.style.setProperty("--lift", `${lift}px`);
+      tag.root.classList.toggle("lifted", lift > 3);
     }
   }
 
@@ -149,6 +208,10 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, className: string): H
   const e = document.createElement(tag);
   e.className = className;
   return e;
+}
+
+function hex(color: number): string {
+  return `#${color.toString(16).padStart(6, "0")}`;
 }
 
 function badgeClass(source: string): string {

@@ -16,6 +16,15 @@ export function hash(s: string): number {
   return h >>> 0;
 }
 
-export function nameFor(agentId: string): string {
-  return NAMES[hash(agentId) % NAMES.length]!;
+/**
+ * A first name for an agent, stable per id. Skips names already used by agents
+ * in the office, so two people on screen never share a name (until all 50 are taken).
+ */
+export function nameFor(agentId: string, taken: ReadonlySet<string> = new Set()): string {
+  const start = hash(agentId) % NAMES.length;
+  for (let i = 0; i < NAMES.length; i++) {
+    const name = NAMES[(start + i) % NAMES.length]!;
+    if (!taken.has(name)) return name;
+  }
+  return NAMES[start]!;
 }

@@ -51,6 +51,18 @@ describe("claude adapter", () => {
     expect(JSON.stringify(write)).not.toContain("TOP SECRET");
   });
 
+  it("carries the delegation brief as detail on Agent calls only", () => {
+    const [agent] = run({
+      hook_event_name: "PreToolUse",
+      tool_name: "Agent",
+      tool_input: { description: "find usages", prompt: "Find every caller of useAuth and list the files", subagent_type: "Explore" },
+      tool_use_id: "toolu_03",
+    });
+    expect(agent).toMatchObject({ category: "delegate", summary: "Delegate: find usages", detail: "Find every caller of useAuth and list the files" });
+    const [read] = run({ hook_event_name: "PreToolUse", tool_name: "Read", tool_input: { file_path: "/a/b.ts" }, tool_use_id: "toolu_04" });
+    expect(read).not.toHaveProperty("detail");
+  });
+
   it("maps PostToolUse / PostToolUseFailure to tool.end", () => {
     expect(run({ hook_event_name: "PostToolUse", tool_name: "Read", tool_use_id: "t1", tool_response: {} })[0]).toMatchObject({
       kind: "tool.end",

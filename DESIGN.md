@@ -31,15 +31,27 @@ One open-plan floor, built from a tile map, with these areas:
 
 ### Each agent
 
-- **Body**: a small character generated from layered sprite parts (body, hair, shirt, accessory).
-  The parts are picked deterministically from the session id, so the same session always looks
-  the same.
-- **Badge**: a small coloured tag showing which tool it is — Claude, OpenCode, or "other".
-- **Name label**: a generated human first name plus the project name, e.g. `Mira · pixel-office`.
-- **Status bubble**: a small icon above the head — `…` thinking, keyboard typing, magnifier
-  reading, terminal, `!` needs you, `zZ` idle.
-- **Click** an agent to open a side panel: project path, current activity, last ~20 tool calls,
-  the prompt it's working on, who its parent/children are, and how long it's been going.
+- **Body**: a small character generated from layered sprite parts (skin, hair, shirt, trousers),
+  picked from a hash of the agent id, so the same agent always looks the same.
+- **Session colour**: every session gets its own colour, handed out in order of appearance and
+  spaced around the colour wheel. It's the ring under the agent's feet and the stripe on its
+  name tag. A main agent and all its sub-agents share it, so you can see who belongs to whom.
+- **Name tag**:
+  - line 1: tool badge (`C` Claude, `O` OpenCode), a first name (unique among agents in the
+    office), and for sub-agents a `sub · <type>` chip in the session colour;
+  - line 2, the *why*: for a main agent, the prompt it's working on; for a sub-agent,
+    `↳ <parent>: <task>`; when it needs you, `needs you: <what>`. Hidden in privacy mode.
+  - Hovering shows the current tool call and the full prompt or brief.
+  - When agents crowd together, tags move up out of each other's way, and a thin line in the
+    session colour points from a moved tag back to its agent.
+- **Activity animation**: a small animated icon beside the head (`src/art/fx.ts`): a thought
+  cloud filling with dots, a page being written, a book flipping pages, a terminal printing
+  lines, a globe turning, a bouncing envelope, two people passing a task, a blinking `!`,
+  floating `z`s. It pops in on every new tool call. Agents thinking at their desk also sit
+  still and now and then scratch their head; agents typing make their monitor scroll code.
+- **Click** an agent to open a side panel (project, doing now, the prompt or the brief from its
+  parent, parent/sub-agent links, last ~20 tool calls) and to draw dotted lines to its parent
+  and sub-agents.
 
 ### Activity → place → animation
 

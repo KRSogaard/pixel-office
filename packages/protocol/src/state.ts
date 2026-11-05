@@ -23,6 +23,7 @@ export interface ToolCall {
   tool: string;
   category: ToolCategory;
   summary: string;
+  detail?: string;
   startedAt: number;
   endedAt?: number;
   ok?: boolean;
@@ -57,6 +58,10 @@ export interface AgentState {
   /** Last N finished and running calls, newest last. */
   recentTools: ToolCall[];
   prompt?: string;
+  /** Sub-agents: the short task their parent gave them ("find usages of useAuth"). */
+  task?: string;
+  /** Sub-agents: the full brief their parent wrote. */
+  taskBrief?: string;
   waiting?: { reason: "permission" | "question"; text?: string; since: number };
   lastSaid?: Utterance;
   lastErrorAt?: number;

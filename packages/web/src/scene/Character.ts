@@ -1,5 +1,7 @@
 import Phaser from "phaser";
+import type { Activity } from "@pixel-office/protocol";
 import { FRAMES, FRAME_H, FRAME_W, appearanceFor, buildSheet } from "../art/characters.js";
+import { FX_SIZE, buildFxSheet, type FxStrip } from "../art/fx.js";
 import type { Pose } from "../office/director.js";
 import { TILE, type Facing } from "../office/layout.js";
 import { findPath, type Point } from "../office/pathfind.js";
@@ -24,8 +26,30 @@ export type Step =
  * One agent on screen: sprite, walking along a path, posing on arrival.
  * Knows nothing about agent state — the scene tells it where to go.
  */
+const FX_KEY = "fx";
+let fxStrips: Partial<Record<Activity, FxStrip>> | undefined;
+
+function ensureFx(scene: Phaser.Scene): Partial<Record<Activity, FxStrip>> {
+  if (!fxStrips || !scene.textures.exists(FX_KEY)) {
+    const { canvas, strips } = buildFxSheet();
+    const tex = scene.textures.addCanvas(FX_KEY, canvas)!;
+    for (let i = 0; i < canvas.width / FX_SIZE; i++) tex.add(i, 0, i * FX_SIZE, 0, FX_SIZE, FX_SIZE);
+    fxStrips = strips;
+  }
+  return fxStrips;
+}
+
 export class Character {
   readonly sprite: Phaser.GameObjects.Sprite;
+  /** Animated icon by the head: what the agent is doing right now. */
+  private readonly fx: Phaser.GameObjects.Sprite;
+  /** Code scrolling on the desk monitor while typing. */
+  private readonly screen: Phaser.GameObjects.Graphics;
+  /** Coloured ring under the feet: the session's colour, shared with its sub-agents. */
+  private readonly ring: Phaser.GameObjects.Ellipse;
+  private activity: Activity = "idle";
+  private activityKey = "";
+  private fxStartedAt = 0;
   /** Current tile (the one the feet are on, or heading into). */
   tile: Point;
   private path: Point[] = [];
@@ -52,6 +76,29 @@ export class Character {
     this.tile = { ...start };
     this.sprite = scene.add.sprite(...feet(start), key, 0).setOrigin(0.5, 1);
     this.sprite.setInteractive({ useHandCursor: true, pixelPerfect: false });
+    ensureFx(scene);
+    this.fx = scene.add.sprite(0, 0, FX_KEY, 0).setOrigin(0.5, 1).setVisible(false);
+    this.screen = scene.add.graphics().setVisible(false);
+    this.ring = scene.add.ellipse(0, 0, 14, 5).setVisible(false);
+  }
+
+  /**
+   * What the agent is doing. `key` changes with every new tool call, so the
+   * icon pops even when the same kind of tool runs twice in a row.
+   */
+  setActivity(activity: Activity, key: string, now: number): void {
+    if (activity === this.activity && key === this.activityKey) return;
+    this.activity = activity;
+    this.activityKey = key;
+    this.fxStartedAt = now;
+  }
+
+  setSessionColor(color: number | undefined): void {
+    if (color === undefined) {
+      this.ring.setVisible(false);
+      return;
+    }
+    this.ring.setStrokeStyle(1.5, color, 0.95).setFillStyle(color, 0.25).setVisible(true);
   }
 
   get x(): number {
@@ -99,10 +146,57 @@ export class Character {
     this.move(dtMs);
     this.animate(dtMs);
     this.sprite.setDepth(this.sprite.y);
+    this.ring.setPosition(this.sprite.x, this.sprite.y - 1).setDepth(this.sprite.y - 0.5);
+    this.updateFx(now);
+    this.updateScreen(now);
   }
 
   destroy(): void {
     this.sprite.destroy();
+    this.fx.destroy();
+    this.screen.destroy();
+    this.ring.destroy();
+  }
+
+  private updateFx(now: number): void {
+    const strip = fxStrips?.[this.activity];
+    // Shown while walking too: half the time agents are on their way to the tool they're using.
+    const show = !!strip && this.activity !== "ended";
+    this.fx.setVisible(show);
+    if (!show || !strip) return;
+    const t = (now - this.fxStartedAt) / 1000;
+    this.fx.setFrame(strip.start + (Math.floor(t * strip.fps) % strip.frames));
+    // Pop in, then bob gently.
+    const pop = t < 0.18 ? 0.6 + (t / 0.18) * 0.6 : t < 0.3 ? 1.2 - ((t - 0.18) / 0.12) * 0.2 : 1;
+    const bob = Math.round(Math.sin(t * 3) * 1);
+    const seated = this.pose === "type" || this.pose === "think";
+    this.fx
+      .setScale(pop)
+      // Beside the head, below the name tag. At a desk it goes on the left so it doesn't cover the monitor.
+      .setPosition(Math.round(this.sprite.x + (seated ? -12 : 12)), Math.round(this.sprite.y - (seated ? 11 : 8) + bob))
+      .setDepth(this.sprite.y + 0.5);
+  }
+
+  /** While typing at a desk, the monitor above the seat scrolls lines of code. */
+  private updateScreen(now: number): void {
+    const typing = this.pose === "type" && this.arrived;
+    this.screen.setVisible(typing);
+    if (!typing) return;
+    const sx = this.tile.x * TILE + 10;
+    const sy = (this.tile.y - 1) * TILE + 2;
+    const g = this.screen;
+    g.clear();
+    g.fillStyle(0x1b2a3a, 1).fillRect(sx, sy, 12, 7);
+    const scroll = Math.floor(now / 220);
+    const colors = [0x8fd0f0, 0xf0c45a, 0x9bbb59, 0xe9e4d8];
+    for (let row = 0; row < 3; row++) {
+      const n = scroll + row;
+      const indent = (n * 7) % 3;
+      const w = 3 + ((n * 5) % 7);
+      g.fillStyle(colors[n % colors.length]!, 1).fillRect(sx + 1 + indent, sy + 1 + row * 2, Math.min(w, 10 - indent), 1);
+    }
+    if (Math.floor(now / 400) % 2) g.fillStyle(0xffffff, 1).fillRect(sx + 1, sy + 6, 2, 1);
+    g.setDepth(this.sprite.y - 1);
   }
 
   private runScript(now: number): void {
@@ -187,7 +281,7 @@ export class Character {
         yOffset = -3;
         break;
       case "think":
-        frame = FRAMES.think[0];
+        frame = cycle(FRAMES.think, 1.6);
         yOffset = -3;
         break;
       case "station":

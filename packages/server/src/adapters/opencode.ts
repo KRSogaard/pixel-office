@@ -1,5 +1,5 @@
-import { categorizeTool, projectFromPath, summarizeTool, type AgentEvent } from "@pixel-office/protocol";
-import { isObj, str, validEvents, type Adapter, type Obj } from "./common.js";
+import { categorizeTool, projectFromPath, summarizeTool, detailTool, type AgentEvent } from "@pixel-office/protocol";
+import { isObj, str, validEvents, withDetail, type Adapter, type Obj } from "./common.js";
 
 /**
  * Envelopes sent by plugins/opencode/pixel-office.ts → AgentEvents.
@@ -49,6 +49,7 @@ export class OpenCodeAdapter implements Adapter {
             tool,
             category: categorizeTool(tool),
             summary: summarizeTool(tool, args),
+            ...withDetail(detailTool(tool, args)),
           });
           if (tool === "question") {
             out.push({ ...base(sessionID), kind: "waiting", reason: "question", text: questionText(args) });

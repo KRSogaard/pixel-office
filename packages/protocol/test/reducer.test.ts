@@ -40,12 +40,13 @@ describe("reduce", () => {
   it("links a sub-agent to its parent's delegation and reports back on end", () => {
     const s = reduceAll(emptyState(), [
       ev({ kind: "prompt", agentId: "p", text: "go" }),
-      ev({ kind: "tool.start", agentId: "p", callId: "d1", tool: "Agent", category: "delegate", summary: "Delegate: find usages" }),
+      ev({ kind: "tool.start", agentId: "p", callId: "d1", tool: "Agent", category: "delegate", summary: "Delegate: find usages", detail: "Find every caller of useAuth" }),
       ev({ kind: "session.start", agentId: "c", parentAgentId: "p", label: "Explore" }),
     ]);
     expect(s.agents.c!.status).toBe("working");
     expect(s.agents.p!.lastSaid).toMatchObject({ kind: "delegate", text: "find usages", withAgentId: "c" });
     expect(s.agents.p!.pendingDelegations).toEqual([]);
+    expect(s.agents.c).toMatchObject({ task: "find usages", taskBrief: "Find every caller of useAuth" });
 
     const s2 = reduceAll(s, [ev({ kind: "session.end", agentId: "c", ok: true, report: "found 3" })]);
     expect(s2.agents.c!.status).toBe("ended");
@@ -94,5 +95,12 @@ describe("reduce", () => {
   it("clips long text to one short line", () => {
     const e = ev({ kind: "prompt", agentId: "a", text: "x\n".repeat(1000) });
     expect(e.kind === "prompt" && e.text.length).toBeLessThanOrEqual(280);
+  });
+
+  it("never gives two agents in the office the same name", () => {
+    const events = Array.from({ length: 40 }, (_, i) => ev({ kind: "session.start", agentId: `agent-${i}` }));
+    const s = reduceAll(emptyState(), events);
+    const names = Object.values(s.agents).map((a) => a.name);
+    expect(new Set(names).size).toBe(names.length);
   });
 });

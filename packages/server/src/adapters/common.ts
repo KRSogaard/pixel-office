@@ -25,3 +25,8 @@ export interface Adapter {
   /** Turns one native payload into zero or more normalized events. */
   toEvents(payload: unknown, now: number): AgentEvent[];
 }
+
+/** Spread helper: `{ detail }` when there is one, `{}` otherwise (keeps optional fields absent). */
+export function withDetail(detail: string | undefined): { detail?: string } {
+  return detail ? { detail } : {};
+}

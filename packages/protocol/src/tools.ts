@@ -65,6 +65,15 @@ function host(url: string): string {
 }
 
 /**
+ * Longer context worth showing for a call, or undefined. Today: the brief a parent
+ * writes when it delegates to a sub-agent (Claude `Agent`/`Task`, OpenCode `task`).
+ */
+export function detailTool(tool: string, input: Input): string | undefined {
+  if (categorizeTool(tool) !== "delegate") return undefined;
+  return str(input, "prompt");
+}
+
+/**
  * A short human description of a tool call: "Read app.ts", "Bash: npm test".
  * Never includes file contents or other large inputs.
  */
