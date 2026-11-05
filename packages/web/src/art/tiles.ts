@@ -1,4 +1,4 @@
-import { floorAt, TILE, type Office } from "../office/layout.js";
+import { floorAt, isFloor, TILE, type Floor, type Office } from "../office/layout.js";
 
 /**
  * Paints the static office (floors, walls, furniture) into one canvas.
@@ -70,7 +70,7 @@ export function paintOffice(office: Office, colorOf: (sessionId: string) => numb
     for (let x = 0; x < office.width; x++) {
       const c = office.tiles[y]![x]!;
       if (c === "#" || c === "=") paintWall(ctx, office, x, y, c === "=");
-      else paintFloor(ctx, x * TILE, y * TILE, isFloor(c) ? (c as "." | "," | ":") : floorAt(office.tiles, x, y), x, y);
+      else paintFloor(ctx, x * TILE, y * TILE, isFloor(c) ? c : floorAt(office.tiles, x, y), x, y);
     }
   }
   if (rugs) for (const team of office.teams) paintRug(ctx, team.x, team.y, team.w, team.h, colorOf(team.sessionId));
@@ -81,10 +81,6 @@ export function paintOffice(office: Office, colorOf: (sessionId: string) => numb
     }
   }
   return canvas;
-}
-
-function isFloor(c: string): boolean {
-  return c === "." || c === "," || c === ":";
 }
 
 function rect(ctx: Ctx, color: string, x: number, y: number, w: number, h: number) {
@@ -98,7 +94,7 @@ function noise(x: number, y: number): number {
   return ((h ^ (h >>> 16)) >>> 0) / 4294967295;
 }
 
-function paintFloor(ctx: Ctx, px: number, py: number, kind: "." | "," | ":", x: number, y: number) {
+function paintFloor(ctx: Ctx, px: number, py: number, kind: Floor, x: number, y: number) {
   if (kind === ".") {
     rect(ctx, C.wood, px, py, TILE, TILE);
     // Planks: horizontal boards, staggered seams.
@@ -115,6 +111,13 @@ function paintFloor(ctx: Ctx, px: number, py: number, kind: "." | "," | ":", x: 
       const ny = Math.floor(noise(x * 5, y * 11 + i) * 16);
       rect(ctx, C.carpetDot, px + nx, py + ny, 1, 1);
     }
+  } else if (kind === ";") {
+    // Test lab: clean white tiles, 8×8.
+    rect(ctx, "#e4e8ec", px, py, TILE, TILE);
+    rect(ctx, "#cfd5dc", px, py + 7, TILE, 1);
+    rect(ctx, "#cfd5dc", px + 7, py, 1, TILE);
+    rect(ctx, "#cfd5dc", px, py + 15, TILE, 1);
+    rect(ctx, "#cfd5dc", px + 15, py, 1, TILE);
   } else {
     rect(ctx, C.tile, px, py, TILE, TILE);
     rect(ctx, C.tileLine, px, py + 15, TILE, 1);
@@ -280,6 +283,52 @@ function paintThing(ctx: Ctx, office: Office, c: string, x: number, y: number, p
         rect(ctx, C.monitor, mx + 5, py + 11, 6, 1);
         rect(ctx, "#e2e2e2", mx + 3, py + 12, 10, 2);
         rect(ctx, "#f2e6c9", px + 9, py + 9, 4, 3);
+      }
+      break;
+    }
+    case "Q": {
+      // Wall shelf of flasks with coloured liquids.
+      rect(ctx, "#8f99a6", px, py + 1, TILE, 15);
+      rect(ctx, "#b8c0ca", px + 1, py + 2, 14, 13);
+      for (let shelf = 0; shelf < 2; shelf++) {
+        const sy = py + 3 + shelf * 6;
+        for (let k = 0; k < 3; k++) {
+          const fx = px + 2 + k * 5;
+          const liquid = ["#5af07a", "#5ab4f0", "#f0c45a", "#ff7a9a", "#c77dff"][Math.floor(noise(x * 3 + k, y + shelf) * 5)]!;
+          rect(ctx, "#e9f6fb", fx + 1, sy, 1, 2); // neck
+          rect(ctx, "#e9f6fb", fx, sy + 2, 3, 3); // body
+          rect(ctx, liquid, fx, sy + 3, 3, 2);
+        }
+        rect(ctx, "#7d8590", px + 1, sy + 5, 14, 1);
+      }
+      break;
+    }
+    case "J": {
+      // Lab bench: white top, steel legs, test-tube rack, beaker, a little result screen.
+      const left = t[y]?.[x - 1] === "J";
+      const right = t[y]?.[x + 1] === "J";
+      const x0 = px + (left ? 0 : 1);
+      const w = TILE - (left ? 0 : 1) - (right ? 0 : 1);
+      rect(ctx, "#f4f6f8", x0, py + 4, w, 9);
+      rect(ctx, "#c9d0d8", x0, py + 12, w, 2);
+      if (!left) rect(ctx, "#7d8590", px + 2, py + 14, 1, 2);
+      if (!right) rect(ctx, "#7d8590", px + 13, py + 14, 1, 2);
+      const kind = (x + y) % 3;
+      if (kind === 0) {
+        rect(ctx, "#7d8590", px + 3, py + 8, 10, 2); // rack
+        for (let i = 0; i < 4; i++) {
+          rect(ctx, "#e9f6fb", px + 4 + i * 2, py + 3, 1, 5);
+          rect(ctx, ["#5af07a", "#5ab4f0", "#ff7a9a", "#f0c45a"][i]!, px + 4 + i * 2, py + 6, 1, 2);
+        }
+      } else if (kind === 1) {
+        rect(ctx, "#e9f6fb", px + 5, py + 3, 6, 6); // beaker
+        rect(ctx, "#5ab4f0", px + 5, py + 6, 6, 3);
+        rect(ctx, "#ffffff", px + 6, py + 4, 1, 2);
+      } else {
+        rect(ctx, C.monitor, px + 4, py + 2, 8, 7); // result screen
+        rect(ctx, "#1b2a1e", px + 5, py + 3, 6, 5);
+        rect(ctx, "#5af07a", px + 6, py + 4, 4, 1);
+        rect(ctx, "#5af07a", px + 6, py + 6, 3, 1);
       }
       break;
     }

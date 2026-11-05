@@ -108,7 +108,7 @@ export function projectFromPath(path: string | undefined): { path: string; name:
 }
 
 /** Shared office settings, edited in the browser and stored on the server. */
-export type TopRoom = "library" | "server" | "meeting" | "mail";
+export type TopRoom = "library" | "server" | "lab" | "mail";
 export interface OfficeSettings {
   /** Left-to-right order of the rooms along the top. */
   roomOrder: TopRoom[];
@@ -116,7 +116,7 @@ export interface OfficeSettings {
   minRooms: {
     library: number;
     server: number;
-    meeting: number;
+    lab: number;
     mail: number;
     lounge: number;
     reception: number;
@@ -130,8 +130,8 @@ export interface OfficeSettings {
 }
 
 export const DEFAULT_SETTINGS: OfficeSettings = {
-  roomOrder: ["library", "server", "meeting", "mail"],
-  minRooms: { library: 4, server: 4, meeting: 8, mail: 3, lounge: 6, reception: 4, globe: 2, filing: 3 },
+  roomOrder: ["library", "server", "lab", "mail"],
+  minRooms: { library: 4, server: 4, lab: 6, mail: 3, lounge: 6, reception: 4, globe: 2, filing: 3 },
   teamsPerRow: 3,
   rugs: true,
   plants: true,

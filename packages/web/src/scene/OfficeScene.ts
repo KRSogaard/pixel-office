@@ -1,5 +1,5 @@
 import Phaser from "phaser";
-import { emptyState, type AgentState, type OfficeState, type Utterance } from "@pixel-office/protocol";
+import { emptyState, isTestRun, type AgentState, type OfficeState, type Utterance } from "@pixel-office/protocol";
 import { paintOffice } from "../art/tiles.js";
 import { Allocator } from "../office/allocator.js";
 import { PlaceDebouncer, placeFor } from "../office/director.js";
@@ -146,9 +146,48 @@ export class OfficeScene extends Phaser.Scene {
         color,
         this.toScreen((t.x + t.w / 2) * TILE, t.y * TILE + 7, cam),
       );
-      this.deps.overlay.whiteboard(t.sessionId, manager?.todos, color, this.toScreen((t.whiteboard.x + 1) * TILE, (t.whiteboard.y + 1) * TILE, cam));
+      this.deps.overlay.whiteboard(
+        t.sessionId,
+        manager ? `${manager.name} · ${t.project}` : t.project,
+        manager?.todos,
+        color,
+        this.toScreen((t.whiteboard.x + 1) * TILE, (t.whiteboard.y + 1) * TILE, cam),
+      );
     }
     this.deps.overlay.pruneTeamLabels(shown);
+    this.signRooms(cam);
+  }
+
+  /** Name signs over the top rooms; the test lab's shows the latest test result in the office. */
+  private signRooms(cam: Phaser.Cameras.Scene2D.Camera): void {
+    const names = { library: "Library", server: "Server room", lab: "Test lab", mail: "Mailroom" } as const;
+    const keep = new Set<string>();
+    for (const r of this.office.rooms) {
+      keep.add(r.kind);
+      let text: string = names[r.kind];
+      let tone: "plain" | "running" | "pass" | "fail" = "plain";
+      if (r.kind === "lab") {
+        const result = this.latestTestResult();
+        tone = result.tone;
+        if (result.text) text += ` · ${result.text}`;
+      }
+      this.deps.overlay.roomSign(r.kind, text, tone, this.toScreen((r.x + r.w / 2) * TILE, (r.y + r.h) * TILE + 9, cam));
+    }
+    this.deps.overlay.pruneRoomSigns(keep);
+  }
+
+  private latestTestResult(): { tone: "plain" | "running" | "pass" | "fail"; text: string } {
+    const agents = Object.values(this.deps.store.state.agents);
+    if (agents.some((a) => a.activity === "test")) return { tone: "running", text: "⏳ running" };
+    let last: { at: number; ok: boolean } | undefined;
+    for (const a of agents) {
+      for (const c of a.recentTools) {
+        if (c.endedAt === undefined || !isTestRun(c.tool, c.summary)) continue;
+        if (!last || c.endedAt > last.at) last = { at: c.endedAt, ok: c.ok !== false };
+      }
+    }
+    if (!last) return { tone: "plain", text: "" };
+    return last.ok ? { tone: "pass", text: "✓ pass" } : { tone: "fail", text: "✗ fail" };
   }
 
   /** Light pools at night: every occupied desk's monitor, and every manager's desk lamp. */

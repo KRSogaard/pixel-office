@@ -11,6 +11,7 @@ const STATUS_ICON: Record<Activity, string> = {
   other: "⚙",
   read: "📖",
   shell: ">_",
+  test: "🧪",
   web: "🌐",
   mcp: "✉",
   delegate: "👥",
@@ -63,6 +64,11 @@ export class Overlay {
   private tags = new Map<string, Tag>();
   private teamLabels = new Map<string, HTMLDivElement>();
   private boards = new Map<string, HTMLDivElement>();
+  private signs = new Map<string, HTMLDivElement>();
+  /** The whiteboard whose full todo list is open, if any. */
+  private openBoard: string | undefined;
+  private popup: HTMLDivElement | undefined;
+  private popupKey = "";
   privacy = false;
 
   constructor(private root: HTMLElement) {}
@@ -206,31 +212,104 @@ export class Overlay {
    * The team whiteboard: progress through the manager's todo list and what's
    * being worked on now. Hover for the whole list.
    */
-  whiteboard(key: string, todos: TodoItem[] | undefined, color: number, p: ScreenPoint): void {
+  whiteboard(key: string, title: string, todos: TodoItem[] | undefined, color: number, p: ScreenPoint): void {
     let board = this.boards.get(key);
     if (!todos?.length) {
       board?.remove();
       this.boards.delete(key);
+      if (this.openBoard === key) this.closeBoard();
       return;
     }
     if (!board) {
       board = el("div", "board");
+      board.addEventListener("click", (ev) => {
+        ev.stopPropagation();
+        if (this.openBoard === key) this.closeBoard();
+        else {
+          this.openBoard = key;
+          this.popupKey = "";
+        }
+      });
       this.root.append(board);
       this.boards.set(key, board);
     }
     const done = todos.filter((t) => t.status === "completed").length;
     const now = todos.find((t) => t.status === "in_progress") ?? todos.find((t) => t.status === "pending");
-    const mark = (t: TodoItem) => (t.status === "completed" ? "☑" : t.status === "in_progress" ? "◐" : "☐");
     board.replaceChildren(
       Object.assign(el("div", "board-head"), { textContent: `☑ ${done}/${todos.length}` }),
-      Object.assign(el("div", "board-bar"), {}),
+      el("div", "board-bar"),
       ...(now && !this.privacy ? [Object.assign(el("div", "board-now"), { textContent: `${mark(now)} ${now.text}` })] : []),
     );
     (board.children[1] as HTMLElement).style.setProperty("--done", `${Math.round((done / todos.length) * 100)}%`);
-    board.title = this.privacy ? `${done} of ${todos.length} done` : todos.map((t) => `${mark(t)} ${t.text}`).join("\n");
+    board.title = "Click to see the whole list";
+    board.classList.toggle("open", this.openBoard === key);
     board.style.setProperty("--session", hex(color));
     board.style.transform = `translate(${Math.round(p.x)}px, ${Math.round(p.y)}px)`;
     board.style.setProperty("--zoom", String(p.scale));
+    if (this.openBoard === key) this.renderPopup(title, todos, color, p);
+  }
+
+  /** The full todo list for the clicked whiteboard, pinned under it. */
+  private renderPopup(title: string, todos: TodoItem[], color: number, p: ScreenPoint): void {
+    if (!this.popup) {
+      this.popup = el("div", "board-popup");
+      this.popup.addEventListener("click", (ev) => ev.stopPropagation());
+      this.root.append(this.popup);
+      // Clicking anywhere else closes it.
+      document.addEventListener("pointerdown", (ev) => {
+        if (this.popup && !this.popup.contains(ev.target as Node) && !(ev.target as HTMLElement).closest?.(".board")) this.closeBoard();
+      });
+    }
+    const key = JSON.stringify([title, todos, this.privacy]);
+    if (key !== this.popupKey) {
+      this.popupKey = key;
+      const done = todos.filter((t) => t.status === "completed").length;
+      const close = Object.assign(el("button", "board-popup-close"), { textContent: "×", title: "Close" });
+      close.onclick = () => this.closeBoard();
+      const list = el("ol", "board-popup-list");
+      for (const t of todos) {
+        const li = el("li", `todo ${t.status}`);
+        li.append(
+          Object.assign(el("span", "todo-mark"), { textContent: mark(t) }),
+          Object.assign(el("span", "todo-text"), { textContent: this.privacy ? (t.status === "completed" ? "done" : "…") : t.text }),
+        );
+        list.append(li);
+      }
+      const head = el("div", "board-popup-head");
+      head.append(Object.assign(el("b", ""), { textContent: title }), Object.assign(el("span", "muted"), { textContent: ` ${done}/${todos.length} done` }), close);
+      this.popup.replaceChildren(head, list);
+    }
+    this.popup.style.setProperty("--session", hex(color));
+    this.popup.style.transform = `translate(${Math.round(p.x)}px, ${Math.round(p.y)}px)`;
+    this.popup.classList.add("show");
+  }
+
+  private closeBoard(): void {
+    this.openBoard = undefined;
+    this.popup?.classList.remove("show");
+    for (const b of this.boards.values()) b.classList.remove("open");
+  }
+
+  /** A sign over a room's door, e.g. "Test lab · ✓ pass". */
+  roomSign(key: string, text: string, tone: "plain" | "running" | "pass" | "fail", p: ScreenPoint): void {
+    let sign = this.signs.get(key);
+    if (!sign) {
+      sign = el("div", "room-sign");
+      this.root.append(sign);
+      this.signs.set(key, sign);
+    }
+    if (sign.textContent !== text) sign.textContent = text;
+    sign.className = `room-sign ${tone}`;
+    sign.style.transform = `translate(${Math.round(p.x)}px, ${Math.round(p.y)}px)`;
+    sign.style.setProperty("--zoom", String(p.scale));
+  }
+
+  pruneRoomSigns(keep: Set<string>): void {
+    for (const [key, node] of this.signs) {
+      if (keep.has(key)) continue;
+      node.remove();
+      this.signs.delete(key);
+    }
   }
 
   /** Remove labels and boards for teams that are no longer in the office. */
@@ -253,6 +332,10 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, className: string): H
   const e = document.createElement(tag);
   e.className = className;
   return e;
+}
+
+function mark(t: TodoItem): string {
+  return t.status === "completed" ? "☑" : t.status === "in_progress" ? "◐" : "☐";
 }
 
 function hex(color: number): string {

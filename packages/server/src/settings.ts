@@ -4,7 +4,7 @@ import { DEFAULT_SETTINGS, type OfficeSettings } from "@pixel-office/protocol";
 import { z } from "zod";
 
 const size = z.number().int().min(1).max(30);
-const TOP_ROOMS = ["library", "server", "meeting", "mail"] as const;
+const TOP_ROOMS = ["library", "server", "lab", "mail"] as const;
 
 export const settingsSchema = z.object({
   roomOrder: z
@@ -14,7 +14,7 @@ export const settingsSchema = z.object({
   minRooms: z.object({
     library: size,
     server: size,
-    meeting: size,
+    lab: size,
     mail: size,
     lounge: size,
     reception: size,
@@ -66,10 +66,21 @@ export class SettingsStore {
     if (!this.file || !existsSync(this.file)) return DEFAULT_SETTINGS;
     try {
       // Merge over defaults so settings files from older versions keep working.
-      const raw = JSON.parse(readFileSync(this.file, "utf8")) as Partial<OfficeSettings>;
+      const raw = migrate(JSON.parse(readFileSync(this.file, "utf8")) as Record<string, unknown>) as Partial<OfficeSettings>;
       return settingsSchema.parse({ ...DEFAULT_SETTINGS, ...raw, minRooms: { ...DEFAULT_SETTINGS.minRooms, ...raw.minRooms } });
     } catch {
       return DEFAULT_SETTINGS;
     }
   }
+}
+
+/** The meeting room was replaced by the test lab: carry old settings files over. */
+export function migrate(raw: Record<string, unknown>): Record<string, unknown> {
+  const out = { ...raw };
+  if (Array.isArray(out.roomOrder)) out.roomOrder = out.roomOrder.map((r) => (r === "meeting" ? "lab" : r));
+  if (out.minRooms && typeof out.minRooms === "object") {
+    const { meeting: _meeting, ...rest } = out.minRooms as Record<string, unknown>;
+    out.minRooms = rest;
+  }
+  return out;
 }

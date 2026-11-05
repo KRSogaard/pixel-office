@@ -24,7 +24,7 @@ One open-plan floor, built from a tile map, with these areas:
 | **Server room** (racks, blinking lights) | Agents running shell commands, builds, tests. |
 | **Window / globe desk** | Agents fetching web pages or searching the web. |
 | **Mailroom** | Agents calling MCP tools (Slack, Drive, databases, …). |
-| **Meeting table** | Agents talking to each other (see section 3). |
+| **Test lab** | Agents running tests. The sign over the door shows the latest result in the office: ⏳ running, ✓ pass, ✗ fail. |
 | **Front desk** | Where agents stand when they're waiting for *you* — permission prompts, questions. |
 | **Lounge** (coffee machine, sofa) | Agents that are idle — they finished their turn and are waiting for your next prompt. |
 | **Front door** | New sessions walk in; ended sessions walk out. |
@@ -63,7 +63,8 @@ One open-plan floor, built from a tile map, with these areas:
 | Running a shell command | Server room | Standing at a rack terminal |
 | Web fetch / search | Window desk | Looking at the globe |
 | Calling an MCP tool | Mailroom | Sorting envelopes |
-| Spawning a sub-agent | Own desk → meeting table | See section 3 |
+| Running tests (`npm test`, `vitest`, `pytest`, `dotnet test`, …) | Test lab | Standing at a bench; the lab's sign shows ⏳ running / ✓ pass / ✗ fail |
+| Spawning a sub-agent | Own desk | See section 3 |
 | Waiting for permission / a question | Front desk | Hand raised, red `!` |
 | Compacting its context | Filing cabinet | Stuffing papers into a drawer |
 | A tool failed | Wherever it is | Small smoke puff, then carries on |
@@ -83,7 +84,7 @@ because it's purely about how things look.
 
 | Feature | What it shows | Where |
 |---|---|---|
-| **Whiteboard** | The manager's todo list (Claude `TodoWrite` and task tools / `TaskCreated` / `TaskCompleted`, OpenCode `todo.updated`): `☑ 3/7`, a progress bar, the item in progress; hover for the list. | `ui/overlay.ts` (`whiteboard`), tile `W` |
+| **Whiteboard** | The manager's todo list (Claude `TodoWrite` and task tools / `TaskCreated` / `TaskCompleted`, OpenCode `todo.updated`): `☑ 3/7`, a progress bar, the item in progress; click it for the whole list. | `ui/overlay.ts` (`whiteboard`), tile `W` |
 | **Context bin** | A bin beside each desk filling green → amber → red as the context window fills; stomped flat (with paper scraps) while the agent compacts at its desk. The Claude hook reads the last `usage` from the transcript and sends it as a header; OpenCode sends assistant message token counts. 200k window assumed, 1M once exceeded. | `scene/bins.ts` |
 | **Reactions** | A passing test run (`npm test`, `vitest`, `pytest`, `dotnet test`, …): arms up, confetti, "Tests pass! 🎉". A failed tool call: smoke. A rate limit / overload: a walk to the coffee machine. | `scene/effects.ts`, `isTestRun` in protocol |
 | **Day and night** | Tint from your local clock (`?hour=22` to preview); light pools on manager lamps and occupied desks after dark. | `scene/lighting.ts` |
@@ -262,7 +263,7 @@ OpenCode payloads.
 
 - **Vite + TypeScript + Phaser 4.** Phaser gives the camera (pan, zoom), sprites, tweens and input.
 - **The office is generated** (`src/office/generate.ts`), pure: plan in, office out. Each room
-  is a template that takes a width — library, server room, meeting room, mailroom across the
+  is a template that takes a width — library, server room, test lab, mailroom across the
   top; reception, lounge, globe desks and filing cabinets in a strip below; then one team area
   per session (manager's desk + worker desks, three per row), wrapping three to a row. The
   layout chars and their meaning are listed in `src/office/layout.ts`.

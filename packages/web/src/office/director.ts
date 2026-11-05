@@ -17,6 +17,7 @@ const PLACE_BY_ACTIVITY: Record<Activity, Place> = {
   message: { kind: "seat", pose: "think" },
   read: { kind: "library", pose: "station" },
   shell: { kind: "server", pose: "station" },
+  test: { kind: "lab", pose: "station" },
   web: { kind: "globe", pose: "station" },
   mcp: { kind: "mail", pose: "station" },
   // Compaction: back at the desk, stomping the overflowing wastepaper bin flat.

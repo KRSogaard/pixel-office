@@ -1,10 +1,10 @@
 import { DEFAULT_SETTINGS, type OfficeSettings, type TopRoom } from "@pixel-office/protocol";
-import { analyze, type Office, type Spot, type TeamArea } from "./layout.js";
+import { analyze, type Office, type RoomArea, type Spot, type TeamArea } from "./layout.js";
 
 /**
  * Builds the office from room templates sized to what's needed right now.
  *
- *   ┌ library ┬ server room ┬ meeting room ┬ mailroom ┐   ← top band: rooms sized by capacity
+ *   ┌ library ┬ server room ┬ test lab ┬ mailroom ┐       ← top band: rooms sized by capacity
  *   D reception · lounge · globe desks · filing       │   ← service strip, sized by capacity
  *   │ [team A] [team B] [team C]                      │   ← one area per session: manager's
  *   │ [team D] …                                      │     desk + worker desks for sub-agents
@@ -16,7 +16,7 @@ import { analyze, type Office, type Spot, type TeamArea } from "./layout.js";
 export interface RoomCapacities {
   library: number;
   server: number;
-  meeting: number;
+  lab: number;
   mail: number;
   lounge: number;
   reception: number;
@@ -82,17 +82,17 @@ const serverRoom: Room = (w) => {
   ];
 };
 
-const meetingRoom: Room = (w) => {
-  const t = w - 4;
-  const edge = (mid: string) => `,,${mid.repeat(t)},,`;
+/** Test lab: shelves of flasks along the wall, benches with test tubes, light tiled floor. */
+const testLab: Room = (w) => {
+  const bench = (x: number) => x > 0 && x < w - 1 && (x - 1) % 4 < 3;
   return [
-    row(w, (x) => (x === 0 || x === w - 1 ? "P" : ",")),
-    ",".repeat(w),
-    edge("t"),
-    edge("T"),
-    edge("T"),
-    edge("t"),
-    ",".repeat(w),
+    "Q".repeat(w),
+    row(w, (x) => (x % 2 ? "j" : ";")),
+    ";".repeat(w),
+    row(w, (x) => (bench(x) ? "J" : ";")),
+    row(w, (x) => (bench(x) && x % 2 ? "j" : ";")),
+    ";".repeat(w),
+    ";".repeat(w),
   ];
 };
 
@@ -146,7 +146,7 @@ export function generateOffice(plan: OfficePlan): Office {
   // Top band widths.
   const lw = widthFor(library, "l", cap.library, 8);
   const sw = widthFor(serverRoom, "r", cap.server, 7);
-  let mw = widthFor(meetingRoom, "t", cap.meeting, 8);
+  let tw = widthFor(testLab, "j", cap.lab, 8);
   const aw = widthFor(mailroom, "m", cap.mail, 5);
 
   // Service strip widths.
@@ -156,11 +156,11 @@ export function generateOffice(plan: OfficePlan): Office {
   const fc = Math.max(3, cap.filing);
   const stripW = 1 + 2 + rw + 3 + (2 + loungeRow) + 3 + gc * 2 + 2 + fc * 2 + 1 + 1;
 
-  const topW = 1 + lw + 1 + sw + 1 + mw + 1 + aw + 1;
+  const topW = 1 + lw + 1 + sw + 1 + tw + 1 + aw + 1;
   // Wide enough for the rooms, the strip, and the configured number of teams side by side.
   const perRow = Math.min(4, Math.max(1, settings.teamsPerRow));
   const W = Math.max(MIN_WIDTH, topW, stripW, 3 + perRow * (TEAM_W + 1));
-  mw += W - topW; // the meeting room takes up any slack in the top band
+  tw += W - topW; // the test lab takes up any slack in the top band
 
   const teamRows: (TeamPlan | null)[][] = [];
   for (let i = 0; i < plan.teams.length; i += perRow) teamRows.push(plan.teams.slice(i, i + perRow));
@@ -185,15 +185,18 @@ export function generateOffice(plan: OfficePlan): Office {
   const byName: Record<TopRoom, [Room, number]> = {
     library: [library, lw],
     server: [serverRoom, sw],
-    meeting: [meetingRoom, mw],
+    lab: [testLab, tw],
     mail: [mailroom, aw],
   };
-  const order = settings.roomOrder.length === 4 ? settings.roomOrder : DEFAULT_SETTINGS.roomOrder;
-  const rooms = order.map((r) => byName[r]);
+  const valid = settings.roomOrder.length === 4 && settings.roomOrder.every((r) => r in byName);
+  const order = valid ? settings.roomOrder : DEFAULT_SETTINGS.roomOrder;
+  const rooms = order.map((r) => [r, ...byName[r]] as const);
+  const roomAreas: RoomArea[] = [];
   let x = 1;
   g.put(0, TOP - 1, "#".repeat(W));
-  for (const [room, w] of rooms) {
+  for (const [kind, room, w] of rooms) {
     g.block(x, 1, room(w));
+    roomAreas.push({ kind, x, y: 1, w, h: ROOM_H });
     const door = x + Math.floor(w / 2) - 1;
     g.put(door, TOP - 1, w >= 6 ? ".." : ".");
     x += w;
@@ -248,7 +251,7 @@ export function generateOffice(plan: OfficePlan): Office {
     t.managerSeat = at.get(`${t.managerSeat.x},${t.managerSeat.y}`) ?? t.managerSeat;
     t.workerSeats = t.workerSeats.map((s) => at.get(`${s.x},${s.y}`) ?? s);
   }
-  return { width: W, height: H, tiles: g.cells, walkable, spots, teams };
+  return { width: W, height: H, rooms: roomAreas, tiles: g.cells, walkable, spots, teams };
 }
 
 /**

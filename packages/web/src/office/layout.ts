@@ -5,15 +5,16 @@
  * Tile legend — structure (blocks movement unless noted):
  *   #  wall              =  wall with window     D  entrance door (walkable, agents spawn here)
  *   .  wood floor        ,  carpet               :  server-room tiles
- *   B  bookshelf         R  server rack          T  meeting table
+ *   B  bookshelf         R  server rack          J  lab bench
  *   M  mail shelves      K  coffee machine       P  plant
+ *   Q  shelf of flasks   ;  test-lab floor (walkable)
  *   F  filing cabinet    G  globe desk           X  reception counter
  *   d  work desk         E  manager's desk       w  water cooler
  *   W  whiteboard
  *
  * Tile legend — spots (walkable, agents stand or sit there):
  *   l  library           r  server rack terminal m  mailroom
- *   g  globe desk        f  filing cabinet       t  meeting seat
+ *   g  globe desk        f  filing cabinet       j  lab bench spot
  *   k  lounge sofa seat  x  reception (waiting on you)
  *   a  worker desk seat  q  manager's chair
  */
@@ -26,7 +27,7 @@ export type SpotKind =
   | "mail"
   | "globe"
   | "filing"
-  | "meeting"
+  | "lab"
   | "lounge"
   | "reception"
   | "seat"
@@ -59,9 +60,19 @@ export interface TeamArea {
   workerSeats: Spot[];
 }
 
+/** A room along the top, for signs and labels. */
+export interface RoomArea {
+  kind: "library" | "server" | "lab" | "mail";
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
 export interface Office {
   width: number;
   height: number;
+  rooms: RoomArea[];
   /** Layout chars, [y][x]. */
   tiles: string[][];
   walkable: boolean[][];
@@ -69,7 +80,7 @@ export interface Office {
   teams: TeamArea[];
 }
 
-export const BLOCKING = new Set("#=BRTMKPFGXdEwW");
+export const BLOCKING = new Set("#=BRJQMKPFGXdEwW");
 
 export const SPOT_KIND: Record<string, SpotKind> = {
   l: "library",
@@ -77,7 +88,7 @@ export const SPOT_KIND: Record<string, SpotKind> = {
   m: "mail",
   g: "globe",
   f: "filing",
-  t: "meeting",
+  j: "lab",
   k: "lounge",
   x: "reception",
   a: "seat",
@@ -99,21 +110,27 @@ export function analyze(tiles: string[][]): { walkable: boolean[][]; spots: Spot
 }
 
 /** The floor under a spot or furniture tile, picked from its neighbours. */
-export function floorAt(tiles: string[][], x: number, y: number): "." | "," | ":" {
-  const counts = { ".": 0, ",": 0, ":": 0 };
+export type Floor = "." | "," | ":" | ";";
+
+export function isFloor(c: string): c is Floor {
+  return c === "." || c === "," || c === ":" || c === ";";
+}
+
+/** The floor under a spot or furniture tile: the most common floor among its neighbours. */
+export function floorAt(tiles: string[][], x: number, y: number): Floor {
+  const counts: Record<Floor, number> = { ".": 0, ",": 0, ":": 0, ";": 0 };
   for (const [dx, dy] of [[0, -1], [0, 1], [-1, 0], [1, 0], [-1, -1], [1, 1], [1, -1], [-1, 1]] as const) {
     const c = tiles[y + dy]?.[x + dx];
-    if (c === "." || c === "," || c === ":") counts[c]++;
+    if (c && isFloor(c)) counts[c]++;
   }
-  if (counts[","] > counts["."] && counts[","] >= counts[":"]) return ",";
-  if (counts[":"] > counts["."]) return ":";
-  return ".";
+  let best: Floor = ".";
+  for (const f of [",", ":", ";"] as const) if (counts[f] > counts[best]) best = f;
+  return best;
 }
 
 function facingFor(tiles: string[][], x: number, y: number, kind: SpotKind): Facing {
   if (kind === "door") return "right";
   if (kind === "lounge") return "down";
-  if (kind === "meeting") return tiles[y + 1]?.[x] === "T" ? "down" : "up";
   if (BLOCKING.has(tiles[y - 1]?.[x] ?? "#")) return "up";
   if (BLOCKING.has(tiles[y + 1]?.[x] ?? "#")) return "down";
   return "up";

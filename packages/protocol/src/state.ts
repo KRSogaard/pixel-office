@@ -6,6 +6,8 @@ export type Activity =
   | "edit"
   | "read"
   | "shell"
+  /** Running tests: a shell call that looks like a test run (see isTestRun). */
+  | "test"
   | "web"
   | "mcp"
   | "delegate"

@@ -4,14 +4,14 @@ import type { OfficeStore } from "../net.js";
 const ROOM_NAMES: Record<TopRoom, string> = {
   library: "Library",
   server: "Server room",
-  meeting: "Meeting room",
+  lab: "Test lab",
   mail: "Mailroom",
 };
 
 const MIN_LABELS: [keyof OfficeSettings["minRooms"], string][] = [
   ["library", "Library"],
   ["server", "Server room"],
-  ["meeting", "Meeting room"],
+  ["lab", "Test lab"],
   ["mail", "Mailroom"],
   ["lounge", "Lounge"],
   ["reception", "Reception"],

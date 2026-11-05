@@ -81,6 +81,20 @@ const shell: Painter = (px, f) => {
   if (f % 2 === 0) px("#e9e4d8", 4, 9, 2, 1);
 };
 
+const test: Painter = (px, f) => {
+  // A flask bubbling away.
+  px(INK, 4, 0, 4, 1);
+  px("#e9f6fb", 5, 1, 2, 4);
+  px(INK, 4, 1, 1, 4);
+  px(INK, 7, 1, 1, 4);
+  px(INK, 1, 5, 10, 7);
+  px("#e9f6fb", 2, 6, 8, 5);
+  px("#5af07a", 2, 8, 8, 3);
+  px("#b8f5c8", 3 + (f % 3) * 2, 9 - (f % 2), 1, 1);
+  if (f > 0) px("#5af07a", 6, 3 - (f % 2), 1, 1);
+  if (f > 1) px("#5af07a", 5, 1 - (f % 2) + 1, 1, 1);
+};
+
 const web: Painter = (px, f) => {
   px(INK, 2, 0, 8, 12);
   px(INK, 0, 2, 12, 8);
@@ -172,6 +186,7 @@ const PAINTERS: Partial<Record<Activity, { painter: Painter; frames: number; fps
   edit: { painter: edit, frames: 4, fps: 3 },
   read: { painter: read, frames: 3, fps: 2.5 },
   shell: { painter: shell, frames: 4, fps: 3 },
+  test: { painter: test, frames: 3, fps: 3 },
   web: { painter: web, frames: 4, fps: 3 },
   mcp: { painter: mail, frames: 2, fps: 2 },
   compact: { painter: compact, frames: 2, fps: 2 },

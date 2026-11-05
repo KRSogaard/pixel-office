@@ -13,7 +13,7 @@ describe("office generator", () => {
   it("builds a quiet office with every kind of spot except desks", () => {
     const office = generateOffice(quiet);
     const kinds = new Set(office.spots.map((s) => s.kind));
-    for (const k of ["library", "server", "mail", "globe", "filing", "meeting", "lounge", "reception", "door"]) {
+    for (const k of ["library", "server", "mail", "globe", "filing", "lab", "lounge", "reception", "door"]) {
       expect(kinds, k).toContain(k);
     }
     expect(office.teams).toEqual([]);

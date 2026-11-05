@@ -1,4 +1,4 @@
-import { DEFAULT_CONTEXT_LIMIT, type AgentEvent, type ToolCategory } from "./events.js";
+import { DEFAULT_CONTEXT_LIMIT, type AgentEvent } from "./events.js";
 import { isTestRun } from "./tools.js";
 import { nameFor } from "./names.js";
 import {
@@ -86,7 +86,7 @@ export function reduce(state: OfficeState, e: AgentEvent): OfficeState {
       a.recentTools = [...a.recentTools, call].slice(-RECENT_TOOLS);
       if (e.category === "delegate") a.pendingDelegations = [...a.pendingDelegations, e.callId];
       delete a.waiting;
-      setActivity(a, activityFor(e.category), e.ts, "working");
+      setActivity(a, activityFor(call), e.ts, "working");
       break;
     }
     case "tool.end": {
@@ -181,14 +181,15 @@ function newAgent(e: AgentEvent, takenNames: ReadonlySet<string>): AgentState {
   };
 }
 
-function activityFor(category: ToolCategory): Activity {
-  return category;
+/** A tool call's activity: its category, except test runs, which go to the test lab. */
+function activityFor(call: Pick<ToolCall, "tool" | "category" | "summary">): Activity {
+  return isTestRun(call.tool, call.summary) ? "test" : call.category;
 }
 
 /** The activity implied by the newest still-running call, or "thinking". */
 function currentActivity(a: AgentState): Activity {
   const last = a.openCalls[a.openCalls.length - 1];
-  return last ? activityFor(last.category) : "thinking";
+  return last ? activityFor(last) : "thinking";
 }
 
 function setActivity(a: AgentState, activity: Activity, ts: number, status?: AgentState["status"]): void {

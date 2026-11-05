@@ -16,8 +16,8 @@ interface Row {
 
 const ROOMS_TOP: Row[] = [
   { name: "Library", what: "Reading or searching code — Read, Grep, Glob, LSP." },
-  { name: "Server room", what: "Running shell commands — builds, tests, git, scripts (Bash)." },
-  { name: "Meeting room", what: "Not used by agents at the moment. Hand-offs to sub-agents now happen at the manager's desk." },
+  { name: "Server room", what: "Running other shell commands — builds, git, scripts (Bash)." },
+  { name: "Test lab", what: "Running tests — npm test, vitest, pytest, dotnet test and the like. The sign shows the latest result in the office: ⏳ running, ✓ pass, ✗ fail." },
   { name: "Mailroom", what: "Calling MCP tools — Slack, GitHub, Google Drive, databases and other connected services." },
 ];
 
@@ -53,6 +53,7 @@ const ICONS: [Activity, string][] = [
   ["edit", "Writing code"],
   ["read", "Reading"],
   ["shell", "Running a command"],
+  ["test", "Running tests"],
   ["web", "On the web"],
   ["mcp", "Using a connected service (MCP)"],
   ["delegate", "Handing work to sub-agents"],
