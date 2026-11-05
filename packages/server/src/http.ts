@@ -7,6 +7,7 @@ import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import type { Adapter } from "./adapters/index.js";
 import type { Config } from "./config.js";
 import type { Hub } from "./hub.js";
+import type { SettingsStore } from "./settings.js";
 import { loginPage } from "./login-page.js";
 import { safeEqual, signSession, verifyPassword, verifySession, type Secrets } from "./secrets.js";
 
@@ -19,6 +20,7 @@ export interface AppDeps {
   config: Pick<Config, "cookieSecure" | "trustProxy" | "webDir">;
   secrets: Secrets;
   hub: Hub;
+  settings: SettingsStore;
   adapters: Record<string, Adapter>;
   clock?: () => number;
 }
@@ -41,7 +43,7 @@ export function isAuthed(secrets: Secrets, cookieValue: string | undefined, now 
 }
 
 export function createApp(deps: AppDeps): Hono {
-  const { config, secrets, hub, adapters } = deps;
+  const { config, secrets, hub, adapters, settings } = deps;
   const clock = deps.clock ?? Date.now;
   const attempts = new Map<string, { count: number; resetAt: number }>();
   const app = new Hono();
@@ -89,6 +91,11 @@ export function createApp(deps: AppDeps): Hono {
       } catch {
         return c.body(null, 400);
       }
+      // Side-channel from the Claude hook: context window use, read from the transcript.
+      const ctx = Number(c.req.header("x-po-context-tokens"));
+      if (Number.isSafeInteger(ctx) && ctx > 0 && payload && typeof payload === "object" && !Array.isArray(payload)) {
+        (payload as Record<string, unknown>)._context_tokens = ctx;
+      }
       hub.apply(adapter.toEvents(payload, clock()));
       return c.body(null, 204);
     },
@@ -129,6 +136,28 @@ export function createApp(deps: AppDeps): Hono {
   });
 
   app.get("/api/state", (c) => (authed(c) ? c.json(hub.snapshot) : c.body(null, 401)));
+
+  // Replay: the state just before the retained window, plus every event since.
+  app.get("/api/history", (c) => (authed(c) ? c.json(hub.getHistory(clock())) : c.body(null, 401)));
+
+  app.get("/api/settings", (c) => (authed(c) ? c.json(settings.get()) : c.body(null, 401)));
+
+  // Changing settings needs the cookie and a custom header a cross-site form can't send.
+  app.put("/api/settings", bodyLimit({ maxSize: 16 * 1024, onError: (c) => c.body(null, 413) }), async (c) => {
+    if (!authed(c)) return c.body(null, 401);
+    if (c.req.header("x-po-csrf") !== "1") return c.body(null, 403);
+    let input: unknown;
+    try {
+      input = await c.req.json();
+    } catch {
+      return c.body(null, 400);
+    }
+    try {
+      return c.json(settings.set(input));
+    } catch (err) {
+      return c.json({ error: err instanceof Error ? err.message : "invalid settings" }, 400);
+    }
+  });
 
   // Built web app. The page itself requires login; assets are harmless without data.
   app.get("*", async (c) => {

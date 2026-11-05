@@ -48,6 +48,9 @@ export class Character {
   /** Coloured ring under the feet: the session's colour, shared with its sub-agents. */
   private readonly ring: Phaser.GameObjects.Ellipse;
   private activity: Activity = "idle";
+  private fxLeft = false;
+  private cheerUntil = 0;
+  private clock = 0;
   private activityKey = "";
   private fxStartedAt = 0;
   /** Current tile (the one the feet are on, or heading into). */
@@ -91,6 +94,16 @@ export class Character {
     this.activity = activity;
     this.activityKey = key;
     this.fxStartedAt = now;
+  }
+
+  /** Put the activity icon on the left of the head (a neighbour is on the right). */
+  setFxSide(left: boolean): void {
+    this.fxLeft = left;
+  }
+
+  /** Throw both arms in the air for a moment (tests passed). */
+  cheer(now: number): void {
+    this.cheerUntil = now + 2200;
   }
 
   setSessionColor(color: number | undefined): void {
@@ -157,6 +170,7 @@ export class Character {
   }
 
   update(dtMs: number, now: number): void {
+    this.clock = now;
     this.runScript(now);
     this.move(dtMs);
     this.animate(dtMs);
@@ -187,8 +201,8 @@ export class Character {
     const seated = this.pose === "type" || this.pose === "think";
     this.fx
       .setScale(pop)
-      // Beside the head, below the name tag. At a desk it goes on the left so it doesn't cover the monitor.
-      .setPosition(Math.round(this.sprite.x + (seated ? -12 : 12)), Math.round(this.sprite.y - (seated ? 11 : 8) + bob))
+      // Beside the head, below the name tag; the scene picks the side (left at desks, away from neighbours).
+      .setPosition(Math.round(this.sprite.x + (this.fxLeft ? -12 : 12)), Math.round(this.sprite.y - (seated ? 11 : 8) + bob))
       .setDepth(this.sprite.y + 0.5);
   }
 
@@ -286,7 +300,17 @@ export class Character {
     let flip = false;
     let yOffset = 0;
     const walkFrames = this.facing === "up" ? FRAMES.walkUp : this.facing === "down" ? FRAMES.walkDown : FRAMES.walkLeft;
-    switch (this.pose) {
+    const cheering = this.clock < this.cheerUntil && this.pose !== "walk";
+    switch (cheering ? "cheer" : this.pose) {
+      case "cheer":
+        frame = cycle(FRAMES.cheer, 5);
+        yOffset = Math.floor(t * 5) % 2 ? -2 : 0;
+        break;
+      case "stomp":
+        // Hopping on the wastepaper bin to squash it down.
+        frame = FRAMES.walkDown[Math.floor(t * 6) % 2 ? 1 : 3]!;
+        yOffset = Math.floor(t * 6) % 2 ? -4 : 0;
+        break;
       case "walk":
         frame = cycle(walkFrames, 8);
         flip = this.facing === "right";

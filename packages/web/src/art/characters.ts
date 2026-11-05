@@ -20,8 +20,10 @@ export const FRAMES = {
   station: [18, 19],
   /** Sitting still, then scratching the head now and then. */
   think: [20, 20, 20, 21, 22, 21],
+  /** Both arms up — tests passed! */
+  cheer: [23, 24],
 } as const;
-const FRAME_COUNT = 23;
+const FRAME_COUNT = 25;
 
 export interface Appearance {
   skin: string;
@@ -37,9 +39,6 @@ export interface Appearance {
 const SKINS: [string, string][] = [
   ["#f6d3b3", "#e3b48f"],
   ["#eac09a", "#d19f77"],
-  ["#c98e62", "#ad744c"],
-  ["#9a6440", "#7f4f31"],
-  ["#6e4529", "#57361f"],
 ];
 const HAIRS = ["#2b2118", "#5a3a22", "#a5682f", "#e2b75c", "#b33a2b", "#d9d9d9", "#3d4a8a", "#7a3f8f"];
 const SHIRTS: [string, string][] = [
@@ -86,6 +85,8 @@ interface PoseOpts {
   lounging?: boolean;
   /** Hand up to the head, thinking hard (seated, from behind). 0/1 = scratch phase. */
   scratch?: number;
+  /** Both arms in the air, seen from the front. 0/1 = wave phase. */
+  cheer?: number;
   bob?: number;
 }
 
@@ -109,6 +110,8 @@ export function buildSheet(a: Appearance): HTMLCanvasElement {
     { view: "up", seated: true },
     { view: "up", seated: true, scratch: 0 },
     { view: "up", seated: true, scratch: 1 },
+    { view: "down", cheer: 0 },
+    { view: "down", cheer: 1 },
   ];
   frames.forEach((opts, i) => drawCharacter(ctx, i * FRAME_W, a, opts));
   return canvas;
@@ -159,7 +162,13 @@ function drawCharacter(ctx: CanvasRenderingContext2D, ox: number, a: Appearance,
   // Arms
   const swing = o.step === 1 ? 1 : o.step === 3 ? -1 : 0;
   const armY = top + 9;
-  if (o.scratch !== undefined) {
+  if (o.cheer !== undefined) {
+    const w = o.cheer;
+    px(a.shirt, 3 - w, top + 3, 1, 6);
+    px(a.skin, 3 - w, top + 1, 1, 2);
+    px(a.shirt, 12 + w, top + 3, 1, 6);
+    px(a.skin, 12 + w, top + 1, 1, 2);
+  } else if (o.scratch !== undefined) {
     px(a.shirt, 3, armY, 1, 5);
     px(a.skin, 3, armY + 5, 1, 1);
     // Right arm bent up, hand at the side of the head.

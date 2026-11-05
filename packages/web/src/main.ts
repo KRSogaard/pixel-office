@@ -3,7 +3,10 @@ import { OfficeStore } from "./net.js";
 import { OfficeScene } from "./scene/OfficeScene.js";
 import { Hud } from "./ui/hud.js";
 import { Overlay } from "./ui/overlay.js";
+import { Notifier } from "./ui/notify.js";
 import { Panel } from "./ui/panel.js";
+import { Replay } from "./ui/replay.js";
+import { SettingsPanel } from "./ui/settings.js";
 import "./style.css";
 
 const store = new OfficeStore();
@@ -19,6 +22,13 @@ function select(id: string | undefined) {
   panel.show(id, store.state);
 }
 
+const notifier = new Notifier();
+const replay = new Replay(document.getElementById("replay")!, store, () => {
+  scene.reset();
+  hud.setReplay(store.mode === "replay");
+});
+const settings = new SettingsPanel(document.getElementById("settings")!, store);
+
 const hud = new Hud(document.getElementById("hud")!, {
   zoomIn: () => scene.zoomBy(1.25),
   zoomOut: () => scene.zoomBy(0.8),
@@ -29,6 +39,13 @@ const hud = new Hud(document.getElementById("hud")!, {
     overlay.refreshPrivacy();
     panel.render(store.state);
   },
+  sound: { get: () => notifier.sound, set: (on) => notifier.setSound(on) },
+  desktop: { get: () => notifier.desktop, set: (on) => notifier.setDesktop(on) },
+  replay: () => {
+    if (replay.open) replay.close();
+    else void replay.openAt(30).catch((err) => console.warn("[pixel-office] replay", err));
+  },
+  settings: () => settings.toggle(),
 });
 
 new Phaser.Game({
@@ -48,6 +65,7 @@ new Phaser.Game({
 
 store.subscribe((state) => {
   hud.render(state);
+  if (store.mode === "live") notifier.observe(state);
   if (selected) panel.render(state);
 });
 store.onStatus((s) => hud.setConnection(s));

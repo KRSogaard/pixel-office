@@ -9,13 +9,19 @@ import type { Point } from "../office/pathfind.js";
 import { OfficePlanner, planKey } from "../office/planner.js";
 import type { OfficeStore } from "../net.js";
 import type { Overlay, ScreenPoint } from "../ui/overlay.js";
+import { ContextBins } from "./bins.js";
 import { Character, feet, type Destination } from "./Character.js";
+import { confetti, poof, puff } from "./effects.js";
+import { Lighting } from "./lighting.js";
+import { Pet } from "./pet.js";
 
 interface Actor {
   c: Character;
   debounce: PlaceDebouncer;
   lastSaidAt?: number;
   lastErrorAt?: number;
+  lastWinAt?: number;
+  lastErrorText?: number;
   /** Last state we saw. Kept after the agent leaves the state so it can walk out. */
   agent: AgentState;
   gone: boolean;
@@ -43,6 +49,9 @@ export class OfficeScene extends Phaser.Scene {
   private allocator!: Allocator;
   private bg!: Phaser.GameObjects.Image;
   private links!: Phaser.GameObjects.Graphics;
+  private bins!: ContextBins;
+  private lighting!: Lighting;
+  private pet!: Pet;
   private actors = new Map<string, Actor>();
   private planner = new OfficePlanner();
   private builtKey = "";
@@ -66,15 +75,35 @@ export class OfficeScene extends Phaser.Scene {
   }
 
   create(): void {
-    const plan = this.planner.plan(emptyState(), 0);
+    const plan = this.planner.plan(emptyState(), 0, this.deps.store.settings);
     this.office = generateOffice(plan);
     this.builtKey = planKey(plan);
     this.allocator = new Allocator(this.office);
-    this.textures.addCanvas("office", paintOffice(this.office, (id) => this.sessionColor(id)));
+    this.textures.addCanvas("office", paintOffice(this.office, (id) => this.sessionColor(id), this.deps.store.settings.rugs));
     this.bg = this.add.image(0, 0, "office").setOrigin(0, 0).setDepth(-1);
     this.links = this.add.graphics().setDepth(99_999);
+    this.bins = new ContextBins(this);
+    this.lighting = new Lighting(this);
+    this.lighting.resize(this.office.width * TILE, this.office.height * TILE);
+    this.pet = new Pet(
+      this,
+      () => this.office,
+      () => [...this.actors.values()].filter((a) => a.c.arrived).map((a) => a.c.tile),
+    );
     this.setupCamera();
     this.deps.store.subscribe((state) => this.sync(state));
+    // Office settings changed (here or in another browser): rebuild right away.
+    this.deps.store.onSettings(() => this.replan(this.deps.store.state, true));
+  }
+
+  /**
+   * Forget everyone on screen and start over from the current state, placing
+   * agents straight at their spots. Used when replay jumps in time.
+   */
+  reset(): void {
+    for (const id of [...this.actors.keys()]) this.despawn(id);
+    this.firstSync = true;
+    this.sync(this.deps.store.state);
   }
 
   override update(time: number, delta: number): void {
@@ -85,7 +114,9 @@ export class OfficeScene extends Phaser.Scene {
       if (!actor.c.busyWithScript) this.direct(actor, time);
       const call = actor.agent.openCalls[actor.agent.openCalls.length - 1];
       actor.c.setActivity(actor.agent.activity, call?.callId ?? actor.agent.activity, time);
+      actor.c.setFxSide(this.fxOnLeft(actor));
       actor.c.update(Math.min(delta, 100), time);
+      this.bins.update(actor.agent, actor.gone ? undefined : this.allocator.seatFor(actor.agent), time);
       if (actor.agent.status === "ended" && !actor.c.busyWithScript && actor.c.arrived && actor.c.destination?.pose === "stand" && this.isDoor(actor.c.tile)) {
         this.despawn(id);
         continue;
@@ -95,25 +126,51 @@ export class OfficeScene extends Phaser.Scene {
     this.deps.overlay.placeAll(points, time);
     this.drawTeamLinks(time);
     this.labelTeams(cam);
+    this.pet.update(Math.min(delta, 100), time);
+    if (Math.floor(time / 500) !== Math.floor((time - delta) / 500)) this.lighting.update(this.lightSpots());
     // Shrinking happens on a timer, not on an event, so re-plan now and then.
     if (Math.floor(time / 1000) !== Math.floor((time - delta) / 1000)) this.replan(this.deps.store.state);
   }
 
-  /** "project · Manager" above each team area, in the session's colour. */
+  /** "project · Manager" above each team area, and its whiteboard with the manager's todo list. */
   private labelTeams(cam: Phaser.Cameras.Scene2D.Camera): void {
     const state = this.deps.store.state;
     const shown = new Set<string>();
     for (const t of this.office.teams) {
       shown.add(t.sessionId);
       const manager = Object.values(state.agents).find((a) => a.sessionId === t.sessionId && !a.parentId);
+      const color = this.sessionColor(t.sessionId);
       this.deps.overlay.teamLabel(
         t.sessionId,
         manager ? `${t.project} · ${manager.name}` : t.project,
-        this.sessionColor(t.sessionId),
+        color,
         this.toScreen((t.x + t.w / 2) * TILE, t.y * TILE + 7, cam),
       );
+      this.deps.overlay.whiteboard(t.sessionId, manager?.todos, color, this.toScreen((t.whiteboard.x + 1) * TILE, (t.whiteboard.y + 1) * TILE, cam));
     }
     this.deps.overlay.pruneTeamLabels(shown);
+  }
+
+  /** Light pools at night: every occupied desk's monitor, and every manager's desk lamp. */
+  private lightSpots(): { x: number; y: number }[] {
+    const out: { x: number; y: number }[] = [];
+    for (const t of this.office.teams) out.push({ x: (t.managerSeat.x - 1) * TILE + 4, y: (t.managerSeat.y - 1) * TILE + 6 });
+    for (const a of this.actors.values()) {
+      const pose = a.c.destination?.pose;
+      if (a.c.arrived && (pose === "type" || pose === "think")) out.push({ x: a.c.tile.x * TILE + 16, y: (a.c.tile.y - 1) * TILE + 6 });
+    }
+    return out;
+  }
+
+  /** Icon on the left at a desk (keeps the monitor clear) or when someone stands to the right. */
+  private fxOnLeft(actor: Actor): boolean {
+    const pose = actor.c.destination?.pose;
+    const seated = actor.c.arrived && (pose === "type" || pose === "think");
+    const t = actor.c.tile;
+    const busy = (dx: number) =>
+      [...this.actors.values()].some((o) => o !== actor && Math.abs(o.c.tile.x - (t.x + dx)) === 0 && Math.abs(o.c.tile.y - t.y) <= 1);
+    if (seated) return !busy(-1);
+    return busy(1) && !busy(-1);
   }
 
   /** Where each agent is and is heading — for debugging from the console. */
@@ -196,15 +253,31 @@ export class OfficeScene extends Phaser.Scene {
       }
       if (agent.lastErrorAt && agent.lastErrorAt !== actor.lastErrorAt) {
         actor.lastErrorAt = agent.lastErrorAt;
-        if (!initial) this.puff(actor.c);
+        if (!initial) puff(this, actor.c.x, actor.c.y);
+      }
+      if (agent.lastWinAt && agent.lastWinAt !== actor.lastWinAt) {
+        actor.lastWinAt = agent.lastWinAt;
+        if (!initial) {
+          actor.c.cheer(this.now);
+          confetti(this, actor.c.x, actor.c.y);
+          this.deps.overlay.say(agent.id, { kind: "message", text: "Tests pass! 🎉" }, this.now);
+        }
+      }
+      if (agent.lastError && agent.lastError.at !== actor.lastErrorText) {
+        actor.lastErrorText = agent.lastError.at;
+        if (!initial && /rate|limit|overload|quota|429/i.test(agent.lastError.text)) this.coffeeBreak(actor, agent.lastError.text);
       }
     }
   }
 
   private spawn(agent: AgentState, atDestination: boolean): Actor {
     this.ensureSeat(agent);
-    const door = this.doorSpot();
-    const c = new Character(this, agent.id, door, () => this.office.walkable);
+    // Sub-agents are conjured by their parent: they pop up right beside it
+    // instead of walking in from the street.
+    const parent = agent.parentId ? this.actors.get(agent.parentId) : undefined;
+    const beside = parent && !atDestination ? this.nearestOpenTile(parent.c.tile, parent.c.tile) : undefined;
+    const c = new Character(this, agent.id, beside ?? this.doorSpot(), () => this.office.walkable);
+    if (beside) poof(this, c.x, c.y, this.sessionColor(agent.sessionId));
     c.sprite.on("pointerdown", (p: Phaser.Input.Pointer) => {
       p.event.stopPropagation();
       this.deps.onSelect(agent.id);
@@ -216,6 +289,8 @@ export class OfficeScene extends Phaser.Scene {
       gone: false,
       ...(agent.lastSaid ? { lastSaidAt: agent.lastSaid.at } : {}),
       ...(agent.lastErrorAt ? { lastErrorAt: agent.lastErrorAt } : {}),
+      ...(agent.lastWinAt ? { lastWinAt: agent.lastWinAt } : {}),
+      ...(agent.lastError ? { lastErrorText: agent.lastError.at } : {}),
     };
     this.actors.set(agent.id, actor);
     if (atDestination) {
@@ -233,6 +308,7 @@ export class OfficeScene extends Phaser.Scene {
     const actor = this.actors.get(id);
     if (!actor) return;
     actor.c.destroy();
+    this.bins.remove(id);
     this.allocator.remove(id);
     this.deps.overlay.remove(id);
     this.actors.delete(id);
@@ -248,22 +324,24 @@ export class OfficeScene extends Phaser.Scene {
    * A new or removed team rebuilds at once (someone needs a desk); room
    * resizes wait for a short cooldown so the office doesn't twitch.
    */
-  private replan(state: OfficeState): void {
-    const plan = this.planner.plan(state, this.now);
+  private replan(state: OfficeState, force = false): void {
+    const plan = this.planner.plan(state, this.now, this.deps.store.settings);
     const key = planKey(plan);
     if (key === this.builtKey) return;
-    const teams = JSON.stringify(plan.teams.map((t) => [t.sessionId, t.workerSlots]));
+    const teams = JSON.stringify(plan.teams.map((t) => t && [t.sessionId, t.workerSlots]));
     const teamsChanged = teams !== this.builtTeams;
-    if (!teamsChanged && this.now - this.builtAt < REBUILD_COOLDOWN_MS) return;
+    if (!force && !teamsChanged && this.now - this.builtAt < REBUILD_COOLDOWN_MS) return;
     this.builtKey = key;
     this.builtTeams = teams;
     this.builtAt = this.now;
     this.office = generateOffice(plan);
     this.allocator.setOffice(this.office);
     this.textures.remove("office");
-    this.textures.addCanvas("office", paintOffice(this.office, (id) => this.sessionColor(id)));
+    this.textures.addCanvas("office", paintOffice(this.office, (id) => this.sessionColor(id), this.deps.store.settings.rugs));
     this.bg.setTexture("office");
     this.updateBounds();
+    this.lighting.resize(this.office.width * TILE, this.office.height * TILE);
+    this.pet.relocate();
     if (!this.userMovedCamera) this.fit();
     // Anyone now standing inside furniture or a wall steps out; everyone re-routes.
     for (const actor of this.actors.values()) {
@@ -341,7 +419,10 @@ export class OfficeScene extends Phaser.Scene {
   private destinationFor(actor: Actor, now: number): Destination | undefined {
     const { agent, c } = actor;
     const wasLounging = c.destination?.pose === "lounge";
-    const place = actor.debounce.decide(placeFor(agent.activity), now);
+    let wanted = placeFor(agent.activity);
+    // A manager whose sub-agents are still busy waits at its desk instead of going to the lounge.
+    if (wanted.kind === "lounge" && !agent.parentId && this.hasBusyTeam(agent.id)) wanted = { kind: "seat", pose: "think" };
+    const place = actor.debounce.decide(wanted, now);
     let spot: Spot | undefined;
     if (place.kind === "seat") {
       this.allocator.release(agent.id);
@@ -412,49 +493,52 @@ export class OfficeScene extends Phaser.Scene {
   }
 
   /**
-   * One sub-agent: it walks to the parent's desk to get briefed, then goes to work.
-   * Several at once: everyone meets at the meeting table for a quick kickoff.
+   * Sub-agents pop up beside their parent (see spawn), so the hand-off is a
+   * quick huddle right there: the parent states the task, each sub-agent says
+   * "On it!", and everyone gets to work. No walk to the meeting room, so no
+   * real work is hidden behind the animation.
    */
   private stageDelegation(parent: Actor, batch: { children: Actor[]; texts: string[] }): void {
-    const say = (a: Actor, kind: Utterance["kind"], text: string) => () => this.deps.overlay.say(a.agent.id, { kind, text }, this.now);
     const brief = batch.texts.length === 1 ? batch.texts[0]! : `Team: ${batch.texts.join(" · ")}`;
-
-    if (batch.children.length === 1) {
-      const child = batch.children[0]!;
-      say(parent, "delegate", brief)();
-      child.c.play([
-        { type: "goto", dest: () => this.besideActor(parent, child) },
-        { type: "do", fn: say(child, "message", "On it!") },
-        { type: "hold", ms: 1200 },
-      ]);
-      return;
-    }
-
-    const table = this.allocator.reserve(parent.agent.id, "meeting", parent.c.tile);
-    if (!table) {
-      say(parent, "delegate", brief)();
-      return;
-    }
-    parent.c.play([
-      { type: "goto", dest: () => ({ tile: table, facing: table.facing, pose: "stand" }) },
-      { type: "do", fn: say(parent, "delegate", brief) },
-      { type: "hold", ms: 2500 },
-      { type: "do", fn: () => this.allocator.release(parent.agent.id) },
-    ]);
+    this.deps.overlay.say(parent.agent.id, { kind: "delegate", text: brief }, this.now);
+    if (!parent.c.busyWithScript) parent.c.play([{ type: "hold", ms: 1500 }]);
     for (const child of batch.children) {
       child.c.play([
-        {
-          type: "goto",
-          dest: () => {
-            const seat = this.allocator.reserve(child.agent.id, "meeting", table);
-            return seat && { tile: seat, facing: seat.facing, pose: "stand" };
-          },
-        },
-        { type: "do", fn: say(child, "message", "On it!") },
-        { type: "hold", ms: 1200 },
-        { type: "do", fn: () => this.allocator.release(child.agent.id) },
+        { type: "hold", ms: 300 },
+        { type: "do", fn: () => this.deps.overlay.say(child.agent.id, { kind: "message", text: "On it!" }, this.now) },
+        { type: "hold", ms: 1100 },
       ]);
     }
+  }
+
+  private hasBusyTeam(agentId: string): boolean {
+    for (const a of this.actors.values()) {
+      if (a.agent.parentId === agentId && (a.agent.status === "working" || a.agent.status === "waiting")) return true;
+    }
+    return false;
+  }
+
+  /** Rate-limited: off to the coffee machine for a bit. */
+  private coffeeBreak(actor: Actor, reason: string): void {
+    actor.c.play([
+      {
+        type: "goto",
+        dest: () => {
+          const spot = this.allocator.reserve(actor.agent.id, "lounge", this.coffeeMachine() ?? actor.c.tile);
+          return spot && { tile: spot, facing: "up", pose: "stand" };
+        },
+      },
+      { type: "do", fn: () => this.deps.overlay.say(actor.agent.id, { kind: "message", text: `☕ ${reason.replace(/_/g, " ")}` }, this.now) },
+      { type: "hold", ms: 6000 },
+    ]);
+  }
+
+  private coffeeMachine(): Point | undefined {
+    for (let y = 0; y < this.office.height; y++) {
+      const x = this.office.tiles[y]!.indexOf("K");
+      if (x >= 0) return { x, y: y + 1 };
+    }
+    return undefined;
   }
 
   /** A free walkable tile next to where `target` is (or is heading), facing it. */
@@ -496,22 +580,6 @@ export class OfficeScene extends Phaser.Scene {
       if (d.x === t.x && d.y === t.y) return true;
     }
     return false;
-  }
-
-  private puff(c: Character): void {
-    for (let i = 0; i < 5; i++) {
-      const g = this.add.circle(c.x + Phaser.Math.Between(-4, 4), c.y - 18, Phaser.Math.Between(2, 4), 0x888888, 0.8);
-      g.setDepth(100_000);
-      this.tweens.add({
-        targets: g,
-        y: g.y - Phaser.Math.Between(8, 16),
-        x: g.x + Phaser.Math.Between(-6, 6),
-        alpha: 0,
-        scale: 2,
-        duration: 900 + i * 120,
-        onComplete: () => g.destroy(),
-      });
-    }
   }
 
   // --- camera & helpers -----------------------------------------------------

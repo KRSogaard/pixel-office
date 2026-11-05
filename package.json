@@ -3,13 +3,15 @@
   "private": true,
   "type": "module",
   "packageManager": "pnpm@10.32.1",
-  "engines": { "node": ">=22.18" },
+  "engines": {
+    "node": ">=22.18"
+  },
   "scripts": {
     "dev": "pnpm -r --parallel --filter ./packages/server --filter ./packages/web dev",
     "build": "pnpm -r build",
     "test": "pnpm -r test",
     "typecheck": "pnpm -r typecheck",
-    "start": "node packages/server/dist/server.js",
+    "start": "node scripts/start.mjs",
     "simulate": "pnpm --filter @pixel-office/server simulate"
   }
 }

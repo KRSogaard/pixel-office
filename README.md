@@ -9,6 +9,21 @@ when one hands work to another.
 It costs your agents **zero tokens**: the connectors are plain hooks/plugins running
 outside the model, they print nothing, and they never block the agent.
 
+What's in the office:
+
+- **A team area per session**, on a rug in the session's colour: the main agent at a
+  manager's desk, its sub-agents at desks in front, and a **whiteboard** with its todo list.
+- **Rooms that grow** when they get busy, and shrink back when quiet.
+- **Who's doing what, and why**: name tags with the prompt or task, animated activity icons,
+  dotted lines between a selected agent and its team.
+- **A wastepaper bin** by each desk that fills as the agent's context window fills — and
+  gets stomped flat when it compacts.
+- **Reactions**: confetti when tests pass, smoke when a command fails, a coffee break on a
+  rate limit.
+- **Day and night** following your clock, desk lamps after dark, and Byte the office cat.
+- **🔔 bell and 🖥 desktop notifications** when an agent needs you or finishes.
+- **⏪ Replay** of the last two hours, and **⚙ office settings** shared by everyone.
+
 See [DESIGN.md](DESIGN.md) for how it works.
 
 ## Quick start
@@ -16,7 +31,7 @@ See [DESIGN.md](DESIGN.md) for how it works.
 ```sh
 git clone https://github.com/KRSogaard/pixel-office.git
 cd pixel-office
-docker compose up -d                       # or: pnpm install && pnpm build && pnpm start
+docker compose up -d                       # or: pnpm install && pnpm start
 docker compose logs pixel-office           # shows the generated password + ingest token
 ```
 
@@ -42,16 +57,16 @@ docker compose logs pixel-office   # first start prints the generated password +
 
 ```sh
 pnpm install
-pnpm build
-PIXEL_OFFICE_HOST=0.0.0.0 pnpm start   # http://<this-machine>:8790
+PIXEL_OFFICE_HOST=0.0.0.0 pnpm start   # builds if needed, then serves http://<this-machine>:8790
 ```
 
 Open the URL, log in with the password, and you'll see an empty office.
 
 - `PIXEL_OFFICE_HOST=0.0.0.0` lets other machines reach the server. Leave it out and only
   this machine can connect.
-- `pnpm start` runs the *built* server. After a `git pull`, run `pnpm install && pnpm build`
-  again, or you'll keep running the old version.
+- `pnpm start` rebuilds first whenever the sources changed since the last build (e.g. after
+  a `git pull`), and reinstalls dependencies when the lockfile changed. Then it runs
+  `packages/server/dist/server.js` with any arguments you pass.
 - The password and ingest token are printed **only on the first start**. The password is
   stored hashed and can't be shown again; to choose your own, start with
   `PIXEL_OFFICE_PASSWORD='…' pnpm start`. To see the token again:
@@ -72,6 +87,7 @@ All optional, via environment variables:
 | `PIXEL_OFFICE_COOKIE_SECURE` | auto | Force the login cookie's `Secure` flag on/off. |
 | `PIXEL_OFFICE_IDLE_AFTER_MS` | 10 min | Silent working agents are sent to the lounge after this. |
 | `PIXEL_OFFICE_LEAVE_AFTER_MS` | 30 min | Silent agents walk out after this. |
+| `PIXEL_OFFICE_HISTORY_MS` | 2 h | How far back replay can go (kept in memory, max 50k events). |
 | `PIXEL_OFFICE_RECORD` | off | Path of a JSONL file to record every event to (replay it with `simulate`). |
 
 If the office is reachable from the internet, put it behind HTTPS — prompts, file names

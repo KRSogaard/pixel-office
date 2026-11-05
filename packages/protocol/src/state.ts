@@ -1,4 +1,4 @@
-import type { ToolCategory } from "./events.js";
+import type { TodoItem, ToolCategory } from "./events.js";
 
 /** What the agent is doing right now — the client maps this to a place in the office. */
 export type Activity =
@@ -65,6 +65,14 @@ export interface AgentState {
   waiting?: { reason: "permission" | "question"; text?: string; since: number };
   lastSaid?: Utterance;
   lastErrorAt?: number;
+  /** The last turn-level error (rate limit, overloaded, …). */
+  lastError?: { text: string; at: number };
+  /** When a test run last passed — the office celebrates. */
+  lastWinAt?: number;
+  /** Context window use. */
+  context?: { tokens: number; limit: number; at: number };
+  /** The agent's todo list, in its own order. */
+  todos?: TodoItem[];
   /** Delegations this agent started (tool call ids) that haven't been matched to a child yet. */
   pendingDelegations: string[];
   startedAt: number;

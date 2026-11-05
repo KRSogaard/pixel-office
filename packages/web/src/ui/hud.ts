@@ -6,12 +6,17 @@ export interface HudActions {
   zoomOut: () => void;
   fit: () => void;
   togglePrivacy: (on: boolean) => void;
+  sound: { get: () => boolean; set: (on: boolean) => void };
+  desktop: { get: () => boolean; set: (on: boolean) => Promise<boolean> };
+  replay: () => void;
+  settings: () => void;
 }
 
 /** Top bar: counts, connection, privacy toggle, zoom. Also drives the tab title + favicon. */
 export class Hud {
   private counts: HTMLElement;
   private conn: HTMLElement;
+  private replayFlag: HTMLElement;
   private baseTitle = document.title;
   private lastWaiting = -1;
 
@@ -19,7 +24,14 @@ export class Hud {
     root.innerHTML = `
       <div class="hud-brand"><span class="logo"></span>pixel-office</div>
       <div class="hud-counts"></div>
+      <div class="hud-replay-flag" hidden>⏪ REPLAY</div>
       <div class="hud-spacer"></div>
+      <div class="hud-tools">
+        <button data-a="sound" title="Bell when an agent needs you or finishes">🔔</button>
+        <button data-a="desktop" title="Desktop notifications while this tab is in the background">🖥</button>
+        <button data-a="replay" title="Replay: what happened while you were away">⏪</button>
+        <button data-a="settings" title="Office layout settings">⚙</button>
+      </div>
       <label class="hud-toggle" title="Hide prompts and messages (for screen sharing)">
         <input type="checkbox" class="privacy" /> privacy
       </label>
@@ -36,6 +48,24 @@ export class Hud {
     root.querySelector<HTMLButtonElement>('[data-a="in"]')!.onclick = actions.zoomIn;
     root.querySelector<HTMLButtonElement>('[data-a="out"]')!.onclick = actions.zoomOut;
     root.querySelector<HTMLButtonElement>('[data-a="fit"]')!.onclick = actions.fit;
+    const sound = root.querySelector<HTMLButtonElement>('[data-a="sound"]')!;
+    const desktop = root.querySelector<HTMLButtonElement>('[data-a="desktop"]')!;
+    const paint = () => {
+      sound.classList.toggle("on", actions.sound.get());
+      desktop.classList.toggle("on", actions.desktop.get());
+    };
+    sound.onclick = () => {
+      actions.sound.set(!actions.sound.get());
+      paint();
+    };
+    desktop.onclick = async () => {
+      await actions.desktop.set(!actions.desktop.get());
+      paint();
+    };
+    paint();
+    root.querySelector<HTMLButtonElement>('[data-a="replay"]')!.onclick = actions.replay;
+    root.querySelector<HTMLButtonElement>('[data-a="settings"]')!.onclick = actions.settings;
+    this.replayFlag = root.querySelector(".hud-replay-flag")!;
     const privacy = root.querySelector<HTMLInputElement>(".privacy")!;
     privacy.checked = localStorage.getItem("po.privacy") === "1";
     privacy.onchange = () => {
@@ -61,6 +91,10 @@ export class Hud {
       document.title = waiting ? `(${waiting}) ${this.baseTitle}` : this.baseTitle;
       setFavicon(waiting > 0);
     }
+  }
+
+  setReplay(on: boolean): void {
+    this.replayFlag.hidden = !on;
   }
 
   setConnection(s: ConnectionStatus): void {

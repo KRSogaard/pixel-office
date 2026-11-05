@@ -41,6 +41,14 @@ export class Panel {
     if (a.label) rows.push(["Role", a.label]);
     const call = a.openCalls[a.openCalls.length - 1];
     rows.push(["Doing now", call ? (this.privacy ? call.tool : call.summary) : a.activity]);
+    if (a.context) {
+      const pct = Math.round((a.context.tokens / a.context.limit) * 100);
+      const bar = div("ctx", [span("ctx-fill", "")]);
+      (bar.firstChild as HTMLElement).style.width = `${Math.min(100, pct)}%`;
+      bar.classList.toggle("warn", pct > 60);
+      bar.classList.toggle("hot", pct > 85);
+      rows.push(["Context", div("ctx-row", [bar, span("muted", `${pct}% · ${Math.round(a.context.tokens / 1000)}k / ${Math.round(a.context.limit / 1000)}k`)])]);
+    }
     if (a.waiting) rows.push(["Waiting on you", this.privacy ? a.waiting.reason : a.waiting.text ?? a.waiting.reason]);
     if (parent) rows.push(["Reports to", link(parent, () => this.show(parent.id, state))]);
     if (children.length)
@@ -67,10 +75,24 @@ export class Panel {
       ),
     );
 
+    const todos =
+      a.todos?.length && !this.privacy
+        ? div("panel-section", [
+            span("section-title", `Todo · ${a.todos.filter((t) => t.status === "completed").length}/${a.todos.length} done`),
+            div(
+              "todos",
+              a.todos.map((t) =>
+                div(`todo ${t.status}`, [span("todo-mark", t.status === "completed" ? "☑" : t.status === "in_progress" ? "◐" : "☐"), span("todo-text", t.text)]),
+              ),
+            ),
+          ])
+        : null;
+
     this.root.replaceChildren(
       head,
       facts,
       ...(prompt ? [prompt] : []),
+      ...(todos ? [todos] : []),
       div("panel-section", [span("section-title", "Recent tools"), a.recentTools.length ? tools : span("muted", "none yet")]),
     );
   }

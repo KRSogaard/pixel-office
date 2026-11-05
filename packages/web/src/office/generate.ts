@@ -1,3 +1,4 @@
+import { DEFAULT_SETTINGS, type OfficeSettings, type TopRoom } from "@pixel-office/protocol";
 import { analyze, type Office, type Spot, type TeamArea } from "./layout.js";
 
 /**
@@ -32,8 +33,12 @@ export interface TeamPlan {
 
 export interface OfficePlan {
   rooms: RoomCapacities;
-  /** Display order: grouped by project, then by arrival. */
-  teams: TeamPlan[];
+  /**
+   * Team areas in display order. `null` is an empty spot left by a team that
+   * went home, kept so the other teams don't all shift over.
+   */
+  teams: (TeamPlan | null)[];
+  settings?: OfficeSettings;
 }
 
 export const WORKERS_PER_ROW = 3;
@@ -41,17 +46,8 @@ const TEAM_W = 12;
 const ROOM_H = 7;
 const MIN_WIDTH = 45;
 
-/** Smallest capacities, so a quiet office still has every room. */
-export const MIN_ROOMS: RoomCapacities = {
-  library: 4,
-  server: 4,
-  meeting: 8,
-  mail: 3,
-  lounge: 6,
-  reception: 4,
-  globe: 2,
-  filing: 3,
-};
+/** Smallest capacities, so a quiet office still has every room (overridable in settings). */
+export const MIN_ROOMS: RoomCapacities = { ...DEFAULT_SETTINGS.minRooms };
 
 // --- room templates ------------------------------------------------------------
 // Each takes an interior width and returns ROOM_H rows of that width.
@@ -143,8 +139,9 @@ class Grid {
 }
 
 export function generateOffice(plan: OfficePlan): Office {
+  const settings = plan.settings ?? DEFAULT_SETTINGS;
   const cap = { ...plan.rooms };
-  for (const k of Object.keys(MIN_ROOMS) as (keyof RoomCapacities)[]) cap[k] = Math.max(cap[k], MIN_ROOMS[k]);
+  for (const k of Object.keys(MIN_ROOMS) as (keyof RoomCapacities)[]) cap[k] = Math.max(cap[k], settings.minRooms[k]);
 
   // Top band widths.
   const lw = widthFor(library, "l", cap.library, 8);
@@ -159,17 +156,15 @@ export function generateOffice(plan: OfficePlan): Office {
   const fc = Math.max(3, cap.filing);
   const stripW = 1 + 2 + rw + 3 + (2 + loungeRow) + 3 + gc * 2 + 2 + fc * 2 + 1 + 1;
 
-  const teamsPerRowMax = (width: number) => Math.max(1, Math.floor((width - 3) / (TEAM_W + 1)));
   const topW = 1 + lw + 1 + sw + 1 + mw + 1 + aw + 1;
-  // Wide enough for the rooms, the strip, and up to three teams side by side.
-  const wantTeamsPerRow = Math.min(3, Math.max(1, plan.teams.length));
-  const W = Math.max(MIN_WIDTH, topW, stripW, 3 + wantTeamsPerRow * (TEAM_W + 1));
+  // Wide enough for the rooms, the strip, and the configured number of teams side by side.
+  const perRow = Math.min(4, Math.max(1, settings.teamsPerRow));
+  const W = Math.max(MIN_WIDTH, topW, stripW, 3 + perRow * (TEAM_W + 1));
   mw += W - topW; // the meeting room takes up any slack in the top band
 
-  const perRow = teamsPerRowMax(W);
-  const teamRows: TeamPlan[][] = [];
+  const teamRows: (TeamPlan | null)[][] = [];
   for (let i = 0; i < plan.teams.length; i += perRow) teamRows.push(plan.teams.slice(i, i + perRow));
-  const teamHeight = (t: TeamPlan) => 4 + 3 * Math.max(1, Math.ceil(t.workerSlots / WORKERS_PER_ROW));
+  const teamHeight = (t: TeamPlan | null) => 4 + 3 * Math.max(1, Math.ceil((t?.workerSlots ?? WORKERS_PER_ROW) / WORKERS_PER_ROW));
   const bandHeights = teamRows.map((r) => Math.max(...r.map(teamHeight)));
   const teamBandH = Math.max(7, bandHeights.reduce((a, b) => a + b, 0)) + 1;
 
@@ -187,12 +182,14 @@ export function generateOffice(plan: OfficePlan): Office {
   }
 
   // Top band: rooms separated by walls, a wall below with a door into each room.
-  const rooms: [Room, number][] = [
-    [library, lw],
-    [serverRoom, sw],
-    [meetingRoom, mw],
-    [mailroom, aw],
-  ];
+  const byName: Record<TopRoom, [Room, number]> = {
+    library: [library, lw],
+    server: [serverRoom, sw],
+    meeting: [meetingRoom, mw],
+    mail: [mailroom, aw],
+  };
+  const order = settings.roomOrder.length === 4 ? settings.roomOrder : DEFAULT_SETTINGS.roomOrder;
+  const rooms = order.map((r) => byName[r]);
   let x = 1;
   g.put(0, TOP - 1, "#".repeat(W));
   for (const [room, w] of rooms) {
@@ -231,6 +228,7 @@ export function generateOffice(plan: OfficePlan): Office {
   let ty = TOP + STRIP;
   teamRows.forEach((teamRow, ri) => {
     teamRow.forEach((t, ci) => {
+      if (!t) return; // an empty spot, kept so neighbours don't move
       const tx = 2 + ci * (TEAM_W + 1);
       teams.push(placeTeam(g, t, tx, ty));
     });
@@ -240,6 +238,9 @@ export function generateOffice(plan: OfficePlan): Office {
     g.put(Math.floor(W / 2), TOP + STRIP + 3, "P");
   }
 
+  if (!settings.plants) {
+    for (const r of g.cells) for (let i = 0; i < r.length; i++) if (r[i] === "P") r[i] = ".";
+  }
   const { walkable, spots } = analyze(g.cells);
   // Spots in team areas come from placeTeam with stable slot order; re-point them at the analyzed spot objects.
   const at = new Map(spots.map((s) => [`${s.x},${s.y}`, s]));
@@ -252,7 +253,7 @@ export function generateOffice(plan: OfficePlan): Office {
 
 /**
  *   ............   label row
- *   P...EEE....P   manager's desk
+ *   P...EEE.WW.P   manager's desk, whiteboard (the team's todo list)
  *   .....q......   manager's chair
  *   ............
  *   .dd..dd..dd.   worker desks, three per row
@@ -263,6 +264,7 @@ function placeTeam(g: Grid, t: TeamPlan, x: number, y: number): TeamArea {
   const rows = Math.max(1, Math.ceil(t.workerSlots / WORKERS_PER_ROW));
   const h = 4 + rows * 3;
   g.put(x + 4, y + 1, "EEE");
+  g.put(x + 8, y + 1, "WW");
   g.put(x + 5, y + 2, "q");
   g.put(x, y + 1, "P");
   g.put(x + 11, y + 1, "P");
@@ -284,6 +286,7 @@ function placeTeam(g: Grid, t: TeamPlan, x: number, y: number): TeamArea {
     w: TEAM_W,
     h,
     managerSeat: { kind: "manager", x: x + 5, y: y + 2, facing: "up" },
+    whiteboard: { x: x + 8, y: y + 1 },
     workerSeats,
   };
 }

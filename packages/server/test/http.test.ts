@@ -6,6 +6,7 @@ import { createAdapters } from "../src/adapters/index.js";
 import { createApp } from "../src/http.js";
 import { Hub } from "../src/hub.js";
 import { hashPassword, loadSecrets, signSession, verifySession } from "../src/secrets.js";
+import { SettingsStore } from "../src/settings.js";
 import { originMatches } from "../src/ws.js";
 
 function setup() {
@@ -15,9 +16,11 @@ function setup() {
   writeFileSync(join(webDir, "assets", "app.js"), "console.log(1)");
   const secrets = { sessionSecret: "s".repeat(64), ingestToken: "tok-123", passwordHash: hashPassword("hunter2") };
   const hub = new Hub();
-  const app = createApp({ config: { trustProxy: false, webDir }, secrets, hub, adapters: createAdapters() });
+  const dataDir = mkdtempSync(join(tmpdir(), "po-data-"));
+  const settings = new SettingsStore(dataDir);
+  const app = createApp({ config: { trustProxy: false, webDir }, secrets, hub, settings, adapters: createAdapters() });
   const cookie = `po_session=${signSession(secrets.sessionSecret, Date.now() + 60_000)}`;
-  return { app, hub, secrets, cookie };
+  return { app, hub, secrets, cookie, settings, dataDir };
 }
 
 const hookBody = JSON.stringify({ session_id: "abc", cwd: "/x/proj", hook_event_name: "SessionStart", source: "startup" });
@@ -128,3 +131,70 @@ describe("websocket origin check", () => {
     expect(originMatches(undefined, "office.example.com")).toBe(false);
   });
 });
+
+describe("context header", () => {
+  it("turns x-po-context-tokens into a context event for the main agent", async () => {
+    const { app, hub } = setup();
+    const body = JSON.stringify({ session_id: "abc", cwd: "/x/proj", hook_event_name: "PostToolUse", tool_name: "Read", tool_use_id: "t1", agent_id: "sub1" });
+    const res = await app.request("/ingest/claude", {
+      method: "POST",
+      body,
+      headers: { authorization: "Bearer tok-123", "content-type": "application/json", "x-po-context-tokens": "123456" },
+    });
+    expect(res.status).toBe(204);
+    expect(hub.snapshot.agents["claude:abc"]?.context).toMatchObject({ tokens: 123456, limit: 200_000 });
+    expect(hub.snapshot.agents["claude:sub1"]?.context).toBeUndefined();
+  });
+});
+
+describe("history", () => {
+  it("needs a session and returns base + events", async () => {
+    const { app, cookie } = setup();
+    expect((await app.request("/api/history")).status).toBe(401);
+    await app.request("/ingest/claude", { method: "POST", body: hookBody, headers: { authorization: "Bearer tok-123" } });
+    const res = await app.request("/api/history", { headers: { cookie } });
+    expect(res.status).toBe(200);
+    const h = (await res.json()) as { base: { agents: object }; events: { kind: string }[]; now: number };
+    expect(h.events.map((e) => e.kind)).toEqual(["session.start"]);
+    expect(h.base.agents).toEqual({});
+    expect(typeof h.now).toBe("number");
+  });
+});
+
+describe("settings", () => {
+  const good = {
+    roomOrder: ["mail", "meeting", "server", "library"],
+    minRooms: { library: 6, server: 4, meeting: 8, mail: 3, lounge: 6, reception: 4, globe: 2, filing: 3 },
+    teamsPerRow: 2,
+    rugs: false,
+    plants: true,
+  };
+
+  it("serves defaults, then saves and persists valid settings", async () => {
+    const { app, cookie, settings, dataDir } = setup();
+    expect((await app.request("/api/settings")).status).toBe(401);
+    const get = await app.request("/api/settings", { headers: { cookie } });
+    expect(((await get.json()) as { teamsPerRow: number }).teamsPerRow).toBe(3);
+    const seen: unknown[] = [];
+    settings.subscribe((s) => seen.push(s));
+    const put = await app.request("/api/settings", {
+      method: "PUT",
+      body: JSON.stringify(good),
+      headers: { cookie, "x-po-csrf": "1", "content-type": "application/json" },
+    });
+    expect(put.status).toBe(200);
+    expect(seen).toEqual([good]);
+    expect(new SettingsStore(dataDir).get()).toEqual(good);
+  });
+
+  it("rejects missing CSRF header, bad input and no session", async () => {
+    const { app, cookie } = setup();
+    const send = (body: unknown, headers: Record<string, string>) =>
+      app.request("/api/settings", { method: "PUT", body: JSON.stringify(body), headers: { "content-type": "application/json", ...headers } });
+    expect((await send(good, { cookie })).status).toBe(403);
+    expect((await send(good, { "x-po-csrf": "1" })).status).toBe(401);
+    expect((await send({ ...good, teamsPerRow: 9 }, { cookie, "x-po-csrf": "1" })).status).toBe(400);
+    expect((await send({ ...good, roomOrder: ["mail", "mail", "server", "library"] }, { cookie, "x-po-csrf": "1" })).status).toBe(400);
+  });
+});
+

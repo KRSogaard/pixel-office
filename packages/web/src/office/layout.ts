@@ -9,6 +9,7 @@
  *   M  mail shelves      K  coffee machine       P  plant
  *   F  filing cabinet    G  globe desk           X  reception counter
  *   d  work desk         E  manager's desk       w  water cooler
+ *   W  whiteboard
  *
  * Tile legend — spots (walkable, agents stand or sit there):
  *   l  library           r  server rack terminal m  mailroom
@@ -52,6 +53,8 @@ export interface TeamArea {
   w: number;
   h: number;
   managerSeat: Spot;
+  /** Left tile of the 2-wide whiteboard that shows the team's todo list. */
+  whiteboard: { x: number; y: number };
   /** Worker seats in a stable order: slot 0, 1, 2, … */
   workerSeats: Spot[];
 }
@@ -66,7 +69,7 @@ export interface Office {
   teams: TeamArea[];
 }
 
-export const BLOCKING = new Set("#=BRTMKPFGXdEw");
+export const BLOCKING = new Set("#=BRTMKPFGXdEwW");
 
 export const SPOT_KIND: Record<string, SpotKind> = {
   l: "library",

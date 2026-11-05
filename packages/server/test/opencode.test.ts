@@ -73,4 +73,36 @@ describe("opencode adapter", () => {
     expect(a.toEvents({ directory, type: "event", event: { type: "message.part.updated", properties: {} } }, NOW)).toEqual([]);
     expect(a.toEvents(42, NOW)).toEqual([]);
   });
+
+  it("maps context use, todos (cancelled = done) and session errors", () => {
+    const a = new OpenCodeAdapter();
+    const [ctx] = a.toEvents({ directory, type: "context", sessionID: "s1", tokens: 42_000 }, NOW);
+    expect(ctx).toMatchObject({ kind: "context", agentId: "opencode:s1", tokens: 42_000 });
+    const [todos] = a.toEvents(
+      {
+        directory,
+        type: "todos",
+        sessionID: "s1",
+        todos: [
+          { id: "1", content: "write tests", status: "in_progress" },
+          { id: "2", content: "old idea", status: "cancelled" },
+          { id: "3", content: "", status: "pending" },
+        ],
+      },
+      NOW,
+    );
+    expect(todos).toMatchObject({
+      kind: "todos",
+      items: [
+        { id: "1", text: "write tests", status: "in_progress" },
+        { id: "2", text: "old idea", status: "completed" },
+      ],
+    });
+    const [err] = a.toEvents(
+      { directory, type: "event", event: { type: "session.error", properties: { sessionID: "s1", error: { name: "APIError" } } } },
+      NOW,
+    );
+    expect(err).toMatchObject({ kind: "error", text: "APIError" });
+  });
 });
+

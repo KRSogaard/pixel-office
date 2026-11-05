@@ -11,6 +11,7 @@ import { createApp } from "./http.js";
 import { Hub } from "./hub.js";
 import { startReaper } from "./reaper.js";
 import { loadSecrets } from "./secrets.js";
+import { SettingsStore } from "./settings.js";
 import { SCENARIOS } from "./simulator/scenarios.js";
 import { simulateRecording, simulateScenario } from "./simulator/run.js";
 import { attachWebSocket } from "./ws.js";
@@ -73,15 +74,16 @@ async function main(): Promise<void> {
 function runServe(): void {
   const config = loadConfig();
   const { secrets, generated } = loadSecrets(config.dataDir, config);
-  const hub = new Hub(config.recordPath);
-  const app = createApp({ config, secrets, hub, adapters: createAdapters() });
+  const hub = new Hub({ recordPath: config.recordPath, historyMs: config.historyMs });
+  const settings = new SettingsStore(config.dataDir);
+  const app = createApp({ config, secrets, hub, settings, adapters: createAdapters() });
 
   const server = serve({ fetch: app.fetch, port: config.port, hostname: config.host }, (info) => {
     console.log(`pixel-office listening on http://${config.host}:${info.port}`);
     if (!config.webDir) console.log("  (web app not found — run `pnpm build` or set PIXEL_OFFICE_WEB_DIR)");
     if (config.recordPath) console.log(`  recording events to ${config.recordPath}`);
   }) as Server;
-  attachWebSocket(server, hub, secrets);
+  attachWebSocket(server, hub, secrets, settings);
   startReaper(hub, config);
 
   if (generated.password || generated.ingestToken) {

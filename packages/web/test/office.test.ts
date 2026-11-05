@@ -67,7 +67,7 @@ describe("planner", () => {
       ev({ kind: "session.start", agentId: "other", sessionId: "s2" }),
     ]);
     const plan = new OfficePlanner().plan(state, 0);
-    expect(plan.teams.map((x) => [x.sessionId, x.workerSlots])).toEqual([
+    expect(plan.teams.map((x) => [x!.sessionId, x!.workerSlots])).toEqual([
       ["s1", 6],
       ["s2", 3],
     ]);

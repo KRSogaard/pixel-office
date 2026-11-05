@@ -1,5 +1,5 @@
 import { categorizeTool, projectFromPath, summarizeTool, detailTool, type AgentEvent } from "@pixel-office/protocol";
-import { isObj, str, validEvents, withDetail, type Adapter, type Obj } from "./common.js";
+import { isObj, str, todoStatus, validEvents, withDetail, type Adapter, type Obj } from "./common.js";
 
 /**
  * Envelopes sent by plugins/opencode/pixel-office.ts → AgentEvents.
@@ -57,6 +57,25 @@ export class OpenCodeAdapter implements Adapter {
         } else {
           out.push({ ...base(sessionID), kind: "tool.end", callId: callID, ok: payload.ok !== false });
         }
+      }
+    } else if (type === "context") {
+      const sessionID = str(payload, "sessionID");
+      const tokens = payload.tokens;
+      if (sessionID && typeof tokens === "number" && tokens > 0) {
+        out.push({ ...base(sessionID), kind: "context", tokens: Math.round(tokens) });
+      }
+    } else if (type === "todos") {
+      const sessionID = str(payload, "sessionID");
+      if (sessionID && Array.isArray(payload.todos)) {
+        const items = [];
+        for (const t of payload.todos.slice(0, 100)) {
+          if (!isObj(t)) continue;
+          const text = str(t, "content");
+          const status = todoStatus(str(t, "status"));
+          const id = str(t, "id");
+          if (text && status) items.push({ ...(id ? { id } : {}), text, status });
+        }
+        out.push({ ...base(sessionID), kind: "todos", items });
       }
     } else if (type === "chat.message") {
       const sessionID = str(payload, "sessionID");

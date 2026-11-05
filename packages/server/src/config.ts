@@ -13,6 +13,8 @@ export interface Config {
   idleAfterMs: number;
   leaveAfterMs: number;
   recordPath?: string;
+  /** How far back the replay history goes. */
+  historyMs: number;
   webDir?: string;
   /** Use X-Forwarded-For / X-Forwarded-Proto (set when running behind a reverse proxy). */
   trustProxy: boolean;
@@ -54,6 +56,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     idleAfterMs: int(env.PIXEL_OFFICE_IDLE_AFTER_MS, 10 * 60_000),
     leaveAfterMs: int(env.PIXEL_OFFICE_LEAVE_AFTER_MS, 30 * 60_000),
     ...(env.PIXEL_OFFICE_RECORD ? { recordPath: resolve(env.PIXEL_OFFICE_RECORD) } : {}),
+    historyMs: int(env.PIXEL_OFFICE_HISTORY_MS, 2 * 60 * 60 * 1000),
     ...(webDir ? { webDir } : {}),
     trustProxy: bool(env.PIXEL_OFFICE_TRUST_PROXY) ?? false,
   };

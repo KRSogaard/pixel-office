@@ -1,5 +1,5 @@
 import { categorizeTool, projectFromPath, summarizeTool, detailTool, type AgentEvent } from "@pixel-office/protocol";
-import { isObj, str, validEvents, withDetail, type Adapter, type Obj } from "./common.js";
+import { isObj, str, todoStatus, validEvents, withDetail, type Adapter, type Obj } from "./common.js";
 
 /**
  * Claude Code hook payloads → AgentEvents.
@@ -26,6 +26,20 @@ export function claudeToEvents(payload: unknown, now: number): AgentEvent[] {
   const callId = str(payload, "tool_use_id");
 
   const out: unknown[] = [];
+  // Context window use (sent by the hook as a header, merged in by the ingest route).
+  // transcript_path is always the main session's, so it belongs to the main agent.
+  const contextTokens = payload._context_tokens;
+  if (typeof contextTokens === "number" && contextTokens > 0 && event !== "SubagentStop") {
+    out.push({
+      source: "claude",
+      agentId: `claude:${sessionId}`,
+      sessionId: `claude:${sessionId}`,
+      project: base.project,
+      ts: now,
+      kind: "context",
+      tokens: Math.round(contextTokens),
+    });
+  }
   switch (event) {
     case "SessionStart":
       out.push({ ...base, kind: "session.start" });
@@ -57,6 +71,29 @@ export function claudeToEvents(payload: unknown, now: number): AgentEvent[] {
       if (toolName === "AskUserQuestion") {
         out.push({ ...base, kind: "waiting", reason: "question", text: firstQuestion(toolInput) ?? "Question" });
       }
+      if (toolName === "TodoWrite") {
+        const items = todoItems(toolInput?.todos);
+        if (items) out.push({ ...base, kind: "todos", items });
+      }
+      if (toolName === "TaskUpdate") {
+        const id = str(toolInput, "taskId") ?? str(toolInput, "task_id");
+        const status = todoStatus(str(toolInput, "status"));
+        if (id && status) {
+          const text = str(toolInput, "subject") ?? "";
+          out.push({ ...base, kind: "todo", item: { id, text, status } });
+        }
+      }
+      break;
+    }
+    case "TaskCreated": {
+      const id = str(payload, "task_id");
+      const text = str(payload, "task_subject");
+      if (id && text) out.push({ ...base, kind: "todo", item: { id, text, status: "pending" } });
+      break;
+    }
+    case "TaskCompleted": {
+      const id = str(payload, "task_id");
+      if (id) out.push({ ...base, kind: "todo", item: { id, text: str(payload, "task_subject") ?? "", status: "completed" } });
       break;
     }
     case "PostToolUse":
@@ -106,6 +143,21 @@ export function claudeToEvents(payload: unknown, now: number): AgentEvent[] {
       break;
   }
   return validEvents(out);
+}
+
+/** TodoWrite's `todos` array → todo items (text = content). */
+function todoItems(raw: unknown): { id?: string; text: string; status: "pending" | "in_progress" | "completed" }[] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  const items = [];
+  for (const t of raw.slice(0, 100)) {
+    if (!isObj(t)) continue;
+    const text = str(t, "content") ?? str(t, "subject");
+    const status = todoStatus(str(t, "status"));
+    if (!text || !status) continue;
+    const id = str(t, "id");
+    items.push({ ...(id ? { id } : {}), text, status });
+  }
+  return items;
 }
 
 function firstQuestion(input: Obj | undefined): string | undefined {

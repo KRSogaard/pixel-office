@@ -79,6 +79,23 @@ because it's purely about how things look.
 
 ---
 
+### Extras
+
+| Feature | What it shows | Where |
+|---|---|---|
+| **Whiteboard** | The manager's todo list (Claude `TodoWrite` and task tools / `TaskCreated` / `TaskCompleted`, OpenCode `todo.updated`): `☑ 3/7`, a progress bar, the item in progress; hover for the list. | `ui/overlay.ts` (`whiteboard`), tile `W` |
+| **Context bin** | A bin beside each desk filling green → amber → red as the context window fills; stomped flat (with paper scraps) while the agent compacts at its desk. The Claude hook reads the last `usage` from the transcript and sends it as a header; OpenCode sends assistant message token counts. 200k window assumed, 1M once exceeded. | `scene/bins.ts` |
+| **Reactions** | A passing test run (`npm test`, `vitest`, `pytest`, `dotnet test`, …): arms up, confetti, "Tests pass! 🎉". A failed tool call: smoke. A rate limit / overload: a walk to the coffee machine. | `scene/effects.ts`, `isTestRun` in protocol |
+| **Day and night** | Tint from your local clock (`?hour=22` to preview); light pools on manager lamps and occupied desks after dark. | `scene/lighting.ts` |
+| **Byte the cat** | Wanders, sits by agents, naps; click for a purr. | `scene/pet.ts` |
+| **Notifications** | 🔔 a synthesized bell when an agent needs you, a chime when a main agent finishes; 🖥 desktop notifications while the tab is in the background. Opt-in, per browser. | `ui/notify.ts` |
+| **Replay** | ⏪ a timeline over the server's last 2 hours (`/api/history`): scrub or play at 1–64×; "Live" returns. | `ui/replay.ts`, `hub.ts` |
+| **Office settings** | ⚙ room order along the top, each room's minimum size, teams per row, rugs, plants — saved on the server (`/api/settings`) and pushed to every browser. This is the layout editor for a generated office. | `ui/settings.ts`, `server/src/settings.ts` |
+
+Sub-agents pop up beside their parent with a puff of sparkles and get their brief in a quick
+huddle right there. A manager whose sub-agents are still working waits at its desk instead of
+going to the lounge. When tags crowd together they drop their "why" line for a moment.
+
 ## 2. How agents connect
 
 pixel-office is a **self-hosted website**: one server (Docker or `pnpm start`) that every agent
@@ -170,7 +187,7 @@ interactions in the event stream, each with its own scene:
 
 | Real interaction | Scene in the office |
 |---|---|
-| **Delegation** — an agent spawns a sub-agent (Claude `Agent`/`Task` tool, OpenCode child session) | One sub-agent: it walks in the front door to the parent's desk, the parent's bubble shows the task, the child says "On it!" and goes to work. Several at once (a fan-out, detected by collecting starts for 400 ms): parent and children meet at the meeting table for a kickoff, then everyone goes to work. |
+| **Delegation** — an agent spawns a sub-agent (Claude `Agent`/`Task` tool, OpenCode child session) | The sub-agent pops up right beside its parent in a puff of sparkles; the parent's bubble shows the task (or all tasks, for a fan-out collected over 400 ms), each sub-agent says "On it!", and they go straight to work — no walk that would hide real work. |
 | **Report back** — the sub-agent finishes | Child walks to the parent, bubble "done ✓" (or "failed ✗"), then walks out. The parent's bubble briefly shows what came back. |
 | **Peer message** — Claude Code agent teams' `SendMessage` tool | Sender walks to the recipient's desk, bubble with the first line of the message, walks back. |
 | **You → agent** — `UserPromptSubmit` | The phone on that agent's desk rings; bubble shows the first ~60 chars of your prompt. If the agent was in the lounge, it hurries back to its desk first. |

@@ -1,18 +1,34 @@
-import { emptyState, reduce, type AgentEvent, type OfficeState, type ServerMessage } from "@pixel-office/protocol";
+import {
+  DEFAULT_SETTINGS,
+  emptyState,
+  reduce,
+  type AgentEvent,
+  type OfficeSettings,
+  type OfficeState,
+  type ServerMessage,
+} from "@pixel-office/protocol";
 
 export type ConnectionStatus = "connecting" | "live" | "offline";
+export type StoreMode = "live" | "replay";
 
 type Listener = (state: OfficeState, event?: AgentEvent) => void;
 
 /**
  * Keeps a local copy of the office state in sync with the server: a snapshot
  * on connect, then events run through the same reducer the server uses.
+ *
+ * In replay mode the office shows a past state chosen by the replay controller,
+ * while the live state keeps updating in the background for when you return.
  */
 export class OfficeStore {
   state: OfficeState = emptyState();
+  settings: OfficeSettings = DEFAULT_SETTINGS;
   status: ConnectionStatus = "connecting";
+  mode: StoreMode = "live";
+  private live: OfficeState = emptyState();
   private listeners = new Set<Listener>();
   private statusListeners = new Set<(s: ConnectionStatus) => void>();
+  private settingsListeners = new Set<(s: OfficeSettings) => void>();
   private ws: WebSocket | undefined;
   private retry = 0;
 
@@ -27,15 +43,47 @@ export class OfficeStore {
     fn(this.status);
   }
 
-  /** Feed messages directly (used by the offline demo and tests). */
+  onSettings(fn: (s: OfficeSettings) => void): void {
+    this.settingsListeners.add(fn);
+    fn(this.settings);
+  }
+
+  /** Feed a server message (also used by tests). */
   receive(msg: ServerMessage): void {
-    if (msg.t === "snapshot") {
-      this.state = msg.state;
-      this.emit();
-    } else {
-      this.state = reduce(this.state, msg.e);
-      this.emit(msg.e);
+    if (msg.t === "settings") {
+      this.settings = msg.settings;
+      for (const fn of this.settingsListeners) fn(msg.settings);
+      return;
     }
+    if (msg.t === "snapshot") this.live = msg.state;
+    else this.live = reduce(this.live, msg.e);
+    if (this.mode !== "live") return;
+    this.state = this.live;
+    this.emit(msg.t === "event" ? msg.e : undefined);
+  }
+
+  /** Show a past state (replay). The caller resets the scene around jumps. */
+  showPast(state: OfficeState, event?: AgentEvent): void {
+    this.mode = "replay";
+    this.state = state;
+    this.emit(event);
+  }
+
+  backToLive(): void {
+    this.mode = "live";
+    this.state = this.live;
+    this.emit();
+  }
+
+  /** Save shared office settings on the server; every browser gets them back over the socket. */
+  async saveSettings(settings: OfficeSettings): Promise<void> {
+    const res = await fetch("/api/settings", {
+      method: "PUT",
+      credentials: "same-origin",
+      headers: { "content-type": "application/json", "x-po-csrf": "1" },
+      body: JSON.stringify(settings),
+    });
+    if (!res.ok) throw new Error(`saving settings failed: ${res.status}`);
   }
 
   connect(): void {

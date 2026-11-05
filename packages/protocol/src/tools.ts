@@ -64,6 +64,12 @@ function host(url: string): string {
   }
 }
 
+/** Does this shell call look like a test run? ("npm test", "vitest", "dotnet test", "pytest", …) */
+export function isTestRun(tool: string, summary: string): boolean {
+  if (categorizeTool(tool) !== "shell") return false;
+  return /\b(test|tests|vitest|jest|pytest|mocha|rspec|phpunit|xunit|nunit|cargo test|go test|playwright)\b/i.test(summary);
+}
+
 /**
  * Longer context worth showing for a call, or undefined. Today: the brief a parent
  * writes when it delegates to a sub-agent (Claude `Agent`/`Task`, OpenCode `task`).

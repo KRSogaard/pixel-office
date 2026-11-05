@@ -58,7 +58,7 @@ type Ctx = CanvasRenderingContext2D;
 /**
  * @param colorOf session colour (0xRRGGBB) for a team's rug.
  */
-export function paintOffice(office: Office, colorOf: (sessionId: string) => number): HTMLCanvasElement {
+export function paintOffice(office: Office, colorOf: (sessionId: string) => number, rugs = true): HTMLCanvasElement {
   const canvas = document.createElement("canvas");
   canvas.width = office.width * TILE;
   canvas.height = office.height * TILE;
@@ -73,7 +73,7 @@ export function paintOffice(office: Office, colorOf: (sessionId: string) => numb
       else paintFloor(ctx, x * TILE, y * TILE, isFloor(c) ? (c as "." | "," | ":") : floorAt(office.tiles, x, y), x, y);
     }
   }
-  for (const team of office.teams) paintRug(ctx, team.x, team.y, team.w, team.h, colorOf(team.sessionId));
+  if (rugs) for (const team of office.teams) paintRug(ctx, team.x, team.y, team.w, team.h, colorOf(team.sessionId));
   for (let y = 0; y < office.height; y++) {
     for (let x = 0; x < office.width; x++) {
       const c = office.tiles[y]![x]!;
@@ -281,6 +281,20 @@ function paintThing(ctx: Ctx, office: Office, c: string, x: number, y: number, p
         rect(ctx, "#e2e2e2", mx + 3, py + 12, 10, 2);
         rect(ctx, "#f2e6c9", px + 9, py + 9, 4, 3);
       }
+      break;
+    }
+    case "W": {
+      // Whiteboard on a stand: two tiles wide, drawn from the left half.
+      if (t[y]?.[x - 1] === "W") break;
+      rect(ctx, "#7d8590", px + 2, py + 11, 2, 5);
+      rect(ctx, "#7d8590", px + 28, py + 11, 2, 5);
+      rect(ctx, "#a9b0ba", px + 1, py, 30, 12);
+      rect(ctx, "#fdfbf5", px + 2, py + 1, 28, 10);
+      rect(ctx, "#4f81bd", px + 4, py + 3, 9, 1);
+      rect(ctx, "#9097a6", px + 4, py + 5, 14, 1);
+      rect(ctx, "#9097a6", px + 4, py + 7, 11, 1);
+      rect(ctx, "#c0504d", px + 20, py + 4, 6, 4);
+      rect(ctx, "#7d8590", px + 2, py + 11, 28, 1);
       break;
     }
     case "E": {

@@ -103,4 +103,41 @@ describe("reduce", () => {
     const names = Object.values(s.agents).map((a) => a.name);
     expect(new Set(names).size).toBe(names.length);
   });
+
+  it("numbers names once all 50 are in use", () => {
+    const s = reduceAll(emptyState(), Array.from({ length: 60 }, (_, i) => ev({ kind: "session.start", agentId: `n-${i}` })));
+    const names = Object.values(s.agents).map((a) => a.name);
+    expect(new Set(names).size).toBe(60);
+    expect(names.some((n) => / \d+$/.test(n))).toBe(true);
+  });
+
+  it("tracks context use, assuming a 1M window once past 200k", () => {
+    let s = reduceAll(emptyState(), [ev({ kind: "context", agentId: "a", tokens: 50_000 })]);
+    expect(s.agents.a!.context).toMatchObject({ tokens: 50_000, limit: 200_000 });
+    s = reduceAll(s, [ev({ kind: "context", agentId: "a", tokens: 300_000 })]);
+    expect(s.agents.a!.context!.limit).toBe(1_000_000);
+  });
+
+  it("replaces and upserts todos", () => {
+    let s = reduceAll(emptyState(), [
+      ev({ kind: "todos", agentId: "a", items: [{ text: "write tests", status: "in_progress" }, { text: "ship", status: "pending" }] }),
+    ]);
+    expect(s.agents.a!.todos).toHaveLength(2);
+    s = reduceAll(s, [ev({ kind: "todo", agentId: "a", item: { text: "write tests", status: "completed" } })]);
+    expect(s.agents.a!.todos![0]!.status).toBe("completed");
+    s = reduceAll(s, [ev({ kind: "todo", agentId: "a", item: { id: "t3", text: "docs", status: "pending" } })]);
+    expect(s.agents.a!.todos).toHaveLength(3);
+  });
+
+  it("celebrates a passing test run and remembers turn errors", () => {
+    const s = reduceAll(emptyState(), [
+      ev({ kind: "tool.start", agentId: "a", callId: "t", tool: "Bash", category: "shell", summary: "Bash: npm test" }),
+      ev({ kind: "tool.end", agentId: "a", callId: "t", ok: true }),
+      ev({ kind: "tool.start", agentId: "a", callId: "l", tool: "Bash", category: "shell", summary: "Bash: ls" }),
+      ev({ kind: "tool.end", agentId: "a", callId: "l", ok: true }),
+      ev({ kind: "error", agentId: "a", text: "rate_limit" }),
+    ]);
+    expect(s.agents.a!.lastWinAt).toBeDefined();
+    expect(s.agents.a!.lastError?.text).toBe("rate_limit");
+  });
 });

@@ -146,4 +146,47 @@ describe("claude adapter", () => {
     expect(claudeToEvents({ hook_event_name: "SessionStart" }, NOW)).toEqual([]);
     expect(claudeToEvents("nope", NOW)).toEqual([]);
   });
+
+  it("maps TodoWrite to a full todo list and Task hooks to single todos", () => {
+    const [, todos] = run({
+      hook_event_name: "PreToolUse",
+      tool_name: "TodoWrite",
+      tool_use_id: "toolu_t",
+      tool_input: {
+        todos: [
+          { content: "Write the adapter", status: "completed", activeForm: "Writing the adapter" },
+          { content: "Test it", status: "in_progress", activeForm: "Testing it" },
+        ],
+      },
+    });
+    expect(todos).toMatchObject({
+      kind: "todos",
+      items: [
+        { text: "Write the adapter", status: "completed" },
+        { text: "Test it", status: "in_progress" },
+      ],
+    });
+    expect(run({ hook_event_name: "TaskCreated", task_id: "task-1", task_subject: "Add login" })).toEqual([
+      expect.objectContaining({ kind: "todo", item: { id: "task-1", text: "Add login", status: "pending" } }),
+    ]);
+    expect(run({ hook_event_name: "TaskCompleted", task_id: "task-1", task_subject: "Add login" })).toEqual([
+      expect.objectContaining({ kind: "todo", item: { id: "task-1", text: "Add login", status: "completed" } }),
+    ]);
+    const [, upd] = run({ hook_event_name: "PreToolUse", tool_name: "TaskUpdate", tool_use_id: "toolu_u", tool_input: { taskId: "task-1", status: "in_progress" } });
+    expect(upd).toMatchObject({ kind: "todo", item: { id: "task-1", status: "in_progress" } });
+  });
+
+  it("maps StopFailure to an error carrying the error type", () => {
+    expect(run({ hook_event_name: "StopFailure", error: "rate_limit", error_details: "429" })).toEqual([
+      expect.objectContaining({ kind: "error", text: "rate_limit" }),
+    ]);
+  });
+
+  it("attaches context use to the main agent, never to a finishing sub-agent", () => {
+    const [ctx] = run({ hook_event_name: "Stop", _context_tokens: 90_000 });
+    expect(ctx).toMatchObject({ kind: "context", agentId: "claude:abc123", tokens: 90_000 });
+    const sub = run({ hook_event_name: "SubagentStop", agent_id: "x", _context_tokens: 5 });
+    expect(sub.some((e) => e.kind === "context")).toBe(false);
+  });
 });
+

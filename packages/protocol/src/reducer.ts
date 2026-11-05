@@ -1,4 +1,5 @@
-import type { AgentEvent, ToolCategory } from "./events.js";
+import { DEFAULT_CONTEXT_LIMIT, type AgentEvent, type ToolCategory } from "./events.js";
+import { isTestRun } from "./tools.js";
 import { nameFor } from "./names.js";
 import {
   ENDED_RETENTION_MS,
@@ -95,6 +96,8 @@ export function reduce(state: OfficeState, e: AgentEvent): OfficeState {
       );
       a.pendingDelegations = a.pendingDelegations.filter((id) => id !== e.callId);
       if (!e.ok) a.lastErrorAt = e.ts;
+      const ended = existing?.openCalls.find((c) => c.callId === e.callId);
+      if (e.ok && ended && isTestRun(ended.tool, ended.summary)) a.lastWinAt = e.ts;
       delete a.waiting;
       setActivity(a, currentActivity(a), e.ts, "working");
       break;
@@ -118,10 +121,29 @@ export function reduce(state: OfficeState, e: AgentEvent): OfficeState {
     }
     case "error": {
       a.lastErrorAt = e.ts;
+      a.lastError = { text: e.text ?? "error", at: e.ts };
       a.openCalls = [];
       a.pendingDelegations = [];
       delete a.waiting;
       setActivity(a, "idle", e.ts, "idle");
+      break;
+    }
+    case "context": {
+      const limit = e.limit ?? (e.tokens > DEFAULT_CONTEXT_LIMIT ? 1_000_000 : DEFAULT_CONTEXT_LIMIT);
+      a.context = { tokens: e.tokens, limit, at: e.ts };
+      break;
+    }
+    case "todos": {
+      a.todos = e.items;
+      break;
+    }
+    case "todo": {
+      const list = [...(a.todos ?? [])];
+      const i = e.item.id ? list.findIndex((t) => t.id === e.item.id) : list.findIndex((t) => t.text === e.item.text);
+      if (i >= 0) list[i] = { ...list[i]!, ...e.item, text: e.item.text || list[i]!.text };
+      else if (e.item.text) list.push(e.item); // an update for a todo we never saw, with no text: nothing to show
+      else break;
+      a.todos = list.slice(-100);
       break;
     }
     case "message": {

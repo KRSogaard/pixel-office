@@ -44,7 +44,32 @@ export const PixelOffice = async ({ directory }: Ctx) => {
 
   return {
     event: async ({ event }: { event: { type: string; properties?: unknown } }) => {
-      if (FORWARDED_EVENTS.has(event.type)) send({ type: "event", event });
+      if (FORWARDED_EVENTS.has(event.type)) {
+        send({ type: "event", event });
+        return;
+      }
+      const props = (event.properties ?? {}) as Record<string, unknown>;
+      if (event.type === "message.updated") {
+        // Context window use: what the last assistant message sent to the model.
+        const info = props.info as
+          | { role?: string; sessionID?: string; tokens?: { input?: number; cache?: { read?: number; write?: number } } }
+          | undefined;
+        const t = info?.tokens;
+        if (info?.role !== "assistant" || !info.sessionID || !t) return;
+        const tokens = (t.input ?? 0) + (t.cache?.read ?? 0) + (t.cache?.write ?? 0);
+        if (tokens > 0) send({ type: "context", sessionID: info.sessionID, tokens });
+      } else if (event.type === "todo.updated") {
+        const todos = Array.isArray(props.todos) ? (props.todos as Array<Record<string, unknown>>) : [];
+        send({
+          type: "todos",
+          sessionID: props.sessionID,
+          todos: todos.slice(0, 100).map((t) => ({
+            id: t.id,
+            content: typeof t.content === "string" ? t.content.slice(0, 200) : "",
+            status: t.status,
+          })),
+        });
+      }
     },
 
     "tool.execute.before": async (
@@ -79,7 +104,7 @@ export const PixelOffice = async ({ directory }: Ctx) => {
 /** Only the fields the server summarizes — never file contents. */
 function trimArgs(args: Record<string, unknown> | undefined): Record<string, unknown> {
   if (!args) return {};
-  const keep = ["filePath", "path", "pattern", "command", "description", "url", "query", "questions", "subagent_type"];
+  const keep = ["filePath", "path", "pattern", "command", "description", "url", "query", "questions", "subagent_type", "prompt"];
   const out: Record<string, unknown> = {};
   for (const k of keep) {
     const v = args[k];

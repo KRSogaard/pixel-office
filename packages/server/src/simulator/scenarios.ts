@@ -155,6 +155,10 @@ const busyDay: Scenario = (loop) => {
   e.tool(sol, "read", { filePath: "src/pages/pricing.astro" }, 1500)
     .tool(sol, "websearch", { query: "saas pricing page examples" }, 3000)
     .tool(sol, "edit", { filePath: "src/pages/pricing.astro" }, 4000)
+    // Hits the rate limit: coffee break.
+    .at(800, { ...sol, kind: "error", text: "rate_limit" })
+    .prompt(sol, "Try again please", 9000)
+    .tool(sol, "edit", { filePath: "src/pages/pricing.astro" }, 2500)
     .idle(sol, 900);
 
   // Everyone goes home, so the next pass starts with an empty office.
@@ -176,6 +180,12 @@ const delegationTree: Scenario = (loop) => {
     child(lead, `test-${loop}`, "test-writer"),
   ] as const;
   const s = new Script(loop).start(lead).prompt(lead, "Refactor the tenant portal auth flow");
+  const plan = (statuses: ("pending" | "in_progress" | "completed")[]) =>
+    ["Map every auth call site", "Review the session module", "Write token refresh tests", "Move tokens to httpOnly cookies", "Run the full test suite"].map(
+      (text, i) => ({ text, status: statuses[i] ?? "pending" }),
+    );
+  s.at(600, { ...lead, kind: "todos", items: plan(["in_progress", "in_progress", "in_progress"]) });
+  s.at(100, { ...lead, kind: "context", tokens: 38_000 });
   s.tool(lead, "Read", { file_path: "src/auth/session.ts" }, 1500);
   const calls = [
     s.open(lead, "Agent", { description: "map every auth call site", prompt: "Find every place the tenant portal reads or writes the auth token and list the files with line numbers", subagent_type: "Explore" }, 800),
@@ -197,8 +207,15 @@ const delegationTree: Scenario = (loop) => {
 
   const after = new Script(loop + 400).at(s.steps.reduce((t, x) => t + x.delay, 0) + 17_000, { ...lead, kind: "busy" });
   for (const c of calls) after.close(lead, c, 200);
-  after.tool(lead, "Edit", { file_path: "src/auth/session.ts" }, 4000).tool(lead, "Bash", { command: "pnpm test" }, 4000)
-    .idle(lead, 1000).end(lead, 8000);
+  after.at(300, { ...lead, kind: "todos", items: plan(["completed", "completed", "completed", "in_progress"]) });
+  after.at(100, { ...lead, kind: "context", tokens: 171_000 });
+  // Context nearly full: compact (stomp the bin), then carry on lighter.
+  after.at(1500, { ...lead, kind: "compact" }).at(3500, { ...lead, kind: "context", tokens: 41_000 });
+  after.tool(lead, "Edit", { file_path: "src/auth/session.ts" }, 1500);
+  after.at(200, { ...lead, kind: "todos", items: plan(["completed", "completed", "completed", "completed", "in_progress"]) });
+  after.tool(lead, "Bash", { command: "pnpm test" }, 4000)
+    .at(200, { ...lead, kind: "todos", items: plan(["completed", "completed", "completed", "completed", "completed"]) })
+    .idle(lead, 1000).end(lead, 12000);
   return merge(s, ...work, after);
 };
 

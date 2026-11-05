@@ -30,3 +30,17 @@ export interface Adapter {
 export function withDetail(detail: string | undefined): { detail?: string } {
   return detail ? { detail } : {};
 }
+
+/** Claude / OpenCode todo status → ours. Cancelled counts as done; deleted is ignored. */
+export function todoStatus(s: string | undefined): "pending" | "in_progress" | "completed" | undefined {
+  switch (s) {
+    case "pending":
+    case "in_progress":
+    case "completed":
+      return s;
+    case "cancelled":
+      return "completed";
+    default:
+      return undefined;
+  }
+}

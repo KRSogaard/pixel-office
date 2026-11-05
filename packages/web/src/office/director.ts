@@ -2,7 +2,7 @@ import type { Activity } from "@pixel-office/protocol";
 import type { SpotKind } from "./layout.js";
 
 /** How the character holds itself once it arrives. */
-export type Pose = "type" | "think" | "station" | "lounge" | "hand" | "stand";
+export type Pose = "type" | "think" | "station" | "lounge" | "hand" | "stand" | "stomp" | "cheer";
 
 export interface Place {
   kind: SpotKind;
@@ -19,7 +19,8 @@ const PLACE_BY_ACTIVITY: Record<Activity, Place> = {
   shell: { kind: "server", pose: "station" },
   web: { kind: "globe", pose: "station" },
   mcp: { kind: "mail", pose: "station" },
-  compact: { kind: "filing", pose: "station" },
+  // Compaction: back at the desk, stomping the overflowing wastepaper bin flat.
+  compact: { kind: "seat", pose: "stomp" },
   waiting: { kind: "reception", pose: "hand" },
   idle: { kind: "lounge", pose: "lounge" },
   ended: { kind: "door", pose: "stand" },

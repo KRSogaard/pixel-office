@@ -18,7 +18,7 @@ export function hash(s: string): number {
 
 /**
  * A first name for an agent, stable per id. Skips names already used by agents
- * in the office, so two people on screen never share a name (until all 50 are taken).
+ * in the office, so two people on screen never share a name.
  */
 export function nameFor(agentId: string, taken: ReadonlySet<string> = new Set()): string {
   const start = hash(agentId) % NAMES.length;
@@ -26,5 +26,9 @@ export function nameFor(agentId: string, taken: ReadonlySet<string> = new Set())
     const name = NAMES[(start + i) % NAMES.length]!;
     if (!taken.has(name)) return name;
   }
-  return NAMES[start]!;
+  // All 50 taken: number them ("Ada 2", "Ada 3", …).
+  for (let n = 2; ; n++) {
+    const name = `${NAMES[start]!} ${n}`;
+    if (!taken.has(name)) return name;
+  }
 }

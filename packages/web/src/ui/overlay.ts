@@ -1,4 +1,4 @@
-import type { Activity, AgentState, Utterance } from "@pixel-office/protocol";
+import type { Activity, AgentState, TodoItem, Utterance } from "@pixel-office/protocol";
 
 /**
  * DOM text over the canvas: name tags, status icons, speech bubbles, pod labels.
@@ -48,6 +48,8 @@ interface Tag {
   why: HTMLDivElement;
   bubble: HTMLDivElement;
   bubbleUntil: number;
+  /** While crowded, the "why" line is hidden so tags fit; kept a moment to avoid flicker. */
+  crowdedUntil: number;
 }
 
 export interface TagContext {
@@ -60,6 +62,7 @@ export interface TagContext {
 export class Overlay {
   private tags = new Map<string, Tag>();
   private teamLabels = new Map<string, HTMLDivElement>();
+  private boards = new Map<string, HTMLDivElement>();
   privacy = false;
 
   constructor(private root: HTMLElement) {}
@@ -85,7 +88,7 @@ export class Overlay {
       root.append(stack);
       root.addEventListener("click", onClick);
       this.root.append(root);
-      tag = { root, stack, card, name, sub, icon, why, bubble, bubbleUntil: 0 };
+      tag = { root, stack, card, name, sub, icon, why, bubble, bubbleUntil: 0, crowdedUntil: 0 };
       this.tags.set(agent.id, tag);
     }
     tag.name.textContent = agent.name;
@@ -170,6 +173,9 @@ export class Overlay {
       bottom = Math.max(bottom, h + 4);
       placed.push({ x: p.x, top: bottom - h, bottom, w });
       const lift = Math.max(0, Math.round(p.y - bottom));
+      // Crowded (e.g. a kickoff huddle): drop to name-only tags for a while.
+      if (lift > 3) tag.crowdedUntil = now + 2500;
+      tag.root.classList.toggle("crowded", now < tag.crowdedUntil);
       tag.root.style.transform = `translate(${Math.round(p.x)}px, ${Math.round(p.y)}px)`;
       tag.root.style.setProperty("--zoom", String(p.scale));
       tag.root.style.setProperty("--lift", `${lift}px`);
@@ -196,12 +202,45 @@ export class Overlay {
     label.style.setProperty("--zoom", String(p.scale));
   }
 
-  /** Remove labels for teams that are no longer in the office. */
+  /**
+   * The team whiteboard: progress through the manager's todo list and what's
+   * being worked on now. Hover for the whole list.
+   */
+  whiteboard(key: string, todos: TodoItem[] | undefined, color: number, p: ScreenPoint): void {
+    let board = this.boards.get(key);
+    if (!todos?.length) {
+      board?.remove();
+      this.boards.delete(key);
+      return;
+    }
+    if (!board) {
+      board = el("div", "board");
+      this.root.append(board);
+      this.boards.set(key, board);
+    }
+    const done = todos.filter((t) => t.status === "completed").length;
+    const now = todos.find((t) => t.status === "in_progress") ?? todos.find((t) => t.status === "pending");
+    const mark = (t: TodoItem) => (t.status === "completed" ? "☑" : t.status === "in_progress" ? "◐" : "☐");
+    board.replaceChildren(
+      Object.assign(el("div", "board-head"), { textContent: `☑ ${done}/${todos.length}` }),
+      Object.assign(el("div", "board-bar"), {}),
+      ...(now && !this.privacy ? [Object.assign(el("div", "board-now"), { textContent: `${mark(now)} ${now.text}` })] : []),
+    );
+    (board.children[1] as HTMLElement).style.setProperty("--done", `${Math.round((done / todos.length) * 100)}%`);
+    board.title = this.privacy ? `${done} of ${todos.length} done` : todos.map((t) => `${mark(t)} ${t.text}`).join("\n");
+    board.style.setProperty("--session", hex(color));
+    board.style.transform = `translate(${Math.round(p.x)}px, ${Math.round(p.y)}px)`;
+    board.style.setProperty("--zoom", String(p.scale));
+  }
+
+  /** Remove labels and boards for teams that are no longer in the office. */
   pruneTeamLabels(keep: Set<string>): void {
-    for (const [key, label] of this.teamLabels) {
-      if (keep.has(key)) continue;
-      label.remove();
-      this.teamLabels.delete(key);
+    for (const map of [this.teamLabels, this.boards]) {
+      for (const [key, node] of map) {
+        if (keep.has(key)) continue;
+        node.remove();
+        map.delete(key);
+      }
     }
   }
 
