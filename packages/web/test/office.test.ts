@@ -1,78 +1,120 @@
 import { describe, expect, it } from "vitest";
+import { agentEventSchema, emptyState, reduceAll, type AgentEventInput } from "@pixel-office/protocol";
 import { Allocator } from "../src/office/allocator.js";
 import { MIN_DWELL_MS, PlaceDebouncer, placeFor, SETTLE_MS } from "../src/office/director.js";
-import { buildOffice, podsPerRow } from "../src/office/layout.js";
+import { MIN_ROOMS, generateOffice, type OfficePlan } from "../src/office/generate.js";
 import { findPath } from "../src/office/pathfind.js";
+import { OfficePlanner, SHRINK_AFTER_MS } from "../src/office/planner.js";
 
-describe("office layout", () => {
-  it("builds with the minimum pod rows and grows on demand", () => {
-    const small = buildOffice(0);
-    expect(small.pods.length).toBe(2 * podsPerRow());
-    expect(small.pods.every((p) => p.seats.length === 6)).toBe(true);
-    const big = buildOffice(10);
-    expect(big.pods.length).toBe(4 * podsPerRow());
-    expect(big.height).toBeGreaterThan(small.height);
-  });
+const quiet: OfficePlan = { rooms: MIN_ROOMS, teams: [] };
+const team = (sessionId: string, project = "app", workerSlots = 3) => ({ sessionId, project, workerSlots });
 
-  it("has every kind of spot the director can ask for", () => {
-    const kinds = new Set(buildOffice(0).spots.map((s) => s.kind));
-    for (const k of ["library", "server", "mail", "globe", "filing", "meeting", "lounge", "reception", "seat", "door"]) {
+describe("office generator", () => {
+  it("builds a quiet office with every kind of spot except desks", () => {
+    const office = generateOffice(quiet);
+    const kinds = new Set(office.spots.map((s) => s.kind));
+    for (const k of ["library", "server", "mail", "globe", "filing", "meeting", "lounge", "reception", "door"]) {
       expect(kinds, k).toContain(k);
     }
+    expect(office.teams).toEqual([]);
   });
 
-  it("can walk from the door to every spot", () => {
-    const office = buildOffice(7);
+  it("gives each session a manager's chair and its worker desks", () => {
+    const office = generateOffice({ ...quiet, teams: [team("s1", "app", 6), team("s2")] });
+    expect(office.teams).toHaveLength(2);
+    const [a, b] = office.teams;
+    expect(a!.managerSeat.kind).toBe("manager");
+    expect(a!.workerSeats).toHaveLength(6);
+    expect(b!.workerSeats).toHaveLength(3);
+    expect(office.tiles[a!.managerSeat.y - 1]![a!.managerSeat.x]).toBe("E");
+  });
+
+  it("makes rooms wider when more agents need them", () => {
+    const small = generateOffice(quiet);
+    const big = generateOffice({ ...quiet, rooms: { ...MIN_ROOMS, library: 14 } });
+    const count = (o: typeof small) => o.spots.filter((s) => s.kind === "library").length;
+    expect(count(small)).toBeGreaterThanOrEqual(MIN_ROOMS.library);
+    expect(count(big)).toBeGreaterThanOrEqual(14);
+  });
+
+  it("wraps teams onto new rows and grows taller", () => {
+    const few = generateOffice({ ...quiet, teams: [team("a")] });
+    const many = generateOffice({ ...quiet, teams: ["a", "b", "c", "d", "e"].map((s) => team(s)) });
+    expect(many.height).toBeGreaterThan(few.height);
+    expect(new Set(many.teams.map((t) => t.y)).size).toBeGreaterThan(1);
+  });
+
+  it("has rows of equal width and every spot reachable from the door", () => {
+    const office = generateOffice({ rooms: { ...MIN_ROOMS, server: 9, lounge: 14 }, teams: ["a", "b", "c", "d"].map((s, i) => team(s, "p", 3 + i * 3)) });
+    for (const row of office.tiles) expect(row.length).toBe(office.width);
     const door = office.spots.find((s) => s.kind === "door")!;
     for (const s of office.spots) {
       if (s === door) continue;
-      const path = findPath(office.walkable, door, s);
-      expect(path.length, `${s.kind} at ${s.x},${s.y}`).toBeGreaterThan(0);
-      // Every step except the goal must be walkable.
-      for (const p of path.slice(0, -1)) expect(office.walkable[p.y]![p.x]).toBe(true);
+      expect(findPath(office.walkable, door, s).length, `${s.kind} at ${s.x},${s.y}`).toBeGreaterThan(0);
     }
   });
 });
 
+describe("planner", () => {
+  let t = 0;
+  const ev = (e: Record<string, unknown>) =>
+    agentEventSchema.parse({ source: "claude", project: { path: "/code/app", name: "app" }, sessionId: "s1", ts: (t += 10), ...e } as AgentEventInput);
+
+  it("makes one team per session, sized for its sub-agents plus a free desk", () => {
+    const state = reduceAll(emptyState(), [
+      ev({ kind: "session.start", agentId: "main" }),
+      ...[1, 2, 3].map((i) => ev({ kind: "session.start", agentId: `sub${i}`, parentAgentId: "main" })),
+      ev({ kind: "session.start", agentId: "other", sessionId: "s2" }),
+    ]);
+    const plan = new OfficePlanner().plan(state, 0);
+    expect(plan.teams.map((x) => [x.sessionId, x.workerSlots])).toEqual([
+      ["s1", 6],
+      ["s2", 3],
+    ]);
+  });
+
+  it("grows rooms at once and shrinks them only after a quiet minute", () => {
+    const planner = new OfficePlanner();
+    const busy = reduceAll(
+      emptyState(),
+      [1, 2, 3, 4, 5, 6, 7].map((i) => ev({ kind: "tool.start", agentId: `a${i}`, sessionId: `s${i}`, callId: "c", tool: "Read", category: "read" })),
+    );
+    expect(planner.plan(busy, 0).rooms.library).toBe(8);
+    const calm = reduceAll(busy, [1, 2, 3, 4, 5, 6, 7].map((i) => ev({ kind: "idle", agentId: `a${i}`, sessionId: `s${i}` })));
+    expect(planner.plan(calm, 1000).rooms.library).toBe(8);
+    expect(planner.plan(calm, 1000 + SHRINK_AFTER_MS).rooms.library).toBe(MIN_ROOMS.library);
+  });
+});
+
 describe("allocator", () => {
-  it("seats agents of one project in one pod and opens a new pod per project", () => {
-    const office = buildOffice(0);
+  const office = generateOffice({ ...quiet, teams: [team("s1", "app", 6), team("s2")] });
+
+  it("seats a main agent in its manager chair and sub-agents in their team", () => {
     const a = new Allocator(office);
-    const s1 = a.seatFor("a1", "/p1")!;
-    const s2 = a.seatFor("a2", "/p1")!;
-    const s3 = a.seatFor("b1", "/p2")!;
-    expect(s1.pod).toBe(s2.pod);
-    expect(s3.pod).not.toBe(s1.pod);
-    expect(a.seatFor("a1", "/p1")).toBe(s1); // sticky
+    expect(a.seatFor({ id: "m", sessionId: "s1" })).toBe(office.teams[0]!.managerSeat);
+    const w1 = a.seatFor({ id: "w1", sessionId: "s1", parentId: "m" });
+    const w2 = a.seatFor({ id: "w2", sessionId: "s1", parentId: "m" });
+    expect(w1).toBe(office.teams[0]!.workerSeats[0]);
+    expect(w2).toBe(office.teams[0]!.workerSeats[1]);
+    expect(a.seatFor({ id: "w1", sessionId: "s1", parentId: "m" })).toBe(w1); // sticky
   });
 
-  it("overflows a full pod into a second pod for the same project", () => {
-    const a = new Allocator(buildOffice(0));
-    const pods = new Set<number | undefined>();
-    for (let i = 0; i < 7; i++) pods.add(a.seatFor(`a${i}`, "/big")!.pod);
-    expect(pods.size).toBe(2);
-  });
-
-  it("frees the pod when its last agent leaves", () => {
-    const a = new Allocator(buildOffice(0));
-    a.seatFor("a", "/p");
-    expect(a.podProjects().size).toBe(1);
-    a.remove("a");
-    expect(a.podProjects().size).toBe(0);
-  });
-
-  it("asks for a bigger office when every pod is taken", () => {
-    const office = buildOffice(0);
+  it("keeps a sub-agent's slot when the office is rebuilt, and frees it on leave", () => {
     const a = new Allocator(office);
-    for (let i = 0; i < office.pods.length; i++) a.seatFor(`x${i}`, `/p${i}`);
-    expect(a.seatFor("late", "/new")).toBeUndefined();
-    expect(a.podsNeededFor("/new")).toBe(office.pods.length + 1);
-    a.setOffice(buildOffice(office.pods.length + 1));
-    expect(a.seatFor("late", "/new")).toBeDefined();
+    a.seatFor({ id: "w1", sessionId: "s2", parentId: "m" });
+    const rebuilt = generateOffice({ ...quiet, teams: [team("s0"), team("s1", "app", 6), team("s2")] });
+    a.setOffice(rebuilt);
+    expect(a.seatFor({ id: "w1", sessionId: "s2", parentId: "m" })).toBe(rebuilt.teams[2]!.workerSeats[0]);
+    a.remove("w1");
+    expect(a.seatFor({ id: "w9", sessionId: "s2", parentId: "m" })).toBe(rebuilt.teams[2]!.workerSeats[0]);
+  });
+
+  it("has no seat for a session the office doesn't have yet", () => {
+    expect(new Allocator(office).seatFor({ id: "x", sessionId: "nope" })).toBeUndefined();
   });
 
   it("spreads agents over shared spots", () => {
-    const a = new Allocator(buildOffice(0));
+    const a = new Allocator(office);
     const s1 = a.reserve("a", "library", { x: 0, y: 0 })!;
     const s2 = a.reserve("b", "library", { x: 0, y: 0 })!;
     expect(`${s1.x},${s1.y}`).not.toBe(`${s2.x},${s2.y}`);

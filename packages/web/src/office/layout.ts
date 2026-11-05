@@ -1,8 +1,38 @@
-import { FOOTER, HEADER, MIN_POD_ROWS, POD_ROW } from "./layout.data.js";
+/**
+ * Office tile model: what a generated office looks like to the rest of the app.
+ * The office itself is built by `generate.ts` from room templates.
+ *
+ * Tile legend — structure (blocks movement unless noted):
+ *   #  wall              =  wall with window     D  entrance door (walkable, agents spawn here)
+ *   .  wood floor        ,  carpet               :  server-room tiles
+ *   B  bookshelf         R  server rack          T  meeting table
+ *   M  mail shelves      K  coffee machine       P  plant
+ *   F  filing cabinet    G  globe desk           X  reception counter
+ *   d  work desk         E  manager's desk       w  water cooler
+ *
+ * Tile legend — spots (walkable, agents stand or sit there):
+ *   l  library           r  server rack terminal m  mailroom
+ *   g  globe desk        f  filing cabinet       t  meeting seat
+ *   k  lounge sofa seat  x  reception (waiting on you)
+ *   a  worker desk seat  q  manager's chair
+ */
 
 export const TILE = 16;
 
-export type SpotKind = "library" | "server" | "mail" | "globe" | "filing" | "meeting" | "lounge" | "reception" | "seat" | "door";
+export type SpotKind =
+  | "library"
+  | "server"
+  | "mail"
+  | "globe"
+  | "filing"
+  | "meeting"
+  | "lounge"
+  | "reception"
+  | "seat"
+  | "manager"
+  | "door";
+
+export type Facing = "up" | "down" | "left" | "right";
 
 export interface Spot {
   kind: SpotKind;
@@ -10,34 +40,35 @@ export interface Spot {
   y: number;
   /** Which way an agent faces when it's on this spot. */
   facing: Facing;
-  /** For seats: global pod index. */
-  pod?: number;
 }
 
-export type Facing = "up" | "down" | "left" | "right";
-
-export interface Pod {
-  index: number;
-  seats: Spot[];
-  /** Tile bounds, for drawing the project name above the pod. */
+/** One session's corner of the office: a manager's desk with worker desks in front. */
+export interface TeamArea {
+  sessionId: string;
+  project: string;
+  /** Tile bounds of the whole area (for the rug and the label). */
   x: number;
   y: number;
   w: number;
+  h: number;
+  managerSeat: Spot;
+  /** Worker seats in a stable order: slot 0, 1, 2, … */
+  workerSeats: Spot[];
 }
 
 export interface Office {
   width: number;
   height: number;
-  /** Raw layout chars, [y][x]. */
+  /** Layout chars, [y][x]. */
   tiles: string[][];
   walkable: boolean[][];
   spots: Spot[];
-  pods: Pod[];
-  podRows: number;
+  teams: TeamArea[];
 }
 
-const BLOCKING = new Set("#=BRTMKSPFGXdw");
-const SPOT_KIND: Record<string, SpotKind> = {
+export const BLOCKING = new Set("#=BRTMKPFGXdEw");
+
+export const SPOT_KIND: Record<string, SpotKind> = {
   l: "library",
   r: "server",
   m: "mail",
@@ -46,60 +77,22 @@ const SPOT_KIND: Record<string, SpotKind> = {
   t: "meeting",
   k: "lounge",
   x: "reception",
+  a: "seat",
+  q: "manager",
   D: "door",
 };
-const POD_LETTERS = "abc";
-const PODS_PER_ROW = POD_LETTERS.length;
 
-export function podsPerRow(): number {
-  return PODS_PER_ROW;
-}
-
-/** Builds the office with enough pod rows for `podsNeeded` pods. */
-export function buildOffice(podsNeeded: number): Office {
-  const podRows = Math.max(MIN_POD_ROWS, Math.ceil(podsNeeded / PODS_PER_ROW));
-  const rows = [...HEADER];
-  for (let i = 0; i < podRows; i++) rows.push(...POD_ROW);
-  rows.push(...FOOTER);
-
-  const width = rows[0]!.length;
-  rows.forEach((r, y) => {
-    if (r.length !== width) throw new Error(`layout row ${y} is ${r.length} wide, expected ${width}`);
-  });
-
-  const tiles = rows.map((r) => [...r]);
+/** Walkability and spots for a grid of layout chars. */
+export function analyze(tiles: string[][]): { walkable: boolean[][]; spots: Spot[] } {
   const walkable = tiles.map((row) => row.map((c) => !BLOCKING.has(c)));
   const spots: Spot[] = [];
-  const podMap = new Map<number, Pod>();
-
-  tiles.forEach((row, y) => {
+  tiles.forEach((row, y) =>
     row.forEach((c, x) => {
       const kind = SPOT_KIND[c];
-      if (kind) {
-        spots.push({ kind, x, y, facing: facingFor(tiles, x, y, kind) });
-        return;
-      }
-      const podLetter = POD_LETTERS.indexOf(c);
-      if (podLetter >= 0 && y >= HEADER.length) {
-        const rowIndex = Math.floor((y - HEADER.length) / POD_ROW.length);
-        const index = rowIndex * PODS_PER_ROW + podLetter;
-        const seat: Spot = { kind: "seat", x, y, facing: "up", pod: index };
-        spots.push(seat);
-        let pod = podMap.get(index);
-        if (!pod) {
-          pod = { index, seats: [], x, y: y - 2, w: 0 };
-          podMap.set(index, pod);
-        }
-        pod.seats.push(seat);
-        pod.x = Math.min(pod.x, x);
-        pod.y = Math.min(pod.y, y - 2);
-        pod.w = Math.max(pod.w, x - pod.x + 2);
-      }
-    });
-  });
-
-  const pods = [...podMap.values()].sort((a, b) => a.index - b.index);
-  return { width, height: rows.length, tiles, walkable, spots, pods, podRows };
+      if (kind) spots.push({ kind, x, y, facing: facingFor(tiles, x, y, kind) });
+    }),
+  );
+  return { walkable, spots };
 }
 
 /** The floor under a spot or furniture tile, picked from its neighbours. */
@@ -118,7 +111,6 @@ function facingFor(tiles: string[][], x: number, y: number, kind: SpotKind): Fac
   if (kind === "door") return "right";
   if (kind === "lounge") return "down";
   if (kind === "meeting") return tiles[y + 1]?.[x] === "T" ? "down" : "up";
-  // Face the furniture next to the spot, preferring the one above.
   if (BLOCKING.has(tiles[y - 1]?.[x] ?? "#")) return "up";
   if (BLOCKING.has(tiles[y + 1]?.[x] ?? "#")) return "down";
   return "up";

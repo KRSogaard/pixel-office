@@ -59,7 +59,7 @@ export interface TagContext {
 
 export class Overlay {
   private tags = new Map<string, Tag>();
-  private podLabels = new Map<number, HTMLDivElement>();
+  private teamLabels = new Map<string, HTMLDivElement>();
   privacy = false;
 
   constructor(private root: HTMLElement) {}
@@ -182,21 +182,27 @@ export class Overlay {
     this.tags.delete(agentId);
   }
 
-  podLabel(index: number, project: string | undefined, p: ScreenPoint | undefined): void {
-    let label = this.podLabels.get(index);
-    if (!project || !p) {
-      label?.remove();
-      this.podLabels.delete(index);
-      return;
-    }
+  /** A label above a team area: "project · Manager", with the session colour. */
+  teamLabel(key: string, text: string, color: number, p: ScreenPoint): void {
+    let label = this.teamLabels.get(key);
     if (!label) {
-      label = el("div", "pod-label");
+      label = el("div", "team-label");
       this.root.append(label);
-      this.podLabels.set(index, label);
+      this.teamLabels.set(key, label);
     }
-    label.textContent = project;
+    label.textContent = text;
+    label.style.setProperty("--session", hex(color));
     label.style.transform = `translate(${Math.round(p.x)}px, ${Math.round(p.y)}px)`;
     label.style.setProperty("--zoom", String(p.scale));
+  }
+
+  /** Remove labels for teams that are no longer in the office. */
+  pruneTeamLabels(keep: Set<string>): void {
+    for (const [key, label] of this.teamLabels) {
+      if (keep.has(key)) continue;
+      label.remove();
+      this.teamLabels.delete(key);
+    }
   }
 
   refreshPrivacy(): void {

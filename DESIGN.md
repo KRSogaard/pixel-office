@@ -19,7 +19,7 @@ One open-plan floor, built from a tile map, with these areas:
 
 | Area | Who goes there |
 |---|---|
-| **Desk pods** | One pod (a cluster of 4–6 desks) per project. Every agent working in the same repo sits in the same pod, so you can see at a glance "three agents on `magicdoor-api`, one on `pixel-office`". The office adds pods as projects appear. |
+| **Team areas** | One per session, on a rug in the session's colour, labelled `project · Manager`. The main agent sits at a big manager's desk at the head; its sub-agents sit at worker desks in front of it. Sessions of the same project sit next to each other. An area grows a row of desks when its sub-agents run out of free ones. |
 | **Library** (bookshelves) | Agents reading or searching code. |
 | **Server room** (racks, blinking lights) | Agents running shell commands, builds, tests. |
 | **Window / globe desk** | Agents fetching web pages or searching the web. |
@@ -244,13 +244,23 @@ OpenCode payloads.
 ### Web (`packages/web`)
 
 - **Vite + TypeScript + Phaser 4.** Phaser gives the camera (pan, zoom), sprites, tweens and input.
-- **Floor plan is a text map** (`src/office/layout.data.ts`): a header block (rooms, reception,
-  lounge), a pod-row block repeated as more projects show up, and a footer. Spots (library
-  shelf, rack terminal, sofa seat, desk seat…) are letters in the map.
-  *Changed from the first draft:* I'd planned the Tiled map editor. A text map turned out simpler
-  to edit, to diff, and to grow by stacking pod rows, so I went with that.
-- **Allocator** (`src/office/allocator.ts`) — one pod per project, a sticky seat per agent, and
-  short reservations on shared spots so agents spread out. Grows the office when pods run out.
+- **The office is generated** (`src/office/generate.ts`), pure: plan in, office out. Each room
+  is a template that takes a width — library, server room, meeting room, mailroom across the
+  top; reception, lounge, globe desks and filing cabinets in a strip below; then one team area
+  per session (manager's desk + worker desks, three per row), wrapping three to a row. The
+  layout chars and their meaning are listed in `src/office/layout.ts`.
+  *Changed from the first draft:* first the Tiled editor, then a hand-edited text map; neither
+  can describe rooms that change size, so the layout is now generated from templates.
+- **Planner** (`src/office/planner.ts`) — turns live state into a plan: which sessions have a team
+  (grouped by project, in order of arrival), how many worker desks each needs (sub-agents + one
+  free, in rows of three), and each room's capacity (agents wanting it + one spare, rounded up
+  to an even number, never below a minimum). Growth is immediate; shrinking waits a minute.
+  The scene rebuilds at once when a team appears or grows, and at most every 4 s for room
+  resizes. After a rebuild, anyone left inside a wall steps out and everyone re-routes; the
+  camera re-fits unless you've panned or zoomed yourself.
+- **Allocator** (`src/office/allocator.ts`) — a main agent sits in its session's manager chair; a
+  sub-agent keeps a worker slot for life (the slot survives rebuilds, only its coordinates
+  change); shared spots are reserved briefly so agents spread out.
 - **Director** (`src/office/director.ts`) — activity → place + pose, and the debounce rule from
   section 1. Dwell time counts from *arrival*, not departure, so a brief tool call can't turn an
   agent around halfway.
@@ -258,7 +268,7 @@ OpenCode payloads.
 - **Scene** (`src/scene/OfficeScene.ts`) — syncs state into characters, stages the scenes in
   section 3, error smoke puffs.
 - **Overlay / HUD / panel** — DOM over the canvas: name tags (nudged apart so they don't
-  overlap), speech bubbles, pod project labels, counts, privacy toggle, connection light,
+  overlap), speech bubbles, team labels, counts, privacy toggle, connection light,
   tab-title count and favicon dot when agents wait on you, and the agent detail panel.
 - `window.pixelOffice` exposes the store and scene (`scene.debug()`) for poking at from the console.
 
@@ -323,9 +333,9 @@ Prompts, file paths, and shell commands are sensitive.
 | Agents supported | Claude Code only | Claude Code, OpenCode, anything that can POST |
 | Where it runs | Local only, started by the plugin | Self-hosted server; agents on any machine connect |
 | Hook transport | Hook appends to a spool file; server tails the files | Async hook POSTs straight to the server |
-| Layout | One floor per session | One shared office, one desk pod per project |
+| Layout | One floor per session | One shared office: a team area per session with a manager's desk, rooms that grow with use |
 | Agent-to-agent | Sub-agents at desks under their session | Scenes for delegation, fan-out kickoff, report-back, peer messages |
-| Office layout | Drawn in code | Text map, editable without code |
+| Office layout | Drawn in code | Generated from room templates to fit who's online |
 
 The trade-off of direct POST: if the server is down, those events are lost and the agent
 reappears on its next event. The reaper cleans up anything left hanging.

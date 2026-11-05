@@ -133,9 +133,9 @@ pnpm simulate busy-day --token <token>       # fake agents: busy-day, delegation
 pnpm test && pnpm typecheck
 ```
 
-The office floor plan is a text map in
-[`packages/web/src/office/layout.data.ts`](packages/web/src/office/layout.data.ts) —
-edit it to rearrange the rooms. All art is drawn in code
+The office is generated to fit who's online: every session gets a team area with a
+manager's desk, and rooms grow when they get crowded. Room templates live in
+[`packages/web/src/office/generate.ts`](packages/web/src/office/generate.ts). All art is drawn in code
 ([`packages/web/src/art/`](packages/web/src/art)), so there are no asset licenses to track.
 
 ## Layout

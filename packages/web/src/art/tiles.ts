@@ -55,24 +55,29 @@ const BOOK_COLORS = ["#c0504d", "#4f81bd", "#9bbb59", "#f2c14e", "#8064a2", "#4b
 
 type Ctx = CanvasRenderingContext2D;
 
-export function paintOffice(office: Office): HTMLCanvasElement {
+/**
+ * @param colorOf session colour (0xRRGGBB) for a team's rug.
+ */
+export function paintOffice(office: Office, colorOf: (sessionId: string) => number): HTMLCanvasElement {
   const canvas = document.createElement("canvas");
   canvas.width = office.width * TILE;
   canvas.height = office.height * TILE;
   const ctx = canvas.getContext("2d")!;
   ctx.imageSmoothingEnabled = false;
 
+  // Three passes so rugs sit on the floor but under the furniture.
   for (let y = 0; y < office.height; y++) {
     for (let x = 0; x < office.width; x++) {
       const c = office.tiles[y]![x]!;
-      const px = x * TILE;
-      const py = y * TILE;
-      if (c === "#" || c === "=") {
-        paintWall(ctx, office, x, y, c === "=");
-        continue;
-      }
-      paintFloor(ctx, px, py, isFloor(c) ? (c as "." | "," | ":") : floorAt(office.tiles, x, y), x, y);
-      paintThing(ctx, office, c, x, y, px, py);
+      if (c === "#" || c === "=") paintWall(ctx, office, x, y, c === "=");
+      else paintFloor(ctx, x * TILE, y * TILE, isFloor(c) ? (c as "." | "," | ":") : floorAt(office.tiles, x, y), x, y);
+    }
+  }
+  for (const team of office.teams) paintRug(ctx, team.x, team.y, team.w, team.h, colorOf(team.sessionId));
+  for (let y = 0; y < office.height; y++) {
+    for (let x = 0; x < office.width; x++) {
+      const c = office.tiles[y]![x]!;
+      if (c !== "#" && c !== "=") paintThing(ctx, office, c, x, y, x * TILE, y * TILE);
     }
   }
   return canvas;
@@ -278,6 +283,41 @@ function paintThing(ctx: Ctx, office: Office, c: string, x: number, y: number, p
       }
       break;
     }
+    case "E": {
+      // Manager's desk: three tiles of dark wood; the middle tile carries two monitors and a nameplate.
+      const left = t[y]?.[x - 1] === "E";
+      const right = t[y]?.[x + 1] === "E";
+      const x0 = px + (left ? 0 : 1);
+      const w = TILE - (left ? 0 : 1) - (right ? 0 : 1);
+      rect(ctx, "#6b4226", x0, py + 3, w, 11);
+      rect(ctx, "#8a5a36", x0, py + 3, w, 3);
+      rect(ctx, "#4e2f1a", x0, py + 13, w, 2);
+      if (!left) rect(ctx, "#4e2f1a", px + 1, py + 15, 2, 1);
+      if (!right) rect(ctx, "#4e2f1a", px + 13, py + 15, 2, 1);
+      if (left && right) {
+        for (const mx of [px - 6, px + 8]) {
+          rect(ctx, C.monitor, mx, py - 4, 13, 9);
+          rect(ctx, C.screen, mx + 1, py - 3, 11, 7);
+          rect(ctx, C.screenGlow, mx + 2, py - 2, 5, 1);
+          rect(ctx, C.screenGlow, mx + 2, py, 7, 1);
+          rect(ctx, C.monitor, mx + 5, py + 5, 3, 2);
+        }
+        rect(ctx, "#e2e2e2", px + 2, py + 9, 12, 2);
+        // Gold nameplate.
+        rect(ctx, "#b8902f", px + 4, py + 12, 8, 2);
+        rect(ctx, "#f0c45a", px + 5, py + 12, 6, 1);
+      } else if (!left) {
+        // Lamp and a coffee mug.
+        rect(ctx, "#333", px + 4, py + 5, 1, 5);
+        rect(ctx, C.ledA, px + 2, py + 3, 5, 2);
+        rect(ctx, "#f4f1e8", px + 9, py + 8, 3, 3);
+      } else {
+        // In-tray with papers.
+        rect(ctx, "#3b3f4a", px + 3, py + 6, 8, 5);
+        rect(ctx, C.paper, px + 4, py + 5, 6, 4);
+      }
+      break;
+    }
     case "w": {
       rect(ctx, C.metal, px + 5, py + 8, 6, 7);
       rect(ctx, C.water, px + 5, py + 1, 6, 7);
@@ -292,6 +332,29 @@ function paintThing(ctx: Ctx, office: Office, c: string, x: number, y: number, p
       break;
     }
   }
+}
+
+/** A team's rug in its session colour, with a stitched border. */
+function paintRug(ctx: Ctx, tx: number, ty: number, tw: number, th: number, color: number) {
+  const hex = `#${color.toString(16).padStart(6, "0")}`;
+  const x = tx * TILE + 4;
+  const y = (ty + 1) * TILE - 4;
+  const w = tw * TILE - 8;
+  const h = (th - 1) * TILE;
+  ctx.save();
+  ctx.globalAlpha = 0.13;
+  rect(ctx, hex, x, y, w, h);
+  ctx.globalAlpha = 0.6;
+  rect(ctx, hex, x, y, w, 2);
+  rect(ctx, hex, x, y + h - 2, w, 2);
+  rect(ctx, hex, x, y, 2, h);
+  rect(ctx, hex, x + w - 2, y, 2, h);
+  ctx.globalAlpha = 0.45;
+  for (let i = x + 6; i < x + w - 6; i += 6) {
+    rect(ctx, hex, i, y + 4, 3, 1);
+    rect(ctx, hex, i, y + h - 5, 3, 1);
+  }
+  ctx.restore();
 }
 
 function paintDeskBase(ctx: Ctx, px: number, py: number, closeRight: boolean, closeLeft: boolean) {

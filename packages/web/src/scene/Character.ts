@@ -130,6 +130,21 @@ export class Character {
     }
   }
 
+  /** Jump to a tile (e.g. the office was rebuilt around us). */
+  placeAt(tile: Point): void {
+    this.tile = { ...tile };
+    this.path = [];
+    this.sprite.setPosition(...feet(tile));
+  }
+
+  /** Recompute the path to the current destination (the walls may have moved). */
+  repath(): void {
+    const dest = this.dest;
+    if (!dest) return;
+    this.dest = undefined;
+    this.goTo(dest);
+  }
+
   /** Replace whatever scripted scene is running with a new one. */
   play(steps: Step[]): void {
     this.script = [...steps];

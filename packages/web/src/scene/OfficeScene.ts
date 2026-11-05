@@ -1,10 +1,12 @@
 import Phaser from "phaser";
-import { type AgentState, type OfficeState, type Utterance } from "@pixel-office/protocol";
+import { emptyState, type AgentState, type OfficeState, type Utterance } from "@pixel-office/protocol";
 import { paintOffice } from "../art/tiles.js";
 import { Allocator } from "../office/allocator.js";
 import { PlaceDebouncer, placeFor } from "../office/director.js";
-import { TILE, buildOffice, type Facing, type Office, type Spot } from "../office/layout.js";
+import { generateOffice } from "../office/generate.js";
+import { TILE, type Facing, type Office, type Spot } from "../office/layout.js";
 import type { Point } from "../office/pathfind.js";
+import { OfficePlanner, planKey } from "../office/planner.js";
 import type { OfficeStore } from "../net.js";
 import type { Overlay, ScreenPoint } from "../ui/overlay.js";
 import { Character, feet, type Destination } from "./Character.js";
@@ -21,6 +23,8 @@ interface Actor {
 
 /** How long to wait for more sub-agents before staging a delegation. */
 const DELEGATION_BATCH_MS = 400;
+/** Room resizes (not new teams) wait at least this long after the last rebuild. */
+const REBUILD_COOLDOWN_MS = 4000;
 
 export interface SceneDeps {
   store: OfficeStore;
@@ -40,7 +44,12 @@ export class OfficeScene extends Phaser.Scene {
   private bg!: Phaser.GameObjects.Image;
   private links!: Phaser.GameObjects.Graphics;
   private actors = new Map<string, Actor>();
-  private projectNames = new Map<string, string>();
+  private planner = new OfficePlanner();
+  private builtKey = "";
+  private builtTeams = "";
+  private builtAt = -Infinity;
+  /** Once the user pans or zooms, a rebuilt office no longer re-fits the camera. */
+  private userMovedCamera = false;
   private firstSync = true;
   private selected: string | undefined;
   /** Session id → colour index, handed out in order of appearance and kept for the page's life. */
@@ -57,9 +66,11 @@ export class OfficeScene extends Phaser.Scene {
   }
 
   create(): void {
-    this.office = buildOffice(0);
+    const plan = this.planner.plan(emptyState(), 0);
+    this.office = generateOffice(plan);
+    this.builtKey = planKey(plan);
     this.allocator = new Allocator(this.office);
-    this.textures.addCanvas("office", paintOffice(this.office));
+    this.textures.addCanvas("office", paintOffice(this.office, (id) => this.sessionColor(id)));
     this.bg = this.add.image(0, 0, "office").setOrigin(0, 0).setDepth(-1);
     this.links = this.add.graphics().setDepth(99_999);
     this.setupCamera();
@@ -83,15 +94,26 @@ export class OfficeScene extends Phaser.Scene {
     }
     this.deps.overlay.placeAll(points, time);
     this.drawTeamLinks(time);
-    const projects = this.allocator.podProjects();
-    for (const pod of this.office.pods) {
-      const key = projects.get(pod.index);
-      this.deps.overlay.podLabel(
-        pod.index,
-        key ? this.projectNames.get(key) : undefined,
-        key ? this.toScreen((pod.x + pod.w / 2) * TILE, pod.y * TILE + 6, cam) : undefined,
+    this.labelTeams(cam);
+    // Shrinking happens on a timer, not on an event, so re-plan now and then.
+    if (Math.floor(time / 1000) !== Math.floor((time - delta) / 1000)) this.replan(this.deps.store.state);
+  }
+
+  /** "project · Manager" above each team area, in the session's colour. */
+  private labelTeams(cam: Phaser.Cameras.Scene2D.Camera): void {
+    const state = this.deps.store.state;
+    const shown = new Set<string>();
+    for (const t of this.office.teams) {
+      shown.add(t.sessionId);
+      const manager = Object.values(state.agents).find((a) => a.sessionId === t.sessionId && !a.parentId);
+      this.deps.overlay.teamLabel(
+        t.sessionId,
+        manager ? `${t.project} · ${manager.name}` : t.project,
+        this.sessionColor(t.sessionId),
+        this.toScreen((t.x + t.w / 2) * TILE, t.y * TILE + 7, cam),
       );
     }
+    this.deps.overlay.pruneTeamLabels(shown);
   }
 
   /** Where each agent is and is heading — for debugging from the console. */
@@ -111,11 +133,14 @@ export class OfficeScene extends Phaser.Scene {
   }
 
   zoomBy(factor: number): void {
+    this.userMovedCamera = true;
     const cam = this.cameras.main;
     cam.setZoom(Phaser.Math.Clamp(cam.zoom * factor, 0.5, 6));
   }
 
+  /** Fit the whole office on screen. Called by the "fit" button: re-enables auto-fit. */
   fit(): void {
+    this.userMovedCamera = false;
     const cam = this.cameras.main;
     const w = this.office.width * TILE;
     const h = this.office.height * TILE;
@@ -130,9 +155,9 @@ export class OfficeScene extends Phaser.Scene {
     if (!this.office) return;
     const initial = this.firstSync;
     this.firstSync = false;
+    this.replan(state);
 
     for (const agent of Object.values(state.agents)) {
-      this.projectNames.set(agent.project.path, agent.project.name);
       let actor = this.actors.get(agent.id);
       if (!actor) {
         if (agent.status === "ended") continue;
@@ -214,19 +239,62 @@ export class OfficeScene extends Phaser.Scene {
     if (this.selected === id) this.deps.onSelect(undefined);
   }
 
-  /** Make sure the agent has a desk, growing the office if every pod is taken. */
   private ensureSeat(agent: AgentState): Spot | undefined {
-    let seat = this.allocator.seatFor(agent.id, agent.project.path);
-    if (seat) return seat;
-    const needed = this.allocator.podsNeededFor(agent.project.path);
-    this.office = buildOffice(needed);
+    return this.allocator.seatFor(agent);
+  }
+
+  /**
+   * Re-plan the office from the state and regenerate it when the plan changed.
+   * A new or removed team rebuilds at once (someone needs a desk); room
+   * resizes wait for a short cooldown so the office doesn't twitch.
+   */
+  private replan(state: OfficeState): void {
+    const plan = this.planner.plan(state, this.now);
+    const key = planKey(plan);
+    if (key === this.builtKey) return;
+    const teams = JSON.stringify(plan.teams.map((t) => [t.sessionId, t.workerSlots]));
+    const teamsChanged = teams !== this.builtTeams;
+    if (!teamsChanged && this.now - this.builtAt < REBUILD_COOLDOWN_MS) return;
+    this.builtKey = key;
+    this.builtTeams = teams;
+    this.builtAt = this.now;
+    this.office = generateOffice(plan);
     this.allocator.setOffice(this.office);
     this.textures.remove("office");
-    this.textures.addCanvas("office", paintOffice(this.office));
+    this.textures.addCanvas("office", paintOffice(this.office, (id) => this.sessionColor(id)));
     this.bg.setTexture("office");
     this.updateBounds();
-    seat = this.allocator.seatFor(agent.id, agent.project.path);
-    return seat;
+    if (!this.userMovedCamera) this.fit();
+    // Anyone now standing inside furniture or a wall steps out; everyone re-routes.
+    for (const actor of this.actors.values()) {
+      const t = actor.c.tile;
+      if (!this.office.walkable[t.y]?.[t.x]) {
+        const free = this.nearestWalkable(t);
+        if (free) actor.c.placeAt(free);
+      }
+      actor.c.repath();
+    }
+  }
+
+  private nearestWalkable(from: Point): Point | undefined {
+    const w = this.office.walkable;
+    const seen = new Set<string>([`${from.x},${from.y}`]);
+    let frontier = [from];
+    while (frontier.length) {
+      const next: Point[] = [];
+      for (const p of frontier) {
+        for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
+          const q = { x: p.x + dx, y: p.y + dy };
+          const k = `${q.x},${q.y}`;
+          if (seen.has(k) || q.x < 0 || q.y < 0 || q.y >= this.office.height || q.x >= this.office.width) continue;
+          seen.add(k);
+          if (w[q.y]![q.x]) return q;
+          next.push(q);
+        }
+      }
+      frontier = next;
+    }
+    return undefined;
   }
 
   /** Dotted lines from the selected agent to its parent and sub-agents. */
@@ -468,6 +536,7 @@ export class OfficeScene extends Phaser.Scene {
     });
     this.input.on("pointermove", (p: Phaser.Input.Pointer) => {
       if (!dragging || !p.isDown) return;
+      this.userMovedCamera = true;
       const dx = p.x - p.prevPosition.x;
       const dy = p.y - p.prevPosition.y;
       moved += Math.abs(dx) + Math.abs(dy);
@@ -475,6 +544,7 @@ export class OfficeScene extends Phaser.Scene {
       cam.scrollY -= dy / cam.zoom;
     });
     this.input.on("wheel", (_p: unknown, _o: unknown, _dx: number, dy: number) => {
+      this.userMovedCamera = true;
       this.zoomBy(dy > 0 ? 1 / 1.15 : 1.15);
     });
   }
