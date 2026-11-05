@@ -3,6 +3,7 @@ import { OfficeStore } from "./net.js";
 import { OfficeScene } from "./scene/OfficeScene.js";
 import { HelpPanel } from "./ui/help.js";
 import { Hud } from "./ui/hud.js";
+import { ListView } from "./ui/listview.js";
 import { Overlay } from "./ui/overlay.js";
 import { Notifier } from "./ui/notify.js";
 import { Panel } from "./ui/panel.js";
@@ -30,6 +31,7 @@ const replay = new Replay(document.getElementById("replay")!, store, () => {
 });
 const settings = new SettingsPanel(document.getElementById("settings")!, store);
 const help = new HelpPanel(document.getElementById("help")!);
+const list = new ListView(document.getElementById("list")!, (id) => select(id), (sessionId) => scene.colorOf(sessionId));
 
 const hud = new Hud(document.getElementById("hud")!, {
   zoomIn: () => scene.zoomBy(1.25),
@@ -38,6 +40,7 @@ const hud = new Hud(document.getElementById("hud")!, {
   togglePrivacy: (on) => {
     overlay.privacy = on;
     panel.privacy = on;
+    list.privacy = on;
     overlay.refreshPrivacy();
     panel.render(store.state);
   },
@@ -49,6 +52,7 @@ const hud = new Hud(document.getElementById("hud")!, {
   },
   settings: () => settings.toggle(),
   help: () => help.toggle(),
+  list: () => list.toggle(store.state),
 });
 
 new Phaser.Game({
@@ -68,6 +72,7 @@ new Phaser.Game({
 
 store.subscribe((state) => {
   hud.render(state);
+  list.render(state);
   if (store.mode === "live") notifier.observe(state);
   if (selected) panel.render(state);
 });

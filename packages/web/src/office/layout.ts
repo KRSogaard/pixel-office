@@ -8,6 +8,7 @@
  *   B  bookshelf         R  server rack          J  lab bench
  *   M  mail shelves      K  coffee machine       P  plant
  *   Q  shelf of flasks   ;  test-lab floor (walkable)
+ *   U  mission console   O  rocket silo (3×3)    Y  printer
  *   F  filing cabinet    G  globe desk           X  reception counter
  *   d  work desk         E  manager's desk       w  water cooler
  *   W  whiteboard
@@ -15,6 +16,7 @@
  * Tile legend — spots (walkable, agents stand or sit there):
  *   l  library           r  server rack terminal m  mailroom
  *   g  globe desk        f  filing cabinet       j  lab bench spot
+ *   z  git console spot
  *   k  lounge sofa seat  x  reception (waiting on you)
  *   a  worker desk seat  q  manager's chair
  */
@@ -28,6 +30,7 @@ export type SpotKind =
   | "globe"
   | "filing"
   | "lab"
+  | "git"
   | "lounge"
   | "reception"
   | "seat"
@@ -56,13 +59,15 @@ export interface TeamArea {
   managerSeat: Spot;
   /** Left tile of the 2-wide whiteboard that shows the team's todo list. */
   whiteboard: { x: number; y: number };
+  /** The team's printer: prints when someone writes a document. */
+  printer: { x: number; y: number };
   /** Worker seats in a stable order: slot 0, 1, 2, … */
   workerSeats: Spot[];
 }
 
 /** A room along the top, for signs and labels. */
 export interface RoomArea {
-  kind: "library" | "server" | "lab" | "mail";
+  kind: "library" | "server" | "lab" | "git" | "mail";
   x: number;
   y: number;
   w: number;
@@ -73,6 +78,8 @@ export interface Office {
   width: number;
   height: number;
   rooms: RoomArea[];
+  /** Top-left tile of the rocket silo in the git room. */
+  silo?: { x: number; y: number };
   /** Layout chars, [y][x]. */
   tiles: string[][];
   walkable: boolean[][];
@@ -80,7 +87,7 @@ export interface Office {
   teams: TeamArea[];
 }
 
-export const BLOCKING = new Set("#=BRJQMKPFGXdEwW");
+export const BLOCKING = new Set("#=BRJQUOYMKPFGXdEwW");
 
 export const SPOT_KIND: Record<string, SpotKind> = {
   l: "library",
@@ -89,6 +96,7 @@ export const SPOT_KIND: Record<string, SpotKind> = {
   g: "globe",
   f: "filing",
   j: "lab",
+  z: "git",
   k: "lounge",
   x: "reception",
   a: "seat",

@@ -141,12 +141,16 @@ describe("reduce", () => {
     expect(s.agents.a!.lastError?.text).toBe("rate_limit");
   });
 
-  it("sends test runs to the test lab and other commands to the server room", () => {
+  it("sends test runs to the lab, git work to the git room, other commands to the server room", () => {
     const s = reduceAll(emptyState(), [
       ev({ kind: "tool.start", agentId: "a", callId: "t", tool: "Bash", category: "shell", summary: "Bash: pnpm vitest run" }),
-      ev({ kind: "tool.start", agentId: "b", callId: "l", tool: "Bash", category: "shell", summary: "Bash: git status" }),
+      ev({ kind: "tool.start", agentId: "b", callId: "l", tool: "Bash", category: "shell", summary: "Bash: git commit -m wip" }),
     ]);
     expect(s.agents.a!.activity).toBe("test");
-    expect(s.agents.b!.activity).toBe("shell");
+    expect(s.agents.b!.activity).toBe("git");
+    const c = reduceAll(emptyState(), [
+      ev({ kind: "tool.start", agentId: "c", callId: "x", tool: "Bash", category: "shell", summary: "Bash: ls -la" }),
+    ]);
+    expect(c.agents.c!.activity).toBe("shell");
   });
 });

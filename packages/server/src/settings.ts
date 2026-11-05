@@ -4,7 +4,7 @@ import { DEFAULT_SETTINGS, type OfficeSettings } from "@pixel-office/protocol";
 import { z } from "zod";
 
 const size = z.number().int().min(1).max(30);
-const TOP_ROOMS = ["library", "server", "lab", "mail"] as const;
+const TOP_ROOMS = ["library", "server", "lab", "git", "mail"] as const;
 
 export const settingsSchema = z.object({
   roomOrder: z
@@ -15,6 +15,7 @@ export const settingsSchema = z.object({
     library: size,
     server: size,
     lab: size,
+    git: size,
     mail: size,
     lounge: size,
     reception: size,
@@ -74,10 +75,20 @@ export class SettingsStore {
   }
 }
 
-/** The meeting room was replaced by the test lab: carry old settings files over. */
+/**
+ * Carry old settings files over: the meeting room became the test lab, and the
+ * git room was added (placed just before the mailroom, or at the end).
+ */
 export function migrate(raw: Record<string, unknown>): Record<string, unknown> {
   const out = { ...raw };
-  if (Array.isArray(out.roomOrder)) out.roomOrder = out.roomOrder.map((r) => (r === "meeting" ? "lab" : r));
+  if (Array.isArray(out.roomOrder)) {
+    const order = out.roomOrder.map((r) => (r === "meeting" ? "lab" : r));
+    if (!order.includes("git")) {
+      const mail = order.indexOf("mail");
+      order.splice(mail >= 0 ? mail : order.length, 0, "git");
+    }
+    out.roomOrder = order;
+  }
   if (out.minRooms && typeof out.minRooms === "object") {
     const { meeting: _meeting, ...rest } = out.minRooms as Record<string, unknown>;
     out.minRooms = rest;

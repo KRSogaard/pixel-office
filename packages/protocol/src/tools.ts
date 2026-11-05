@@ -70,6 +70,18 @@ export function isTestRun(tool: string, summary: string): boolean {
   return /\b(test|tests|vitest|jest|pytest|mocha|rspec|phpunit|xunit|nunit|cargo test|go test|playwright)\b/i.test(summary);
 }
 
+/** Does this shell call do git work? ("git commit", "git push", "gh pr create", …) */
+export function isGitCommand(tool: string, summary: string): boolean {
+  if (categorizeTool(tool) !== "shell") return false;
+  return /\b(git (commit|push|pull|merge|rebase|tag|checkout|switch|cherry-pick|stash|fetch|reset|revert)|gh (pr|release|repo))\b/i.test(summary);
+}
+
+/** Does this shell call ship something? (push, PR, release) — a rocket launches. */
+export function isShipCommand(tool: string, summary: string): boolean {
+  if (categorizeTool(tool) !== "shell") return false;
+  return /\b(git push|gh pr (create|merge)|gh release create)\b/i.test(summary);
+}
+
 /**
  * Longer context worth showing for a call, or undefined. Today: the brief a parent
  * writes when it delegates to a sub-agent (Claude `Agent`/`Task`, OpenCode `task`).

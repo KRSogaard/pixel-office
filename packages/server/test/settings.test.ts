@@ -18,9 +18,10 @@ describe("settings store", () => {
       }),
     );
     const s = new SettingsStore(dir).get();
-    expect(s.roomOrder).toEqual(["mail", "lab", "server", "library"]);
+    expect(s.roomOrder).toEqual(["git", "mail", "lab", "server", "library"]);
     expect(s.minRooms.library).toBe(7);
-    expect(s.minRooms.lab).toBe(6);
+    expect(s.minRooms.lab).toBe(3);
+    expect(s.minRooms.git).toBe(3);
     expect(s.teamsPerRow).toBe(2);
     expect(s.rugs).toBe(false);
   });

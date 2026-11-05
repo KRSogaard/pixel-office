@@ -18,6 +18,7 @@ const ROOMS_TOP: Row[] = [
   { name: "Library", what: "Reading or searching code — Read, Grep, Glob, LSP." },
   { name: "Server room", what: "Running other shell commands — builds, git, scripts (Bash)." },
   { name: "Test lab", what: "Running tests — npm test, vitest, pytest, dotnet test and the like. The sign shows the latest result in the office: ⏳ running, ✓ pass, ✗ fail." },
+  { name: "Git room", what: "Git work — commit, push, pull, rebase, gh pr. Every push or new PR launches a rocket from the silo." },
   { name: "Mailroom", what: "Calling MCP tools — Slack, GitHub, Google Drive, databases and other connected services." },
 ];
 
@@ -31,10 +32,11 @@ const ROOMS_MIDDLE: Row[] = [
 ];
 
 const TEAM: Row[] = [
-  { name: "Team area", what: "One per session, on a rug in that session's colour, labelled “project · manager”." },
+  { name: "Team area", what: "One per session, on a rug in that session's colour, labelled “project · manager · ⎇ branch”." },
   { name: "Manager's desk", what: "The big desk with two monitors: the main agent of the session sits here." },
   { name: "Worker desks", what: "Its sub-agents sit here. A new row appears when they run out of free desks." },
   { name: "Whiteboard", what: "The manager's todo list: done / total, a progress bar and the item in progress. Hover for the full list." },
+  { name: "Printer", what: "Prints when someone in the team writes a document." },
   { name: "Wastepaper bin", what: "How full the agent's context window is: green, amber, red. The agent stomps it flat when it compacts." },
 ];
 
@@ -54,6 +56,7 @@ const ICONS: [Activity, string][] = [
   ["read", "Reading"],
   ["shell", "Running a command"],
   ["test", "Running tests"],
+  ["git", "Git work"],
   ["web", "On the web"],
   ["mcp", "Using a connected service (MCP)"],
   ["delegate", "Handing work to sub-agents"],
@@ -65,17 +68,30 @@ const ICONS: [Activity, string][] = [
 ];
 
 const EVENTS: Row[] = [
+  { name: "Rocket launch", what: "Someone pushed, opened a PR or made a release. The git room's sign counts the launches." },
   { name: "Confetti + arms up", what: "A test run passed." },
+  { name: "Lab bench on fire", what: "Two failed test runs in a row. “This is fine.”" },
+  { name: "Sweat + 😱", what: "Someone ran a scary command (rm -rf, --force, reset --hard, DROP TABLE, sudo…). Coworkers gasp." },
+  { name: "Courier", what: "An agent used a connected service (MCP): an envelope arrives from the mailroom." },
+  { name: "Printer", what: "Someone wrote a document (README, .md, …): the team's printer prints." },
+  { name: "Medics", what: "A sub-agent failed: it collapses and is carried out on a stretcher." },
+  { name: "High five", what: "A sub-agent reported back successfully." },
+  { name: "Dance + 🎉", what: "Every item on a todo list is done." },
+  { name: "Rubber duck", what: "Thinking at the desk for more than 20 seconds. Squeak." },
+  { name: "Flame over the head", what: "Stuck: on the same tool call for over 10 minutes." },
+  { name: "🥱", what: "Working for more than two hours." },
+  { name: "Pizza", what: "Five or more agents working at once: crunch time." },
   { name: "Grey smoke", what: "A tool call failed." },
   { name: "Sparkles", what: "A sub-agent just appeared next to its manager." },
-  { name: "Dark office, lamps on", what: "Night time where you are." },
-  { name: "Orange cat", what: "Byte, the office cat. Click for a purr." },
+  { name: "Dark office, lamps on", what: "Night time where you are. The windows show the city outside, and the clock is real." },
+  { name: "Orange cat", what: "Byte, the office cat. Click for a purr. Sometimes sits on keyboards." },
 ];
 
 const BAR: Row[] = [
   { name: "⌨ ! z", what: "Agents working · waiting for you · idle." },
   { name: "🔔", what: "Bell when an agent needs you or finishes." },
   { name: "🖥", what: "Desktop notifications while this tab is in the background." },
+  { name: "☰", what: "List view: everyone in a table (good on a phone)." },
   { name: "⏪", what: "Replay the last two hours." },
   { name: "⚙", what: "Office layout settings (shared with everyone)." },
   { name: "privacy", what: "Hide prompts and messages, e.g. when screen sharing." },

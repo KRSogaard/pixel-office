@@ -11,6 +11,7 @@ const SPOT_TO_ROOM: Partial<Record<string, RoomKind>> = {
   library: "library",
   server: "server",
   lab: "lab",
+  git: "git",
   mail: "mail",
   lounge: "lounge",
   reception: "reception",
@@ -78,7 +79,7 @@ export class OfficePlanner {
   }
 
   private rooms(live: AgentState[], now: number, settings: OfficeSettings): RoomCapacities {
-    const demand: RoomCapacities = { library: 0, server: 0, lab: 0, mail: 0, lounge: 0, reception: 0, globe: 0, filing: 0 };
+    const demand: RoomCapacities = { library: 0, server: 0, lab: 0, git: 0, mail: 0, lounge: 0, reception: 0, globe: 0, filing: 0 };
     for (const a of live) {
       const room = SPOT_TO_ROOM[placeFor(a.activity).kind];
       if (room) demand[room]++;

@@ -1,5 +1,5 @@
 import { DEFAULT_CONTEXT_LIMIT, type AgentEvent } from "./events.js";
-import { isTestRun } from "./tools.js";
+import { isGitCommand, isTestRun } from "./tools.js";
 import { nameFor } from "./names.js";
 import {
   ENDED_RETENTION_MS,
@@ -133,6 +133,10 @@ export function reduce(state: OfficeState, e: AgentEvent): OfficeState {
       a.context = { tokens: e.tokens, limit, at: e.ts };
       break;
     }
+    case "branch": {
+      a.branch = e.branch;
+      break;
+    }
     case "todos": {
       a.todos = e.items;
       break;
@@ -181,9 +185,11 @@ function newAgent(e: AgentEvent, takenNames: ReadonlySet<string>): AgentState {
   };
 }
 
-/** A tool call's activity: its category, except test runs, which go to the test lab. */
+/** A tool call's activity: its category, except test runs (test lab) and git work (git room). */
 function activityFor(call: Pick<ToolCall, "tool" | "category" | "summary">): Activity {
-  return isTestRun(call.tool, call.summary) ? "test" : call.category;
+  if (isTestRun(call.tool, call.summary)) return "test";
+  if (isGitCommand(call.tool, call.summary)) return "git";
+  return call.category;
 }
 
 /** The activity implied by the newest still-running call, or "thinking". */

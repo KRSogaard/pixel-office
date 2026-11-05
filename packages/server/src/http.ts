@@ -96,6 +96,11 @@ export function createApp(deps: AppDeps): Hono {
       if (Number.isSafeInteger(ctx) && ctx > 0 && payload && typeof payload === "object" && !Array.isArray(payload)) {
         (payload as Record<string, unknown>)._context_tokens = ctx;
       }
+      // …and the git branch the session is on.
+      const branch = c.req.header("x-po-git-branch")?.replace(/[^A-Za-z0-9._/-]/g, "").slice(0, 100);
+      if (branch && payload && typeof payload === "object" && !Array.isArray(payload)) {
+        (payload as Record<string, unknown>)._git_branch = branch;
+      }
       hub.apply(adapter.toEvents(payload, clock()));
       return c.body(null, 204);
     },

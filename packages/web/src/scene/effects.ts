@@ -81,3 +81,103 @@ export function scraps(scene: Phaser.Scene, x: number, y: number): void {
     });
   }
 }
+
+/** A little rocket launching from a desk: something was shipped. */
+export function rocket(scene: Phaser.Scene, x: number, y: number): void {
+  const g = scene.add.graphics().setDepth(TOP);
+  const draw = () => {
+    g.clear();
+    g.fillStyle(0xe9e4d8, 1).fillRect(-2, -7, 4, 8);
+    g.fillStyle(0xc0504d, 1).fillRect(-2, -9, 4, 2).fillRect(-1, -10, 2, 1);
+    g.fillStyle(0x4fa3d1, 1).fillRect(-1, -5, 2, 2);
+    g.fillStyle(0xc0504d, 1).fillRect(-4, -1, 2, 3).fillRect(2, -1, 2, 3);
+    g.fillStyle(Math.random() > 0.5 ? 0xffe066 : 0xff9a3c, 1).fillRect(-1, 1, 2, 3);
+  };
+  g.setPosition(x + 8, y - 8);
+  const timer = scene.time.addEvent({ delay: 60, loop: true, callback: draw });
+  draw();
+  scene.tweens.add({
+    targets: g,
+    y: y - 90,
+    duration: 1500,
+    ease: "Cubic.easeIn",
+    onUpdate: () => {
+      if (Math.random() < 0.5) {
+        const s = scene.add.circle(g.x + Phaser.Math.Between(-1, 1), g.y + 4, 2, 0xcccccc, 0.8).setDepth(TOP - 1);
+        scene.tweens.add({ targets: s, alpha: 0, scale: 2.5, duration: 700, onComplete: () => s.destroy() });
+      }
+    },
+    onComplete: () => {
+      timer.remove();
+      g.destroy();
+    },
+  });
+}
+
+/** Flames on a lab bench for a few seconds: tests keep failing. */
+export function fire(scene: Phaser.Scene, x: number, y: number, ms = 7000): void {
+  const g = scene.add.graphics().setDepth(TOP - 2);
+  const timer = scene.time.addEvent({
+    delay: 90,
+    loop: true,
+    callback: () => {
+      g.clear();
+      for (let i = 0; i < 4; i++) {
+        const fx = x + i * 3 - 5;
+        const h = Phaser.Math.Between(4, 9);
+        g.fillStyle(0xff5d2a, 1).fillRect(fx, y - h, 3, h);
+        g.fillStyle(0xffb03c, 1).fillRect(fx + 1, y - h + 2, 1, h - 2);
+      }
+      if (Math.random() < 0.4) {
+        const s = scene.add.circle(x + Phaser.Math.Between(-4, 4), y - 10, 2, 0x555555, 0.7).setDepth(TOP - 3);
+        scene.tweens.add({ targets: s, y: s.y - 14, alpha: 0, scale: 2, duration: 900, onComplete: () => s.destroy() });
+      }
+    },
+  });
+  scene.time.delayedCall(ms, () => {
+    timer.remove();
+    g.destroy();
+  });
+}
+
+/** Sweat drops flying off someone's head: they just ran something scary. */
+export function sweat(scene: Phaser.Scene, x: number, y: number): void {
+  for (let i = 0; i < 6; i++) {
+    const side = i % 2 ? 1 : -1;
+    const d = scene.add.rectangle(x + side * 5, y - 22, 1, 2, 0x8fd0f0).setDepth(TOP);
+    scene.tweens.add({
+      targets: d,
+      x: d.x + side * Phaser.Math.Between(4, 8),
+      y: d.y + Phaser.Math.Between(4, 10),
+      alpha: 0,
+      delay: i * 120,
+      duration: 500,
+      onComplete: () => d.destroy(),
+    });
+  }
+}
+
+/** A rubber duck to explain the problem to. Returns it so the caller can remove it. */
+export function duck(scene: Phaser.Scene, x: number, y: number): Phaser.GameObjects.Graphics {
+  const g = scene.add.graphics().setDepth(y + 2);
+  g.fillStyle(0xffd23f, 1).fillRect(x, y + 2, 6, 3).fillRect(x + 3, y, 3, 3);
+  g.fillStyle(0xff8c1a, 1).fillRect(x + 6, y + 1, 2, 1);
+  g.fillStyle(0x1d1f27, 1).fillRect(x + 4, y + 1, 1, 1);
+  return g;
+}
+
+/** Pages sliding out of a printer at (x, y), the printer's paper slot. */
+export function printPages(scene: Phaser.Scene, x: number, y: number): void {
+  for (let i = 0; i < 3; i++) {
+    const p = scene.add.rectangle(x, y, 6, 2, 0xfdfbf5).setOrigin(0.5, 0).setDepth(TOP - 2);
+    scene.tweens.add({
+      targets: p,
+      height: 7,
+      y: y + 1,
+      delay: i * 500,
+      duration: 400,
+      onComplete: () =>
+        scene.tweens.add({ targets: p, y: y + 6, alpha: 0, delay: 300, duration: 400, onComplete: () => p.destroy() }),
+    });
+  }
+}

@@ -1,6 +1,6 @@
 import Phaser from "phaser";
 import type { Activity } from "@pixel-office/protocol";
-import { FRAMES, FRAME_H, FRAME_W, appearanceFor, buildSheet } from "../art/characters.js";
+import { FRAMES, FRAME_H, FRAME_W, appearanceFor, buildSheet, type Appearance } from "../art/characters.js";
 import { FX_SIZE, buildFxSheet, type FxStrip } from "../art/fx.js";
 import type { Pose } from "../office/director.js";
 import { TILE, type Facing } from "../office/layout.js";
@@ -49,6 +49,10 @@ export class Character {
   private readonly ring: Phaser.GameObjects.Ellipse;
   private activity: Activity = "idle";
   private fxLeft = false;
+  private lying = false;
+  /** Small flame over the head: stuck on one tool call for a long time. */
+  private readonly flame: Phaser.GameObjects.Graphics;
+  private stuck = false;
   private cheerUntil = 0;
   private clock = 0;
   private activityKey = "";
@@ -70,10 +74,12 @@ export class Character {
     readonly id: string,
     start: Point,
     private walkable: () => boolean[][],
+    /** Fixed look for extras (couriers, medics…); agents get one from their id. */
+    appearance?: Appearance,
   ) {
     const key = `char:${id}`;
     if (!scene.textures.exists(key)) {
-      const tex = scene.textures.addCanvas(key, buildSheet(appearanceFor(id)))!;
+      const tex = scene.textures.addCanvas(key, buildSheet(appearance ?? appearanceFor(id)))!;
       for (let i = 0; i < tex.source[0]!.width / FRAME_W; i++) tex.add(i, 0, i * FRAME_W, 0, FRAME_W, FRAME_H);
     }
     this.tile = { ...start };
@@ -83,6 +89,7 @@ export class Character {
     this.fx = scene.add.sprite(0, 0, FX_KEY, 0).setOrigin(0.5, 1).setVisible(false);
     this.screen = scene.add.graphics().setVisible(false);
     this.ring = scene.add.ellipse(0, 0, 14, 5).setVisible(false);
+    this.flame = scene.add.graphics().setVisible(false);
   }
 
   /**
@@ -99,6 +106,23 @@ export class Character {
   /** Put the activity icon on the left of the head (a neighbour is on the right). */
   setFxSide(left: boolean): void {
     this.fxLeft = left;
+  }
+
+  /** Lie flat (carried out on a stretcher). */
+  setLying(on: boolean): void {
+    this.lying = on;
+  }
+
+  /** Show a flickering flame: this agent has been on one tool call far too long. */
+  setStuck(on: boolean): void {
+    this.stuck = on;
+  }
+
+  /** Move without pathfinding (carried along by someone else). */
+  moveTo(x: number, y: number): void {
+    this.path = [];
+    this.sprite.setPosition(x, y);
+    this.tile = { x: Math.floor(x / TILE), y: Math.floor(y / TILE) };
   }
 
   /** Throw both arms in the air for a moment (tests passed). */
@@ -178,6 +202,26 @@ export class Character {
     this.ring.setPosition(this.sprite.x, this.sprite.y - 1).setDepth(this.sprite.y - 0.5);
     this.updateFx(now);
     this.updateScreen(now);
+    this.updateFlame(now);
+    if (this.lying) {
+      this.sprite.setAngle(-90).setOrigin(0.5, 0.5);
+    } else if (this.sprite.angle !== 0) {
+      this.sprite.setAngle(0);
+    }
+  }
+
+  private updateFlame(now: number): void {
+    const g = this.flame;
+    g.setVisible(this.stuck && !this.lying);
+    if (!this.stuck) return;
+    const x = Math.round(this.sprite.x - 1);
+    const y = Math.round(this.sprite.y - 31);
+    const f = Math.floor(now / 120) % 3;
+    g.clear().setDepth(this.sprite.y + 1);
+    g.fillStyle(0xff5d2a, 1).fillRect(x - 2, y + 2, 5, 4);
+    g.fillStyle(0xff9a3c, 1).fillRect(x - 1, y + (f === 0 ? 0 : 1), 3, 4);
+    g.fillStyle(0xffe066, 1).fillRect(x, y + 3 - (f === 2 ? 1 : 0), 1, 2);
+    if (f === 1) g.fillStyle(0xff9a3c, 1).fillRect(x + 2, y, 1, 2);
   }
 
   destroy(): void {
@@ -185,6 +229,7 @@ export class Character {
     this.fx.destroy();
     this.screen.destroy();
     this.ring.destroy();
+    this.flame.destroy();
   }
 
   private updateFx(now: number): void {
@@ -340,7 +385,7 @@ export class Character {
     this.sprite.setFrame(frame);
     this.sprite.setFlipX(flip);
     // Negative yOffset lifts the sprite (e.g. tucked in at a desk or sunk into a sofa).
-    this.sprite.setOrigin(0.5, 1 - yOffset / FRAME_H);
+    if (!this.lying) this.sprite.setOrigin(0.5, 1 - yOffset / FRAME_H);
   }
 }
 

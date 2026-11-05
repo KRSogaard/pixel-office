@@ -286,6 +286,36 @@ function paintThing(ctx: Ctx, office: Office, c: string, x: number, y: number, p
       }
       break;
     }
+    case "U": {
+      // Mission-control console: dark desk, green readouts, a big red button now and then.
+      rect(ctx, "#2b2f38", px, py + 2, TILE, 14);
+      rect(ctx, "#3c4250", px + 1, py + 3, 14, 8);
+      rect(ctx, "#0f1a12", px + 2, py + 4, 12, 6);
+      const n = noise(x, y);
+      rect(ctx, "#5af07a", px + 3, py + 5, 3 + Math.floor(n * 6), 1);
+      rect(ctx, "#5af07a", px + 3, py + 7, 2 + Math.floor(noise(x + 9, y) * 8), 1);
+      rect(ctx, "#f0c45a", px + 11, py + 5, 2, 1);
+      rect(ctx, "#5c6370", px, py + 12, TILE, 2);
+      if (x % 3 === 0) rect(ctx, "#ff3b3b", px + 6, py + 12, 4, 2);
+      break;
+    }
+    case "O": {
+      // Rocket silo, 3×3 tiles, drawn once from its top-left tile.
+      if (t[y]?.[x - 1] === "O" || t[y - 1]?.[x] === "O") break;
+      paintSilo(ctx, px, py);
+      break;
+    }
+    case "Y": {
+      // Office printer.
+      rect(ctx, "#c9d0d8", px + 1, py + 5, 14, 9);
+      rect(ctx, "#a9b0ba", px + 1, py + 12, 14, 2);
+      rect(ctx, "#3b3f4a", px + 3, py + 7, 10, 2); // paper slot
+      rect(ctx, "#fdfbf5", px + 4, py + 2, 8, 4); // paper tray
+      rect(ctx, "#5af07a", px + 12, py + 10, 1, 1);
+      rect(ctx, "#7d8590", px + 2, py + 14, 2, 2);
+      rect(ctx, "#7d8590", px + 12, py + 14, 2, 2);
+      break;
+    }
     case "Q": {
       // Wall shelf of flasks with coloured liquids.
       rect(ctx, "#8f99a6", px, py + 1, TILE, 15);
@@ -395,6 +425,35 @@ function paintThing(ctx: Ctx, office: Office, c: string, x: number, y: number, p
       break;
     }
   }
+}
+
+/**
+ * Rocket silo (48×48): concrete apron with hazard stripes around closed blast
+ * doors. The launch animation draws the opening doors and rocket on top.
+ */
+export const SILO_DOORS = { x: 10, y: 10, w: 28, h: 28 };
+
+function paintSilo(ctx: Ctx, px: number, py: number) {
+  const S = TILE * 3;
+  rect(ctx, "#7d8590", px, py, S, S);
+  rect(ctx, "#8d97a3", px + 2, py + 2, S - 4, S - 4);
+  // Hazard ring.
+  for (let i = 0; i < S - 8; i += 4) {
+    const c = (i / 4) % 2 ? "#1d1f27" : "#f0c45a";
+    rect(ctx, c, px + 4 + i, py + 4, 4, 3);
+    rect(ctx, c, px + 4 + i, py + S - 7, 4, 3);
+    rect(ctx, c, px + 4, py + 4 + i, 3, 4);
+    rect(ctx, c, px + S - 7, py + 4 + i, 3, 4);
+  }
+  // Pit and closed doors.
+  const d = SILO_DOORS;
+  rect(ctx, "#11131a", px + d.x - 1, py + d.y - 1, d.w + 2, d.h + 2);
+  rect(ctx, "#5c6370", px + d.x, py + d.y, d.w / 2 - 1, d.h);
+  rect(ctx, "#5c6370", px + d.x + d.w / 2 + 1, py + d.y, d.w / 2 - 1, d.h);
+  rect(ctx, "#4c5160", px + d.x + 3, py + d.y + 3, d.w / 2 - 7, d.h - 6);
+  rect(ctx, "#4c5160", px + d.x + d.w / 2 + 4, py + d.y + 3, d.w / 2 - 7, d.h - 6);
+  // Corner lights.
+  for (const [cx, cy] of [[2, 2], [S - 4, 2], [2, S - 4], [S - 4, S - 4]] as const) rect(ctx, "#ff5d2a", px + cx, py + cy, 2, 2);
 }
 
 /** A team's rug in its session colour, with a stitched border. */

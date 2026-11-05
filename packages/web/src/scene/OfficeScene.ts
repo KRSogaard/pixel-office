@@ -9,11 +9,16 @@ import type { Point } from "../office/pathfind.js";
 import { OfficePlanner, planKey } from "../office/planner.js";
 import type { OfficeStore } from "../net.js";
 import type { Overlay, ScreenPoint } from "../ui/overlay.js";
+import { Antics } from "./antics.js";
 import { ContextBins } from "./bins.js";
 import { Character, feet, type Destination } from "./Character.js";
 import { confetti, poof, puff } from "./effects.js";
+import { WallDecor } from "./decor.js";
+import { Extras } from "./extras.js";
 import { Lighting } from "./lighting.js";
 import { Pet } from "./pet.js";
+import { RocketSilo } from "./silo.js";
+import { STUCK_MS } from "../ui/listview.js";
 
 interface Actor {
   c: Character;
@@ -22,6 +27,8 @@ interface Actor {
   lastErrorAt?: number;
   lastWinAt?: number;
   lastErrorText?: number;
+  /** Being carried out by medics: the scene leaves it alone. */
+  carried?: boolean;
   /** Last state we saw. Kept after the agent leaves the state so it can walk out. */
   agent: AgentState;
   gone: boolean;
@@ -52,6 +59,10 @@ export class OfficeScene extends Phaser.Scene {
   private bins!: ContextBins;
   private lighting!: Lighting;
   private pet!: Pet;
+  private extras!: Extras;
+  private silo!: RocketSilo;
+  private antics!: Antics;
+  private decor!: WallDecor;
   private actors = new Map<string, Actor>();
   private planner = new OfficePlanner();
   private builtKey = "";
@@ -89,7 +100,29 @@ export class OfficeScene extends Phaser.Scene {
       this,
       () => this.office,
       () => [...this.actors.values()].filter((a) => a.c.arrived).map((a) => a.c.tile),
+      (tile) => {
+        const victim = [...this.actors.values()].find((a) => a.c.tile.x === tile.x && a.c.tile.y === tile.y && a.c.destination?.pose === "type");
+        if (victim) this.deps.overlay.say(victim.agent.id, { kind: "message", text: "Byte! Not the keyboard! 😾" }, this.now);
+      },
     );
+    this.extras = new Extras(this, () => this.office, () => this.doorSpot());
+    this.silo = new RocketSilo(this, () => this.office.silo, (label) => {
+      const who = [...this.actors.values()].find((a) => label.startsWith(`${a.agent.name}:`));
+      if (who) this.deps.overlay.say(who.agent.id, { kind: "message", text: "🚀 Shipped!" }, this.now);
+    });
+    this.decor = new WallDecor(this, () => this.office);
+    this.decor.relocate();
+    this.antics = new Antics({
+      scene: this,
+      extras: this.extras,
+      silo: this.silo,
+      actors: () => [...this.actors.values()].filter((a) => !a.gone && !a.carried).map((a) => ({ id: a.agent.id, c: a.c, agent: a.agent })),
+      say: (id, text) => this.deps.overlay.say(id, { kind: "message", text }, this.now),
+      office: () => this.office,
+      team: (sessionId) => this.office.teams.find((t) => t.sessionId === sessionId),
+      mailroom: () => this.office.spots.find((s) => s.kind === "mail"),
+      lounge: () => this.coffeeMachine(),
+    });
     this.setupCamera();
     this.deps.store.subscribe((state) => this.sync(state));
     // Office settings changed (here or in another browser): rebuild right away.
@@ -111,7 +144,14 @@ export class OfficeScene extends Phaser.Scene {
     const cam = this.cameras.main;
     const points = new Map<string, ScreenPoint>();
     for (const [id, actor] of this.actors) {
+      if (actor.carried) {
+        // The medics move them; just keep the name tag on them.
+        points.set(id, this.toScreen(actor.c.x, actor.c.y - 14, cam));
+        continue;
+      }
       if (!actor.c.busyWithScript) this.direct(actor, time);
+      const open = actor.agent.openCalls[actor.agent.openCalls.length - 1];
+      actor.c.setStuck(!!open && actor.agent.status === "working" && Date.now() - open.startedAt > STUCK_MS);
       const call = actor.agent.openCalls[actor.agent.openCalls.length - 1];
       actor.c.setActivity(actor.agent.activity, call?.callId ?? actor.agent.activity, time);
       actor.c.setFxSide(this.fxOnLeft(actor));
@@ -127,6 +167,9 @@ export class OfficeScene extends Phaser.Scene {
     this.drawTeamLinks(time);
     this.labelTeams(cam);
     this.pet.update(Math.min(delta, 100), time);
+    this.extras.update(Math.min(delta, 100), time);
+    this.antics.tick(time);
+    this.decor.update(time);
     if (Math.floor(time / 500) !== Math.floor((time - delta) / 500)) this.lighting.update(this.lightSpots());
     // Shrinking happens on a timer, not on an event, so re-plan now and then.
     if (Math.floor(time / 1000) !== Math.floor((time - delta) / 1000)) this.replan(this.deps.store.state);
@@ -142,7 +185,7 @@ export class OfficeScene extends Phaser.Scene {
       const color = this.sessionColor(t.sessionId);
       this.deps.overlay.teamLabel(
         t.sessionId,
-        manager ? `${t.project} · ${manager.name}` : t.project,
+        `${manager ? `${t.project} · ${manager.name}` : t.project}${manager?.branch ? ` · ⎇ ${manager.branch}` : ""}`,
         color,
         this.toScreen((t.x + t.w / 2) * TILE, t.y * TILE + 7, cam),
       );
@@ -160,7 +203,7 @@ export class OfficeScene extends Phaser.Scene {
 
   /** Name signs over the top rooms; the test lab's shows the latest test result in the office. */
   private signRooms(cam: Phaser.Cameras.Scene2D.Camera): void {
-    const names = { library: "Library", server: "Server room", lab: "Test lab", mail: "Mailroom" } as const;
+    const names = { library: "Library", server: "Server room", lab: "Test lab", git: "Git room", mail: "Mailroom" } as const;
     const keep = new Set<string>();
     for (const r of this.office.rooms) {
       keep.add(r.kind);
@@ -170,6 +213,10 @@ export class OfficeScene extends Phaser.Scene {
         const result = this.latestTestResult();
         tone = result.tone;
         if (result.text) text += ` · ${result.text}`;
+      }
+      if (r.kind === "git" && this.silo.launches) {
+        text += ` · 🚀 ×${this.silo.launches}`;
+        if (Date.now() - this.silo.lastLaunchAt < 8000) tone = "pass";
       }
       this.deps.overlay.roomSign(r.kind, text, tone, this.toScreen((r.x + r.w / 2) * TILE, (r.y + r.h) * TILE + 9, cam));
     }
@@ -294,6 +341,7 @@ export class OfficeScene extends Phaser.Scene {
         actor.lastErrorAt = agent.lastErrorAt;
         if (!initial) puff(this, actor.c.x, actor.c.y);
       }
+      this.antics.observe({ id: agent.id, c: actor.c, agent }, this.now, initial);
       if (agent.lastWinAt && agent.lastWinAt !== actor.lastWinAt) {
         actor.lastWinAt = agent.lastWinAt;
         if (!initial) {
@@ -348,6 +396,7 @@ export class OfficeScene extends Phaser.Scene {
     if (!actor) return;
     actor.c.destroy();
     this.bins.remove(id);
+    this.antics.forget(id);
     this.allocator.remove(id);
     this.deps.overlay.remove(id);
     this.actors.delete(id);
@@ -381,6 +430,8 @@ export class OfficeScene extends Phaser.Scene {
     this.updateBounds();
     this.lighting.resize(this.office.width * TILE, this.office.height * TILE);
     this.pet.relocate();
+    this.extras.relocate();
+    this.decor.relocate();
     if (!this.userMovedCamera) this.fit();
     // Anyone now standing inside furniture or a wall steps out; everyone re-routes.
     for (const actor of this.actors.values()) {
@@ -436,6 +487,11 @@ export class OfficeScene extends Phaser.Scene {
         g.fillStyle(color, 0.9).fillRect(Math.round(x1 + (x2 - x1) * t) - 1, Math.round(y1 + (y2 - y1) * t) - 1, 2, 2);
       }
     }
+  }
+
+  /** The colour of a session, for UI outside the scene (list view). */
+  colorOf(sessionId: string): number {
+    return this.sessionColor(sessionId);
   }
 
   private sessionColor(sessionId: string): number {
@@ -506,13 +562,22 @@ export class OfficeScene extends Phaser.Scene {
         return;
       }
       case "report": {
+        // A sub-agent that failed collapses on the spot and is carried out by medics.
+        if (actor.agent.endedOk === false) return this.collapse(actor, u.text);
         if (!other) return say(actor, u.kind, u.text)();
-        // The sub-agent walks over to its parent, hands over the result, then leaves.
+        // The sub-agent walks over to its parent, hands over the result, high five, then leaves.
         actor.c.play([
           { type: "goto", dest: () => this.besideActor(other, actor) },
           { type: "do", fn: say(actor, "report", u.text) },
           { type: "hold", ms: 1500 },
-          { type: "do", fn: say(other, "message", "👍 thanks") },
+          {
+            type: "do",
+            fn: () => {
+              actor.c.cheer(this.now);
+              other.c.cheer(this.now);
+              say(other, "message", "✋ High five!")();
+            },
+          },
           { type: "hold", ms: 1800 },
         ]);
         return;
@@ -548,6 +613,18 @@ export class OfficeScene extends Phaser.Scene {
         { type: "hold", ms: 1100 },
       ]);
     }
+  }
+
+  /** A failed sub-agent: smoke, a sad bubble, and the medics come with a stretcher. */
+  private collapse(actor: Actor, text: string): void {
+    actor.carried = true;
+    actor.c.play([]);
+    puff(this, actor.c.x, actor.c.y);
+    this.deps.overlay.say(actor.agent.id, { kind: "message", text: `✗ ${text || "failed"}` }, this.now);
+    this.time.delayedCall(900, () => {
+      actor.c.setLying(true);
+      this.extras.medics(actor.c, () => this.despawn(actor.agent.id));
+    });
   }
 
   private hasBusyTeam(agentId: string): boolean {

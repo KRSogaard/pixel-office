@@ -163,8 +163,8 @@ describe("history", () => {
 
 describe("settings", () => {
   const good = {
-    roomOrder: ["mail", "lab", "server", "library"],
-    minRooms: { library: 6, server: 4, lab: 6, mail: 3, lounge: 6, reception: 4, globe: 2, filing: 3 },
+    roomOrder: ["mail", "lab", "git", "server", "library"],
+    minRooms: { library: 6, server: 4, lab: 3, git: 3, mail: 3, lounge: 6, reception: 4, globe: 2, filing: 3 },
     teamsPerRow: 2,
     rugs: false,
     plants: true,

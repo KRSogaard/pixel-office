@@ -276,7 +276,54 @@ const team: Scenario = (loop) => {
   return s.steps;
 };
 
+/**
+ * Every gag in the office, in a couple of minutes: failing tests (fire), a
+ * passing run (confetti), commit + push (rocket launch), a README (printer),
+ * a scary command (sweat), a Slack call (courier), a sub-agent that fails
+ * (medics), and a long think (rubber duck).
+ */
+const fun: Scenario = (loop) => {
+  const ana = agent("claude", `ana-${loop}`, "magicdoor-api");
+  const a = new Script(loop).start(ana).prompt(ana, "Fix the flaky invoice tests");
+  a.tool(ana, "Bash", { command: "pnpm test invoices" }, 3000, 1500, false)
+    .tool(ana, "Edit", { file_path: "src/invoices/schedule.ts" }, 2500)
+    .tool(ana, "Bash", { command: "pnpm test invoices" }, 3000, 600, false)
+    .tool(ana, "Edit", { file_path: "src/invoices/schedule.ts" }, 2500)
+    .tool(ana, "Bash", { command: "pnpm test invoices" }, 3000)
+    .tool(ana, "Write", { file_path: "docs/README.md" }, 2000)
+    .tool(ana, "Bash", { command: "git commit -am 'Fix flaky invoice tests'" }, 1500)
+    .tool(ana, "Bash", { command: "git push origin fix/invoices" }, 2500)
+    .idle(ana, 1500)
+    .end(ana, 20_000);
+
+  const ops = agent("opencode", `ops-${loop}`, "infra");
+  const b = new Script(loop + 1).start(ops, 4000).prompt(ops, "Clean up the staging cluster");
+  b.tool(ops, "bash", { command: "kubectl get pods -n staging" }, 2000)
+    .tool(ops, "bash", { command: "rm -rf ./tmp/cache" }, 2500, 1200)
+    .tool(ops, "mcp__slack__post_message", { channel: "#ops" }, 3500, 1500)
+    .idle(ops, 1000)
+    .end(ops, 25_000);
+
+  const lead = agent("claude", `lead-${loop}`, "website");
+  const helper = child(lead, `helper-${loop}`, "Explore");
+  const c = new Script(loop + 2).start(lead, 2000).prompt(lead, "Find out why the pricing page 404s");
+  const call = c.open(lead, "Agent", { description: "find the routing config", prompt: "Find where the pricing route is configured", subagent_type: "Explore" }, 1500);
+  c.start(helper, 300)
+    .tool(helper, "Grep", { pattern: "pricing" }, 2500)
+    .tool(helper, "Read", { file_path: "src/routes.ts" }, 2500)
+    .at(800, { ...helper, kind: "session.end", ok: false, report: "Couldn't find the routing config" })
+    .close(lead, call, 600, false)
+    // A long, quiet think: out comes the rubber duck.
+    .at(500, { ...lead, kind: "busy" })
+    .at(26_000, { ...lead, kind: "tool.start", callId: `fun-${loop}-r`, tool: "Read", category: "read", summary: "Read astro.config.mjs" })
+    .at(2000, { ...lead, kind: "tool.end", callId: `fun-${loop}-r`, ok: true })
+    .idle(lead, 1000)
+    .end(lead, 12_000);
+  return merge(a, b, c);
+};
+
 export const SCENARIOS: Record<string, Scenario> = {
+  fun,
   "busy-day": busyDay,
   "delegation-tree": delegationTree,
   "permission-storm": permissionStorm,

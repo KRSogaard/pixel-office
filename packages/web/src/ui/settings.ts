@@ -5,6 +5,7 @@ const ROOM_NAMES: Record<TopRoom, string> = {
   library: "Library",
   server: "Server room",
   lab: "Test lab",
+  git: "Git room",
   mail: "Mailroom",
 };
 
@@ -12,6 +13,7 @@ const MIN_LABELS: [keyof OfficeSettings["minRooms"], string][] = [
   ["library", "Library"],
   ["server", "Server room"],
   ["lab", "Test lab"],
+  ["git", "Git room"],
   ["mail", "Mailroom"],
   ["lounge", "Lounge"],
   ["reception", "Reception"],

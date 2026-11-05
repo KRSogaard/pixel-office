@@ -188,5 +188,9 @@ describe("claude adapter", () => {
     const sub = run({ hook_event_name: "SubagentStop", agent_id: "x", _context_tokens: 5 });
     expect(sub.some((e) => e.kind === "context")).toBe(false);
   });
-});
 
+  it("turns the hook's git branch into a branch event for the main agent", () => {
+    const events = run({ hook_event_name: "UserPromptSubmit", prompt: "hi", _git_branch: "feature/auth" });
+    expect(events).toContainEqual(expect.objectContaining({ kind: "branch", agentId: "claude:abc123", branch: "feature/auth" }));
+  });
+});

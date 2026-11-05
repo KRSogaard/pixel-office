@@ -40,6 +40,10 @@ export function claudeToEvents(payload: unknown, now: number): AgentEvent[] {
       tokens: Math.round(contextTokens),
     });
   }
+  const branch = payload._git_branch;
+  if (typeof branch === "string" && branch) {
+    out.push({ source: "claude", agentId: `claude:${sessionId}`, sessionId: `claude:${sessionId}`, project: base.project, ts: now, kind: "branch", branch });
+  }
   switch (event) {
     case "SessionStart":
       out.push({ ...base, kind: "session.start" });

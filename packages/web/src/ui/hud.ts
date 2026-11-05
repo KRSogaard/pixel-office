@@ -11,6 +11,7 @@ export interface HudActions {
   replay: () => void;
   settings: () => void;
   help: () => void;
+  list: () => void;
 }
 
 /** Top bar: counts, connection, privacy toggle, zoom. Also drives the tab title + favicon. */
@@ -30,6 +31,7 @@ export class Hud {
       <div class="hud-tools">
         <button data-a="sound" title="Bell when an agent needs you or finishes">🔔</button>
         <button data-a="desktop" title="Desktop notifications while this tab is in the background">🖥</button>
+        <button data-a="list" title="List view: everyone as a table">☰</button>
         <button data-a="replay" title="Replay: what happened while you were away">⏪</button>
         <button data-a="settings" title="Office layout settings">⚙</button>
         <button data-a="help" class="help-btn" title="What am I looking at?">?</button>
@@ -68,6 +70,7 @@ export class Hud {
     root.querySelector<HTMLButtonElement>('[data-a="replay"]')!.onclick = actions.replay;
     root.querySelector<HTMLButtonElement>('[data-a="settings"]')!.onclick = actions.settings;
     root.querySelector<HTMLButtonElement>('[data-a="help"]')!.onclick = actions.help;
+    root.querySelector<HTMLButtonElement>('[data-a="list"]')!.onclick = actions.list;
     this.replayFlag = root.querySelector(".hud-replay-flag")!;
     const privacy = root.querySelector<HTMLInputElement>(".privacy")!;
     privacy.checked = localStorage.getItem("po.privacy") === "1";

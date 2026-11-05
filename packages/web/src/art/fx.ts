@@ -95,6 +95,21 @@ const test: Painter = (px, f) => {
   if (f > 1) px("#5af07a", 5, 1 - (f % 2) + 1, 1, 1);
 };
 
+const git: Painter = (px, f) => {
+  // A branch graph: two commits on a line, one branching off, the newest blinking.
+  const line = "#f0c45a";
+  px(line, 2, 1, 1, 10);
+  px(line, 3, 7, 2, 1);
+  px(line, 5, 4, 1, 4);
+  px(line, 6, 4, 3, 1);
+  px(INK, 1, 1, 3, 3);
+  px("#ff9a3c", 2, 2, 1, 1);
+  px(INK, 1, 8, 3, 3);
+  px("#ff9a3c", 2, 9, 1, 1);
+  px(INK, 8, 3, 3, 3);
+  px(f % 2 ? "#5af07a" : "#ff9a3c", 9, 4, 1, 1);
+};
+
 const web: Painter = (px, f) => {
   px(INK, 2, 0, 8, 12);
   px(INK, 0, 2, 12, 8);
@@ -187,6 +202,7 @@ const PAINTERS: Partial<Record<Activity, { painter: Painter; frames: number; fps
   read: { painter: read, frames: 3, fps: 2.5 },
   shell: { painter: shell, frames: 4, fps: 3 },
   test: { painter: test, frames: 3, fps: 3 },
+  git: { painter: git, frames: 2, fps: 2 },
   web: { painter: web, frames: 4, fps: 3 },
   mcp: { painter: mail, frames: 2, fps: 2 },
   compact: { painter: compact, frames: 2, fps: 2 },

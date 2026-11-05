@@ -761,6 +761,77 @@ button {
   box-shadow: inset 3px 0 0 #f0c45a;
 }
 
+/* List view: everyone as a table. */
+#list {
+  position: absolute;
+  inset: 0;
+  display: none;
+  overflow: auto;
+  padding: 12px;
+  background: rgba(29, 31, 39, 0.96);
+  z-index: 2;
+}
+
+#list.open {
+  display: block;
+}
+
+.list {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.list th {
+  position: sticky;
+  top: 0;
+  text-align: left;
+  padding: 4px 8px;
+  color: var(--muted);
+  background: var(--panel);
+  font-weight: 400;
+  text-transform: uppercase;
+  font-size: 10px;
+  letter-spacing: 1px;
+}
+
+.list td {
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+}
+
+.list tr[data-id] {
+  cursor: pointer;
+}
+
+.list tr[data-id]:hover {
+  background: var(--panel-2);
+}
+
+.list tr.sub td:nth-child(2) {
+  padding-left: 22px;
+}
+
+.list tr.waiting .st {
+  color: var(--hot);
+  font-weight: 700;
+}
+
+.list tr.idle {
+  opacity: 0.6;
+}
+
+.list .why {
+  max-width: 28em;
+  color: #c9cfdb;
+}
+
+.list .dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+}
+
 /* --- panel --------------------------------------------------------------- */
 
 #panel {

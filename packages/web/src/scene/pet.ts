@@ -77,11 +77,14 @@ export class Pet {
   private mode: Mode = "sit";
   private until = 0;
   private flip = false;
+  private visiting: Point | undefined;
 
   constructor(
     private scene: Phaser.Scene,
     private office: () => Office,
     private agentTiles: () => Point[],
+    /** Byte arrived next to an agent's tile (to sit on their keyboard). */
+    private onVisit: (agentTile: Point) => void = () => {},
   ) {
     if (!scene.textures.exists(KEY)) {
       const tex = scene.textures.addCanvas(KEY, buildCatSheet())!;
@@ -105,8 +108,13 @@ export class Pet {
   }
 
   update(dtMs: number, now: number): void {
-    if (this.path.length) this.step(dtMs);
-    else if (now > this.until) this.decide(now);
+    if (this.path.length) {
+      this.step(dtMs);
+      if (!this.path.length && this.visiting) {
+        this.onVisit(this.visiting);
+        this.visiting = undefined;
+      }
+    } else if (now > this.until) this.decide(now);
     const t = now / 1000;
     const frames = this.path.length ? FRAMES.walk : FRAMES[this.mode];
     const fps = this.path.length ? 6 : this.mode === "sleep" ? 0.8 : 1;
@@ -129,9 +137,10 @@ export class Pet {
     }
     // Walk somewhere: half the time to sit by an agent, otherwise anywhere.
     const agents = this.agentTiles();
-    const goal =
-      Math.random() < 0.5 && agents.length ? this.nextTo(agents[Math.floor(Math.random() * agents.length)]!) : this.randomFloor();
+    const target = Math.random() < 0.5 && agents.length ? agents[Math.floor(Math.random() * agents.length)] : undefined;
+    const goal = target ? this.nextTo(target) : this.randomFloor();
     if (!goal) return;
+    this.visiting = target;
     this.path = findPath(this.office().walkable, this.tile, goal).slice(0, 40);
     this.mode = "sit";
     this.until = now + Phaser.Math.Between(2000, 5000);

@@ -4,7 +4,7 @@ import { analyze, type Office, type RoomArea, type Spot, type TeamArea } from ".
 /**
  * Builds the office from room templates sized to what's needed right now.
  *
- *   ┌ library ┬ server room ┬ test lab ┬ mailroom ┐       ← top band: rooms sized by capacity
+ *   ┌ library ┬ server room ┬ test lab ┬ git room ┬ mailroom ┐   ← top band: rooms sized by capacity
  *   D reception · lounge · globe desks · filing       │   ← service strip, sized by capacity
  *   │ [team A] [team B] [team C]                      │   ← one area per session: manager's
  *   │ [team D] …                                      │     desk + worker desks for sub-agents
@@ -17,6 +17,7 @@ export interface RoomCapacities {
   library: number;
   server: number;
   lab: number;
+  git: number;
   mail: number;
   lounge: number;
   reception: number;
@@ -96,6 +97,21 @@ const testLab: Room = (w) => {
   ];
 };
 
+/** Git room: mission-control consoles along the wall and a rocket silo in the middle. */
+const gitRoom: Room = (w) => {
+  const c = Math.floor(w / 2) - 1; // silo's left column
+  const silo = (x: number) => x >= c && x <= c + 2;
+  return [
+    "U".repeat(w),
+    row(w, (x) => (x % 2 ? "z" : ":")),
+    ":".repeat(w),
+    row(w, (x) => (silo(x) ? "O" : ":")),
+    row(w, (x) => (silo(x) ? "O" : ":")),
+    row(w, (x) => (silo(x) ? "O" : ":")),
+    ":".repeat(w),
+  ];
+};
+
 const mailroom: Room = (w) => [
   "M".repeat(w),
   row(w, (x) => (x % 2 ? "." : "m")),
@@ -146,7 +162,8 @@ export function generateOffice(plan: OfficePlan): Office {
   // Top band widths.
   const lw = widthFor(library, "l", cap.library, 8);
   const sw = widthFor(serverRoom, "r", cap.server, 7);
-  let tw = widthFor(testLab, "j", cap.lab, 8);
+  let tw = widthFor(testLab, "j", cap.lab, 6);
+  const gw = widthFor(gitRoom, "z", cap.git, 7);
   const aw = widthFor(mailroom, "m", cap.mail, 5);
 
   // Service strip widths.
@@ -156,7 +173,7 @@ export function generateOffice(plan: OfficePlan): Office {
   const fc = Math.max(3, cap.filing);
   const stripW = 1 + 2 + rw + 3 + (2 + loungeRow) + 3 + gc * 2 + 2 + fc * 2 + 1 + 1;
 
-  const topW = 1 + lw + 1 + sw + 1 + tw + 1 + aw + 1;
+  const topW = 1 + lw + 1 + sw + 1 + tw + 1 + gw + 1 + aw + 1;
   // Wide enough for the rooms, the strip, and the configured number of teams side by side.
   const perRow = Math.min(4, Math.max(1, settings.teamsPerRow));
   const W = Math.max(MIN_WIDTH, topW, stripW, 3 + perRow * (TEAM_W + 1));
@@ -186,17 +203,20 @@ export function generateOffice(plan: OfficePlan): Office {
     library: [library, lw],
     server: [serverRoom, sw],
     lab: [testLab, tw],
+    git: [gitRoom, gw],
     mail: [mailroom, aw],
   };
-  const valid = settings.roomOrder.length === 4 && settings.roomOrder.every((r) => r in byName);
+  const valid = settings.roomOrder.length === 5 && settings.roomOrder.every((r) => r in byName);
   const order = valid ? settings.roomOrder : DEFAULT_SETTINGS.roomOrder;
   const rooms = order.map((r) => [r, ...byName[r]] as const);
   const roomAreas: RoomArea[] = [];
+  let silo: { x: number; y: number } | undefined;
   let x = 1;
   g.put(0, TOP - 1, "#".repeat(W));
   for (const [kind, room, w] of rooms) {
     g.block(x, 1, room(w));
     roomAreas.push({ kind, x, y: 1, w, h: ROOM_H });
+    if (kind === "git") silo = { x: x + Math.floor(w / 2) - 1, y: 4 };
     const door = x + Math.floor(w / 2) - 1;
     g.put(door, TOP - 1, w >= 6 ? ".." : ".");
     x += w;
@@ -251,14 +271,14 @@ export function generateOffice(plan: OfficePlan): Office {
     t.managerSeat = at.get(`${t.managerSeat.x},${t.managerSeat.y}`) ?? t.managerSeat;
     t.workerSeats = t.workerSeats.map((s) => at.get(`${s.x},${s.y}`) ?? s);
   }
-  return { width: W, height: H, rooms: roomAreas, tiles: g.cells, walkable, spots, teams };
+  return { width: W, height: H, rooms: roomAreas, ...(silo ? { silo } : {}), tiles: g.cells, walkable, spots, teams };
 }
 
 /**
  *   ............   label row
  *   P...EEE.WW.P   manager's desk, whiteboard (the team's todo list)
  *   .....q......   manager's chair
- *   ............
+ *   ...........Y   printer
  *   .dd..dd..dd.   worker desks, three per row
  *   .a...a...a..   worker chairs (slot order: left to right, top to bottom)
  *   ............
@@ -268,6 +288,7 @@ function placeTeam(g: Grid, t: TeamPlan, x: number, y: number): TeamArea {
   const h = 4 + rows * 3;
   g.put(x + 4, y + 1, "EEE");
   g.put(x + 8, y + 1, "WW");
+  g.put(x + 11, y + 3, "Y");
   g.put(x + 5, y + 2, "q");
   g.put(x, y + 1, "P");
   g.put(x + 11, y + 1, "P");
@@ -290,6 +311,7 @@ function placeTeam(g: Grid, t: TeamPlan, x: number, y: number): TeamArea {
     h,
     managerSeat: { kind: "manager", x: x + 5, y: y + 2, facing: "up" },
     whiteboard: { x: x + 8, y: y + 1 },
+    printer: { x: x + 11, y: y + 3 },
     workerSeats,
   };
 }

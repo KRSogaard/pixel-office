@@ -8,6 +8,8 @@ export type Activity =
   | "shell"
   /** Running tests: a shell call that looks like a test run (see isTestRun). */
   | "test"
+  /** Git work: commit, push, PRs (see isGitCommand). */
+  | "git"
   | "web"
   | "mcp"
   | "delegate"
@@ -73,6 +75,8 @@ export interface AgentState {
   lastWinAt?: number;
   /** Context window use. */
   context?: { tokens: number; limit: number; at: number };
+  /** Git branch of the session's folder. */
+  branch?: string;
   /** The agent's todo list, in its own order. */
   todos?: TodoItem[];
   /** Delegations this agent started (tool call ids) that haven't been matched to a child yet. */

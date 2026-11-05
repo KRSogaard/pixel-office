@@ -27,7 +27,7 @@ function runHook(env: Record<string, string>, input = payload): Promise<{ status
 describe("po-hook.sh", () => {
   let server: Server;
   let port = 0;
-  const received: { auth?: string; context?: string; body: string }[] = [];
+  const received: { auth?: string; context?: string; branch?: string; body: string }[] = [];
 
   beforeAll(async () => {
     server = createServer((req, res) => {
@@ -35,9 +35,11 @@ describe("po-hook.sh", () => {
       req.on("data", (c) => (body += c));
       req.on("end", () => {
         const context = req.headers["x-po-context-tokens"];
+        const branch = req.headers["x-po-git-branch"];
         received.push({
           ...(req.headers.authorization ? { auth: req.headers.authorization } : {}),
           ...(typeof context === "string" ? { context } : {}),
+          ...(typeof branch === "string" ? { branch } : {}),
           body,
         });
         // A hostile/buggy server reply must still not reach stdout.
@@ -55,6 +57,18 @@ describe("po-hook.sh", () => {
     expect(r.stdout).toBe("");
     expect(r.stderr).toBe("");
     expect(received.at(-1)).toEqual({ auth: "Bearer tok", body: payload });
+  });
+
+  it("sends the git branch of the session's folder on prompts, still silently", async () => {
+    const repo = mkdtempSync(join(tmpdir(), "po-git-"));
+    const git = (...args: string[]) =>
+      new Promise<void>((r) => spawn("git", ["-C", repo, ...args], { stdio: "ignore" }).on("close", () => r()));
+    await git("init", "-q", "-b", "feature/office");
+    const input = JSON.stringify({ session_id: "abc", cwd: repo, hook_event_name: "UserPromptSubmit", prompt: "hi" });
+    const r = await runHook({ PIXEL_OFFICE_URL: `http://127.0.0.1:${port}`, PIXEL_OFFICE_TOKEN: "t" }, input);
+    expect(r.status).toBe(0);
+    expect(r.stdout).toBe("");
+    expect(received.at(-1)?.branch).toBe("feature/office");
   });
 
   it("is silent and exits 0 when the server is unreachable", async () => {

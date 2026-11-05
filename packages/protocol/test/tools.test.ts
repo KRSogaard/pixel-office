@@ -22,4 +22,14 @@ describe("tools", () => {
     expect(summarizeTool("mcp__github__create_pr", {})).toBe("github: create_pr");
     expect(summarizeTool("Agent", { description: "find usages" })).toBe("Delegate: find usages");
   });
+
+  it("spots git work and shipping", async () => {
+    const { isGitCommand, isShipCommand } = await import("../src/index.js");
+    expect(isGitCommand("Bash", "Bash: git commit -m fix")).toBe(true);
+    expect(isGitCommand("Bash", "Bash: gh pr create --fill")).toBe(true);
+    expect(isGitCommand("Bash", "Bash: npm test")).toBe(false);
+    expect(isGitCommand("Read", "git push")).toBe(false);
+    expect(isShipCommand("Bash", "Bash: git push origin main")).toBe(true);
+    expect(isShipCommand("Bash", "Bash: git commit -m x")).toBe(false);
+  });
 });

@@ -18,11 +18,15 @@ What's in the office:
   dotted lines between a selected agent and its team.
 - **A wastepaper bin** by each desk that fills as the agent's context window fills — and
   gets stomped flat when it compacts.
-- **Reactions**: confetti when tests pass, smoke when a command fails, a coffee break on a
-  rate limit.
+- **A test lab and a git room**: tests run at lab benches (the sign shows pass/fail), and
+  every push or PR launches a rocket from the git room's silo, Factorio-style.
+- **Gags with meaning**: confetti when tests pass, a burning bench after two failures, sweat
+  and gasps at `rm -rf`, a courier for MCP calls, the printer for docs, medics for a failed
+  sub-agent, a rubber duck for long thinks, pizza when five agents are busy.
 - **Day and night** following your clock, desk lamps after dark, and Byte the office cat.
 - **🔔 bell and 🖥 desktop notifications** when an agent needs you or finishes.
-- **⏪ Replay** of the last two hours, and **⚙ office settings** shared by everyone.
+- **⏪ Replay** of the last two hours, **☰ list view**, **⚙ office settings** shared by everyone,
+  and a **?** guide to everything.
 
 See [DESIGN.md](DESIGN.md) for how it works.
 

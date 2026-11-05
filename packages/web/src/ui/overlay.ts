@@ -12,6 +12,7 @@ const STATUS_ICON: Record<Activity, string> = {
   read: "📖",
   shell: ">_",
   test: "🧪",
+  git: "⎇",
   web: "🌐",
   mcp: "✉",
   delegate: "👥",

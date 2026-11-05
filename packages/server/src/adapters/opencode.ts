@@ -58,6 +58,10 @@ export class OpenCodeAdapter implements Adapter {
           out.push({ ...base(sessionID), kind: "tool.end", callId: callID, ok: payload.ok !== false });
         }
       }
+    } else if (type === "branch") {
+      const sessionID = str(payload, "sessionID");
+      const branch = str(payload, "branch")?.replace(/[^A-Za-z0-9._/-]/g, "").slice(0, 100);
+      if (sessionID && branch) out.push({ ...base(sessionID), kind: "branch", branch });
     } else if (type === "context") {
       const sessionID = str(payload, "sessionID");
       const tokens = payload.tokens;

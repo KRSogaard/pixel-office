@@ -86,6 +86,8 @@ export const agentEventSchema = z.discriminatedUnion("kind", [
     /** Window size; defaults to DEFAULT_CONTEXT_LIMIT (or 1M once tokens exceed it). */
     limit: z.number().int().positive().optional(),
   }),
+  /** The git branch the agent's session is on. */
+  z.object({ ...base, kind: z.literal("branch"), branch: z.string().min(1).max(120) }),
   /** The agent's whole todo list (Claude TodoWrite, OpenCode todo.updated). */
   z.object({ ...base, kind: z.literal("todos"), items: z.array(todoItem).max(100) }),
   /** One todo added or changed (Claude TaskCreated / TaskCompleted). */
@@ -108,7 +110,7 @@ export function projectFromPath(path: string | undefined): { path: string; name:
 }
 
 /** Shared office settings, edited in the browser and stored on the server. */
-export type TopRoom = "library" | "server" | "lab" | "mail";
+export type TopRoom = "library" | "server" | "lab" | "git" | "mail";
 export interface OfficeSettings {
   /** Left-to-right order of the rooms along the top. */
   roomOrder: TopRoom[];
@@ -117,6 +119,7 @@ export interface OfficeSettings {
     library: number;
     server: number;
     lab: number;
+    git: number;
     mail: number;
     lounge: number;
     reception: number;
@@ -130,8 +133,8 @@ export interface OfficeSettings {
 }
 
 export const DEFAULT_SETTINGS: OfficeSettings = {
-  roomOrder: ["library", "server", "lab", "mail"],
-  minRooms: { library: 4, server: 4, lab: 6, mail: 3, lounge: 6, reception: 4, globe: 2, filing: 3 },
+  roomOrder: ["library", "server", "lab", "git", "mail"],
+  minRooms: { library: 4, server: 4, lab: 3, git: 3, mail: 3, lounge: 6, reception: 4, globe: 2, filing: 3 },
   teamsPerRow: 3,
   rugs: true,
   plants: true,

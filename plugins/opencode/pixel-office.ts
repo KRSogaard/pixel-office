@@ -22,9 +22,12 @@ const FORWARDED_EVENTS = new Set([
   "permission.replied",
 ]);
 
-type Ctx = { directory: string };
+type Shell = (strings: TemplateStringsArray, ...values: unknown[]) => {
+  cwd(dir: string): { quiet(): { nothrow(): { text(): Promise<string> } } };
+};
+type Ctx = { directory: string; $?: Shell };
 
-export const PixelOffice = async ({ directory }: Ctx) => {
+export const PixelOffice = async ({ directory, $ }: Ctx) => {
   const url = process.env.PIXEL_OFFICE_URL?.replace(/\/$/, "");
   const token = process.env.PIXEL_OFFICE_TOKEN ?? "";
   if (!url) return {};
@@ -42,10 +45,23 @@ export const PixelOffice = async ({ directory }: Ctx) => {
     }
   };
 
+  /** The git branch of the project, for the team label. Never throws. */
+  const sendBranch = async (props: unknown): Promise<void> => {
+    try {
+      const info = (props as { info?: { id?: string; parentID?: string } } | undefined)?.info;
+      if (!$ || !info?.id || info.parentID) return;
+      const branch = (await $`git branch --show-current`.cwd(directory).quiet().nothrow().text()).trim();
+      if (branch) send({ type: "branch", sessionID: info.id, branch: branch.slice(0, 100) });
+    } catch {
+      // no git, no branch
+    }
+  };
+
   return {
     event: async ({ event }: { event: { type: string; properties?: unknown } }) => {
       if (FORWARDED_EVENTS.has(event.type)) {
         send({ type: "event", event });
+        if (event.type === "session.created") void sendBranch(event.properties);
         return;
       }
       const props = (event.properties ?? {}) as Record<string, unknown>;
