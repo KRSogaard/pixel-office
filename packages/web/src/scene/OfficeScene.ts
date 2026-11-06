@@ -4,7 +4,7 @@ import { paintOffice } from "../art/tiles.js";
 import { Allocator } from "../office/allocator.js";
 import { PlaceDebouncer, placeFor } from "../office/director.js";
 import { generateOffice } from "../office/generate.js";
-import { TILE, type Facing, type Office, type Spot } from "../office/layout.js";
+import { TILE, type Facing, type Office, type Spot, type TeamArea } from "../office/layout.js";
 import type { Point } from "../office/pathfind.js";
 import { OfficePlanner, planKey } from "../office/planner.js";
 import type { OfficeStore } from "../net.js";
@@ -807,11 +807,17 @@ export class OfficeScene extends Phaser.Scene {
       dragging = true;
       moved = 0;
     });
-    this.input.on("pointerup", () => {
-      if (dragging && moved < 4) this.deps.onSelect(undefined);
+    this.input.on("pointerup", (p: Phaser.Input.Pointer) => {
+      if (dragging && moved < 4) {
+        // A click on a team's whiteboard opens its todo list; anywhere else closes the agent panel.
+        const team = this.whiteboardAt(p);
+        if (team) this.deps.overlay.showBoard(team.sessionId);
+        else this.deps.onSelect(undefined);
+      }
       dragging = false;
     });
     this.input.on("pointermove", (p: Phaser.Input.Pointer) => {
+      this.game.canvas.style.cursor = !dragging && this.whiteboardAt(p) ? "pointer" : "";
       if (!dragging || !p.isDown) return;
       this.userMovedCamera = true;
       const dx = p.x - p.prevPosition.x;
@@ -824,6 +830,13 @@ export class OfficeScene extends Phaser.Scene {
       this.userMovedCamera = true;
       this.zoomBy(dy > 0 ? 1 / 1.15 : 1.15);
     });
+  }
+
+  /** The team whose whiteboard (two tiles wide) is under the pointer. */
+  private whiteboardAt(p: Phaser.Input.Pointer): TeamArea | undefined {
+    const x = Math.floor(p.worldX / TILE);
+    const y = Math.floor(p.worldY / TILE);
+    return this.office.teams.find((t) => (x === t.whiteboard.x || x === t.whiteboard.x + 1) && y === t.whiteboard.y);
   }
 
   private updateBounds(): void {

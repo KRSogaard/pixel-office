@@ -235,7 +235,8 @@ export class Overlay {
     if (!todos?.length) {
       board?.remove();
       this.boards.delete(key);
-      if (this.openBoard === key) this.closeBoard();
+      // Opened from the whiteboard in the office: say there's nothing on it yet.
+      if (this.openBoard === key) this.renderPopup(title, [], color, p);
       return;
     }
     if (!board) {
@@ -243,10 +244,7 @@ export class Overlay {
       board.addEventListener("click", (ev) => {
         ev.stopPropagation();
         if (this.openBoard === key) this.closeBoard();
-        else {
-          this.openBoard = key;
-          this.popupKey = "";
-        }
+        else this.showBoard(key);
       });
       this.root.append(board);
       this.boards.set(key, board);
@@ -265,6 +263,12 @@ export class Overlay {
     board.style.transform = `translate(${Math.round(p.x)}px, ${Math.round(p.y)}px)`;
     board.style.setProperty("--zoom", String(p.scale));
     if (this.openBoard === key) this.renderPopup(title, todos, color, p);
+  }
+
+  /** Open the full todo list of a team's whiteboard (from the board in the office, or its note). */
+  showBoard(key: string): void {
+    this.openBoard = key;
+    this.popupKey = "";
   }
 
   /** The full todo list for the clicked whiteboard, pinned under it. */
@@ -293,8 +297,9 @@ export class Overlay {
         );
         list.append(li);
       }
+      if (!todos.length) list.append(Object.assign(el("li", "todo muted"), { textContent: "No todo list yet" }));
       const head = el("div", "board-popup-head");
-      head.append(Object.assign(el("b", ""), { textContent: title }), Object.assign(el("span", "muted"), { textContent: ` ${done}/${todos.length} done` }), close);
+      head.append(Object.assign(el("b", ""), { textContent: title }), Object.assign(el("span", "muted"), { textContent: todos.length ? ` ${done}/${todos.length} done` : "" }), close);
       this.popup.replaceChildren(head, list);
     }
     this.popup.style.setProperty("--session", hex(color));
