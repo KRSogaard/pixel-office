@@ -1,7 +1,8 @@
 import Phaser from "phaser";
 import type { Activity } from "@pixel-office/protocol";
-import { FRAMES, FRAME_H, FRAME_W, appearanceFor, buildSheet, type Appearance } from "../art/characters.js";
+import { FRAMES, FRAME_H, type Appearance } from "../art/characters.js";
 import { FX_SIZE, buildFxSheet, type FxStrip } from "../art/fx.js";
+import { addSheet, artStyle } from "../art/style.js";
 import type { Pose } from "../office/director.js";
 import { TILE, type Facing } from "../office/layout.js";
 import { findPath, type Point } from "../office/pathfind.js";
@@ -75,16 +76,17 @@ export class Character {
     readonly id: string,
     start: Point,
     private walkable: () => boolean[][],
-    /** Fixed look for extras (couriers, medics…); agents get one from their id. */
-    appearance?: Appearance,
+    /**
+     * Extras and visitors: their part in the style's cast, and the pixel look
+     * to use when the style has no drawing for them. Agents get a look from their id.
+     */
+    cast?: { name: string; appearance: Appearance },
   ) {
     const key = `char:${id}`;
-    if (!scene.textures.exists(key)) {
-      const tex = scene.textures.addCanvas(key, buildSheet(appearance ?? appearanceFor(id)))!;
-      for (let i = 0; i < tex.source[0]!.width / FRAME_W; i++) tex.add(i, 0, i * FRAME_W, 0, FRAME_W, FRAME_H);
-    }
+    const sheet = artStyle().character(cast ? { cast: cast.name, fallback: cast.appearance } : { agent: id });
+    addSheet(scene, key, sheet);
     this.tile = { ...start };
-    this.sprite = scene.add.sprite(...feet(start), key, 0).setOrigin(0.5, 1);
+    this.sprite = scene.add.sprite(...feet(start), key, 0).setOrigin(0.5, 1).setScale(1 / sheet.scale);
     this.sprite.setInteractive({ useHandCursor: true, pixelPerfect: false });
     ensureFx(scene);
     this.fx = scene.add.sprite(0, 0, FX_KEY, 0).setOrigin(0.5, 1).setVisible(false);
@@ -92,7 +94,7 @@ export class Character {
     this.ring = scene.add.ellipse(0, 0, 14, 5).setVisible(false);
     this.flame = scene.add.graphics().setVisible(false);
     // Extras (couriers, medics, visitors) have no activity, so no activity icon.
-    if (appearance) this.activity = "ended";
+    if (cast) this.activity = "ended";
   }
 
   /**
@@ -274,23 +276,27 @@ export class Character {
 
   /** While typing at a desk, the monitor above the seat scrolls lines of code. */
   private updateScreen(now: number): void {
-    const typing = this.pose === "type" && this.arrived;
+    const monitor = artStyle().screen;
+    const typing = this.pose === "type" && this.arrived && !!monitor;
     this.screen.setVisible(typing);
-    if (!typing) return;
-    const sx = this.tile.x * TILE + 10;
-    const sy = (this.tile.y - 1) * TILE + 2;
+    if (!typing || !monitor) return;
+    const sx = this.tile.x * TILE + monitor.dx;
+    const sy = this.tile.y * TILE + monitor.dy;
     const g = this.screen;
     g.clear();
-    g.fillStyle(0x1b2a3a, 1).fillRect(sx, sy, 12, 7);
+    g.fillStyle(0x1b2a3a, 1).fillRect(sx, sy, monitor.w, monitor.h);
+    // Three lines of code scrolling up, drawn on a 12×7 grid scaled to the monitor.
+    const kx = monitor.w / 12;
+    const ky = monitor.h / 7;
     const scroll = Math.floor(now / 220);
     const colors = [0x8fd0f0, 0xf0c45a, 0x9bbb59, 0xe9e4d8];
     for (let row = 0; row < 3; row++) {
       const n = scroll + row;
       const indent = (n * 7) % 3;
       const w = 3 + ((n * 5) % 7);
-      g.fillStyle(colors[n % colors.length]!, 1).fillRect(sx + 1 + indent, sy + 1 + row * 2, Math.min(w, 10 - indent), 1);
+      g.fillStyle(colors[n % colors.length]!, 1).fillRect(sx + (1 + indent) * kx, sy + (1 + row * 2) * ky, Math.min(w, 10 - indent) * kx, ky);
     }
-    if (Math.floor(now / 400) % 2) g.fillStyle(0xffffff, 1).fillRect(sx + 1, sy + 6, 2, 1);
+    if (Math.floor(now / 400) % 2) g.fillStyle(0xffffff, 1).fillRect(sx + kx, sy + 6 * ky, 2 * kx, ky);
     g.setDepth(this.sprite.y - 1);
   }
 

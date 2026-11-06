@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import { propImage } from "../art/style.js";
 import { TILE, type Office } from "../office/layout.js";
 import { confetti } from "./effects.js";
 import { seasonOn, today, type Season } from "../office/season.js";
@@ -19,6 +20,10 @@ export class Seasonal {
   private static_: Phaser.GameObjects.Graphics;
   private lights: Phaser.GameObjects.Graphics;
   private tree: { x: number; y: number } | undefined;
+  /** Decorations drawn with the style's images (when it has them). */
+  private images: Phaser.GameObjects.Image[] = [];
+  /** The tree is an image, with its own lights: no pixel twinkle on top. */
+  private treeImage = false;
   private lastTwinkle = -1;
   private lastConfetti = 0;
   season: Season;
@@ -39,11 +44,22 @@ export class Seasonal {
     const g = this.static_.clear();
     this.lights.clear();
     this.tree = undefined;
+    for (const img of this.images) img.destroy();
+    this.images = [];
+    this.treeImage = false;
+    // A decoration as the style's image standing at (x, y), or false to draw it in pixels.
+    const image = (name: "pumpkin" | "tree" | "balloons", x: number, y: number): boolean => {
+      const img = propImage(this.scene, name);
+      if (img) this.images.push(img.setPosition(x, y).setDepth(y));
+      return !!img;
+    };
     const o = this.office();
     const s = this.season;
 
     if (s.halloween) {
-      o.tiles.forEach((row, y) => row.forEach((c, x) => c === "P" && pumpkin(g, x * TILE + 9, y * TILE + 11)));
+      o.tiles.forEach((row, y) =>
+        row.forEach((c, x) => c === "P" && !image("pumpkin", x * TILE + 12, y * TILE + 16) && pumpkin(g, x * TILE + 9, y * TILE + 11)),
+      );
     }
     if (s.christmas) {
       // In the lounge, just left of the coffee machine.
@@ -52,21 +68,24 @@ export class Seasonal {
         if (kx < 0) continue;
         for (const dx of [-2, -1, -3]) if (o.walkable[y + 1]?.[kx + dx]) this.tree = { x: kx + dx, y: y + 1 };
       }
-      if (this.tree) christmasTree(g, this.tree.x * TILE, this.tree.y * TILE);
+      if (this.tree) {
+        this.treeImage = image("tree", this.tree.x * TILE + 8, this.tree.y * TILE + 16);
+        if (!this.treeImage) christmasTree(g, this.tree.x * TILE, this.tree.y * TILE);
+      }
     }
     if (s.birthday) {
       // Balloons at both ends of the reception counter.
       const y = o.tiles.findIndex((row) => row.includes("X"));
       if (y >= 0) {
         const row = o.tiles[y]!;
-        balloons(g, row.indexOf("X") * TILE + 4, y * TILE);
-        balloons(g, row.lastIndexOf("X") * TILE + 12, y * TILE);
+        if (!image("balloons", row.indexOf("X") * TILE + 4, y * TILE + 4)) balloons(g, row.indexOf("X") * TILE + 4, y * TILE);
+        if (!image("balloons", row.lastIndexOf("X") * TILE + 12, y * TILE + 4)) balloons(g, row.lastIndexOf("X") * TILE + 12, y * TILE);
       }
     }
   }
 
   update(now: number): void {
-    if (this.tree) {
+    if (this.tree && !this.treeImage) {
       const f = Math.floor(now / 450);
       if (f !== this.lastTwinkle) {
         this.lastTwinkle = f;

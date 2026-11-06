@@ -232,6 +232,9 @@ plain-http office the TV keeps itself awake by quietly looping a tiny silent vid
 "Tap to keep this screen on" button appears, tap it once. To be safe, also set the iPad's
 Settings → Display & Brightness → Auto-Lock → Never (and keep it plugged in).
 
+**Art style on a TV:** the style dropdown is hidden in TV mode, so pick it in the address:
+`http://<server>:8790/?style=toon`.
+
 When you update the server (`git pull && pnpm start`), open browsers — the TV included —
 notice the new version and reload themselves. Removing the screen logs it out; **New code** replaces a lost code (a TV that's already logged
 in stays logged in). Codes skip i, l and o so they're easy to read; wrong guesses count
@@ -250,8 +253,36 @@ pnpm test && pnpm typecheck
 
 The office is generated to fit who's online: every session gets a team area with a
 manager's desk, and rooms grow when they get crowded. Room templates live in
-[`packages/web/src/office/generate.ts`](packages/web/src/office/generate.ts). All art is drawn in code
-([`packages/web/src/art/`](packages/web/src/art)), so there are no asset licenses to track.
+[`packages/web/src/office/generate.ts`](packages/web/src/office/generate.ts).
+
+### Art styles
+
+The office comes in two looks, picked per browser with the dropdown in the top bar (or
+`?style=toon` in the address):
+
+- **Pixel**: everything drawn in code at 16 pixels per tile
+  ([`packages/web/src/art/pixel.ts`](packages/web/src/art/pixel.ts) and the files it uses).
+- **Toon**: a 1940s-cartoon look. Furniture, people, visitors, the cat and props are images in
+  [`packages/web/public/art/toon/`](packages/web/public/art/toon), generated with Nano Banana;
+  floors, walls and rugs are painted in [`packages/web/src/art/toon.ts`](packages/web/src/art/toon.ts).
+  Each style has its own visitors.
+
+Everything with a look goes through the `ArtStyle` interface in
+[`packages/web/src/art/style.ts`](packages/web/src/art/style.ts); adding a style means
+implementing it and listing it in `STYLES`.
+
+The toon images are made by [`packages/web/scripts/toon-art.py`](packages/web/scripts/toon-art.py)
+(needs Python with Pillow, and an OpenRouter key). It cuts out the white background,
+crops, splits people into poses and scales everything to size. Raw generations are cached
+in `packages/web/.toon-raw/` (not committed), so changing the clean-up never costs a new
+generation:
+
+```sh
+cd packages/web
+OPENROUTER_API_KEY=… python3 scripts/toon-art.py          # generate what's missing, then process
+python3 scripts/toon-art.py --process                      # re-process the cached images only
+OPENROUTER_API_KEY=… python3 scripts/toon-art.py --redo desk char-03--side   # regenerate these
+```
 
 ## Layout
 

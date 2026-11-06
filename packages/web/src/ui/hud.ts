@@ -1,4 +1,5 @@
 import type { OfficeState } from "@pixel-office/protocol";
+import { STYLES, chooseStyle, chosenStyle, type StyleId } from "../art/style.js";
 import type { ConnectionStatus } from "../net.js";
 import { canFullscreen, isFullscreen, isInstalledApp, onFullscreenChange, toggleFullscreen } from "./fullscreen.js";
 import { personColor } from "./overlay.js";
@@ -46,6 +47,9 @@ export class Hud {
         <button data-a="people" class="admin-only" title="People and TV links">👥</button>
         <button data-a="help" class="help-btn" title="What am I looking at?">?</button>
       </div>
+      <select class="hud-style" title="Art style (this browser only)">
+        ${STYLES.map((s) => `<option value="${s.id}">${s.label}</option>`).join("")}
+      </select>
       <label class="hud-toggle" title="Hide prompts and messages (for screen sharing)">
         <input type="checkbox" class="privacy" /> privacy
       </label>
@@ -99,6 +103,10 @@ export class Hud {
     this.meButton.onclick = actions.me;
     root.querySelector<HTMLButtonElement>('[data-a="stats"]')!.onclick = actions.stats;
     this.replayFlag = root.querySelector(".hud-replay-flag")!;
+    // Switching styles reloads the page, which redraws everything in the new style.
+    const style = root.querySelector<HTMLSelectElement>(".hud-style")!;
+    style.value = chosenStyle();
+    style.onchange = () => chooseStyle(style.value as StyleId);
     const privacy = root.querySelector<HTMLInputElement>(".privacy")!;
     privacy.checked = localStorage.getItem("po.privacy") === "1";
     privacy.onchange = () => {

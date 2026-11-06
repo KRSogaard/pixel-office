@@ -1,5 +1,6 @@
 import Phaser from "phaser";
 import type { AgentState } from "@pixel-office/protocol";
+import { propImage } from "../art/style.js";
 import { TILE } from "../office/layout.js";
 import type { Point } from "../office/pathfind.js";
 import { scraps } from "./effects.js";
@@ -11,6 +12,8 @@ import { scraps } from "./effects.js";
  */
 export class ContextBins {
   private bins = new Map<string, Phaser.GameObjects.Graphics>();
+  /** Styles with bin images: an empty, half-full and overflowing bin per agent. */
+  private images = new Map<string, Record<"bin-empty" | "bin-half" | "bin-full", Phaser.GameObjects.Image | undefined>>();
   private lastScrap = new Map<string, number>();
 
   constructor(private scene: Phaser.Scene) {}
@@ -20,8 +23,10 @@ export class ContextBins {
     let g = this.bins.get(agent.id);
     if (!seat || !agent.context) {
       g?.setVisible(false);
+      for (const img of Object.values(this.images.get(agent.id) ?? {})) img?.setVisible(false);
       return;
     }
+    if (this.updateImage(agent, seat, now)) return;
     if (!g) {
       g = this.scene.add.graphics();
       this.bins.set(agent.id, g);
@@ -56,8 +61,40 @@ export class ContextBins {
     }
   }
 
+  /** Draw the bin with the style's images. False when the style has none. */
+  private updateImage(agent: AgentState, seat: Point, now: number): boolean {
+    let imgs = this.images.get(agent.id);
+    if (!imgs) {
+      imgs = { "bin-empty": propImage(this.scene, "bin-empty"), "bin-half": propImage(this.scene, "bin-half"), "bin-full": propImage(this.scene, "bin-full") };
+      this.images.set(agent.id, imgs);
+    }
+    if (!imgs["bin-empty"] || !imgs["bin-half"] || !imgs["bin-full"]) return false;
+    const fill = Math.min(1, agent.context!.tokens / agent.context!.limit);
+    const stomping = agent.activity === "compact";
+    const which = fill > 0.85 ? "bin-full" : fill > 0.4 ? "bin-half" : "bin-empty";
+    const x = (seat.x + 1) * TILE + 7;
+    const y = seat.y * TILE + 15;
+    for (const [name, img] of Object.entries(imgs)) {
+      if (!img) continue;
+      img.setVisible(name === which);
+      if (name !== which) continue;
+      const base = img.getData("scale") ?? img.scaleY;
+      img.setData("scale", base);
+      // Stomped flat: squash down and spread out, in time with the hops.
+      const squash = stomping ? (Math.floor(now / 160) % 2 ? 0.6 : 0.85) : 1;
+      img.setPosition(x, y).setScale(base * (2 - squash), base * squash).setDepth(seat.y * TILE + 14);
+    }
+    if (stomping && now - (this.lastScrap.get(agent.id) ?? 0) > 500) {
+      this.lastScrap.set(agent.id, now);
+      scraps(this.scene, x, y - 8);
+    }
+    return true;
+  }
+
   remove(agentId: string): void {
     this.bins.get(agentId)?.destroy();
     this.bins.delete(agentId);
+    for (const img of Object.values(this.images.get(agentId) ?? {})) img?.destroy();
+    this.images.delete(agentId);
   }
 }

@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import { propImage } from "../art/style.js";
 import { SILO_DOORS } from "../art/tiles.js";
 import { TILE } from "../office/layout.js";
 
@@ -73,7 +74,9 @@ export class RocketSilo {
     const pit = { x: px + d.x, y: py + d.y, w: d.w, h: d.h };
     const state = { open: 0, rise: 0, fly: 0 };
     const g = this.gfx.setDepth(py + 3 * TILE + 1);
-    const draw = () => this.draw(g, pit, state);
+    // The style's rocket image, when it has one; otherwise the rocket is drawn in pixels.
+    const rocket = propImage(this.scene, "rocket")?.setDepth(py + 3 * TILE + 2).setVisible(false);
+    const draw = () => this.draw(g, pit, state, rocket);
     const tween = (key: keyof typeof state, to: number, duration: number, ease: string) =>
       new Promise<void>((done) =>
         this.scene.tweens.add({ targets: state, [key]: to, duration, ease, onUpdate: draw, onComplete: () => done() }),
@@ -102,11 +105,17 @@ export class RocketSilo {
       state.fly = 0;
       await tween("open", 0, 700, "Sine.easeInOut");
       g.clear();
+      rocket?.destroy();
       this.next();
     })();
   }
 
-  private draw(g: Phaser.GameObjects.Graphics, pit: { x: number; y: number; w: number; h: number }, s: { open: number; rise: number; fly: number }): void {
+  private draw(
+    g: Phaser.GameObjects.Graphics,
+    pit: { x: number; y: number; w: number; h: number },
+    s: { open: number; rise: number; fly: number },
+    rocket: Phaser.GameObjects.Image | undefined,
+  ): void {
     g.clear();
     // Open pit: dark, glowing warmer as the rocket comes up.
     if (s.open > 0) {
@@ -117,6 +126,7 @@ export class RocketSilo {
       // Doors slide sideways under the apron.
       g.fillStyle(0x5c6370, 1).fillRect(pit.x, pit.y, pit.w / 2 - half, pit.h).fillRect(cx + half, pit.y, pit.w / 2 - half, pit.h);
     }
+    rocket?.setVisible(s.rise > 0);
     if (s.rise <= 0) return;
     // The rocket: rises out of the pit, then flies.
     const rw = 14;
@@ -130,6 +140,10 @@ export class RocketSilo {
       g.fillStyle(0xff5d2a, 0.9).fillRect(cx - 5, bottom, 10, len);
       g.fillStyle(0xffb03c, 1).fillRect(cx - 3, bottom, 6, len * 0.8);
       g.fillStyle(0xfff3b0, 1).fillRect(cx - 1, bottom, 2, len * 0.5);
+    }
+    if (rocket) {
+      rocket.setPosition(cx, bottom);
+      return;
     }
     // Body with a shaded side, nose cone, porthole, stripe and fins.
     g.fillStyle(0xe9e4d8, 1).fillRect(cx - rw / 2, top + 9, rw, rh - 9);

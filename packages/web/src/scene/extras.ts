@@ -1,5 +1,6 @@
 import Phaser from "phaser";
 import type { Appearance } from "../art/characters.js";
+import { propImage } from "../art/style.js";
 import { TILE, type Office } from "../office/layout.js";
 import type { Point } from "../office/pathfind.js";
 import { Character, feet } from "./Character.js";
@@ -31,6 +32,8 @@ interface Extra {
   c: Character;
   item: Item;
   gfx: Phaser.GameObjects.Graphics;
+  /** The carried item as the style's image, when it has one. */
+  img?: { item: Item; obj: Phaser.GameObjects.Image | undefined };
   /** Removed when its script runs out. */
   done: boolean;
 }
@@ -38,7 +41,7 @@ interface Extra {
 export class Extras {
   private extras: Extra[] = [];
   private carrying: { patient: Character; medics: [Extra, Extra] }[] = [];
-  private boxes: { gfx: Phaser.GameObjects.Graphics; until: number }[] = [];
+  private boxes: { gfx: Phaser.GameObjects.Graphics | Phaser.GameObjects.Image; until: number }[] = [];
 
   constructor(
     private scene: Phaser.Scene,
@@ -99,8 +102,10 @@ export class Extras {
         type: "do",
         fn: () => {
           e.item = undefined;
-          const box = this.scene.add.graphics().setDepth(to.y * TILE + 2);
-          drawPizzaBox(box, to.x * TILE + 3, to.y * TILE + 9);
+          const image = propImage(this.scene, "pizza");
+          let box: Phaser.GameObjects.Graphics | Phaser.GameObjects.Image;
+          if (image) box = image.setPosition(to.x * TILE + 8, to.y * TILE + 15).setDepth(to.y * TILE + 2);
+          else drawPizzaBox((box = this.scene.add.graphics().setDepth(to.y * TILE + 2)), to.x * TILE + 3, to.y * TILE + 9);
           this.boxes.push({ gfx: box, until: this.scene.time.now + 120_000 });
           onArrive();
         },
@@ -124,6 +129,7 @@ export class Extras {
     for (const e of this.extras.filter((x) => x.done)) {
       e.c.destroy();
       e.gfx.destroy();
+      e.img?.obj?.destroy();
     }
     this.extras = this.extras.filter((x) => !x.done);
     for (const box of this.boxes.filter((b) => now > b.until)) box.gfx.destroy();
@@ -143,7 +149,7 @@ export class Extras {
   }
 
   private spawn(kind: keyof typeof LOOKS, at: Point, item: Item): Extra {
-    const c = new Character(this.scene, `extra:${kind}`, at, () => this.office().walkable, LOOKS[kind]);
+    const c = new Character(this.scene, `extra:${kind}`, at, () => this.office().walkable, { name: kind, appearance: LOOKS[kind] });
     c.sprite.disableInteractive();
     c.sprite.setPosition(...feet(at));
     const e: Extra = { c, item, gfx: this.scene.add.graphics(), done: false };
@@ -164,6 +170,16 @@ export class Extras {
     const g = e.gfx.clear().setDepth(e.c.y + 1);
     const x = Math.round(e.c.x);
     const y = Math.round(e.c.y);
+    if (!e.img || e.img.item !== e.item) {
+      e.img?.obj?.destroy();
+      e.img = { item: e.item, obj: e.item ? propImage(this.scene, e.item) : undefined };
+    }
+    const held = e.img.obj;
+    if (held) {
+      // Held in front: the stretcher at waist height, small things up at the chest.
+      held.setPosition(x + (e.item === "stretcher" ? 0 : 6), y - (e.item === "stretcher" ? 4 : 8)).setDepth(e.c.y + 1);
+      return;
+    }
     if (e.item === "envelope") {
       g.fillStyle(0xfdfbf5, 1).fillRect(x + 3, y - 14, 8, 5);
       g.fillStyle(0x9097a6, 1).fillRect(x + 3, y - 14, 8, 1).fillRect(x + 6, y - 13, 2, 1);

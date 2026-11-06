@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import { propImage } from "../art/style.js";
 
 /** One-off particle effects. Everything cleans itself up. */
 
@@ -158,7 +159,9 @@ export function sweat(scene: Phaser.Scene, x: number, y: number): void {
 }
 
 /** A rubber duck to explain the problem to. Returns it so the caller can remove it. */
-export function duck(scene: Phaser.Scene, x: number, y: number): Phaser.GameObjects.Graphics {
+export function duck(scene: Phaser.Scene, x: number, y: number): Phaser.GameObjects.Graphics | Phaser.GameObjects.Image {
+  const image = propImage(scene, "duck");
+  if (image) return image.setPosition(x + 4, y + 5).setDepth(y + 2);
   const g = scene.add.graphics().setDepth(y + 2);
   g.fillStyle(0xffd23f, 1).fillRect(x, y + 2, 6, 3).fillRect(x + 3, y, 3, 3);
   g.fillStyle(0xff8c1a, 1).fillRect(x + 6, y + 1, 2, 1);

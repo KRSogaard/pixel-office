@@ -1,6 +1,6 @@
 import Phaser from "phaser";
 import { emptyState, isTestRun, type AgentState, type OfficeState, type Utterance } from "@pixel-office/protocol";
-import { paintOffice } from "../art/tiles.js";
+import { addSheet, artStyle } from "../art/style.js";
 import { Allocator } from "../office/allocator.js";
 import { PlaceDebouncer, placeFor } from "../office/director.js";
 import { generateOffice } from "../office/generate.js";
@@ -106,8 +106,8 @@ export class OfficeScene extends Phaser.Scene {
     this.office = generateOffice(plan);
     this.builtKey = planKey(plan);
     this.allocator = new Allocator(this.office);
-    this.textures.addCanvas("office", paintOffice(this.office, (id) => this.sessionColor(id), this.deps.store.settings.rugs));
-    this.bg = this.add.image(0, 0, "office").setOrigin(0, 0).setDepth(-1);
+    this.bg = this.add.image(0, 0, "__DEFAULT").setOrigin(0, 0).setDepth(-1);
+    this.paintBackground();
     this.links = this.add.graphics().setDepth(99_999);
     this.bins = new ContextBins(this);
     this.lighting = new Lighting(this);
@@ -340,6 +340,7 @@ export class OfficeScene extends Phaser.Scene {
   }
 
   zoomBy(factor: number): void {
+    if (!this.office) return; // not started yet
     this.userMovedCamera = true;
     const cam = this.cameras.main;
     cam.setZoom(Phaser.Math.Clamp(cam.zoom * factor, 0.5, 6));
@@ -347,6 +348,7 @@ export class OfficeScene extends Phaser.Scene {
 
   /** Fit the whole office on screen. Called by the "fit" button: re-enables auto-fit. */
   fit(): void {
+    if (!this.office) return; // not started yet
     this.userMovedCamera = false;
     const cam = this.cameras.main;
     const w = this.office.width * TILE;
@@ -484,6 +486,14 @@ export class OfficeScene extends Phaser.Scene {
     return this.allocator.seatFor(agent);
   }
 
+  /** Paint the static office in the active art style and show it. */
+  private paintBackground(): void {
+    const sheet = artStyle().paintOffice(this.office, (id) => this.sessionColor(id), this.deps.store.settings.rugs);
+    if (this.textures.exists("office")) this.textures.remove("office");
+    addSheet(this, "office", sheet);
+    this.bg.setTexture("office", 0).setScale(1 / sheet.scale);
+  }
+
   /**
    * Re-plan the office from the state and regenerate it when the plan changed.
    * A new or removed team rebuilds at once (someone needs a desk); room
@@ -501,9 +511,7 @@ export class OfficeScene extends Phaser.Scene {
     this.builtAt = this.now;
     this.office = generateOffice(plan);
     this.allocator.setOffice(this.office);
-    this.textures.remove("office");
-    this.textures.addCanvas("office", paintOffice(this.office, (id) => this.sessionColor(id), this.deps.store.settings.rugs));
-    this.bg.setTexture("office");
+    this.paintBackground();
     this.updateBounds();
     this.lighting.resize(this.office.width * TILE, this.office.height * TILE);
     this.pet.relocate();
@@ -869,6 +877,7 @@ export class OfficeScene extends Phaser.Scene {
 const VISITOR_GOSSIP: Record<VisitorKind, [string, string]> = {
   ceo: ["Did Elon just say Mars again?", "Q3. Sure."],
   trump: ["Donald Trump says our code is the best.", "Tremendous. Everyone says so."],
+  boss: ["The Big Boss came by. Somebody's getting docked.", "Not it."],
   consultant: ["Who let the consultant in?", "That chat cost us $2,000."],
   intern: ["Did anyone help the intern find the exit?", "He's in the silo."],
   auditor: ["The Auditor was here 😬", "Act natural."],

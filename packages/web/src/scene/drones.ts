@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import { propImage } from "../art/style.js";
 import { TILE, type Office } from "../office/layout.js";
 
 /**
@@ -10,6 +11,8 @@ import { TILE, type Office } from "../office/layout.js";
 
 interface Drone {
   gfx: Phaser.GameObjects.Graphics;
+  /** The style's drone image (carrying its crate), when it has one. */
+  img: Phaser.GameObjects.Image | undefined;
 }
 
 export class Drones {
@@ -27,7 +30,7 @@ export class Drones {
     if (!silo) return;
     const to = { x: (silo.x + 1.5) * TILE, y: (silo.y + 1.5) * TILE };
     const gfx = this.scene.add.graphics().setDepth(95_000);
-    const drone: Drone = { gfx };
+    const drone: Drone = { gfx, img: propImage(this.scene, "drone")?.setDepth(95_000) };
     this.drones.push(drone);
     const pos = { t: 0 };
     const dist = Math.hypot(to.x - from.x, to.y - from.y);
@@ -39,10 +42,14 @@ export class Drones {
       onUpdate: () => {
         // Take off, cruise a little higher, and set down on the silo.
         const lift = Math.sin(pos.t * Math.PI) * 26 + 8;
-        draw(gfx, from.x + (to.x - from.x) * pos.t, from.y + (to.y - from.y) * pos.t - lift, this.scene.time.now);
+        const x = from.x + (to.x - from.x) * pos.t;
+        const y = from.y + (to.y - from.y) * pos.t - lift;
+        if (drone.img) drone.img.setPosition(x, y + 8 + Math.sin(this.scene.time.now / 120)).setFlipX(to.x > from.x);
+        else draw(gfx, x, y, this.scene.time.now);
       },
       onComplete: () => {
         gfx.destroy();
+        drone.img?.destroy();
         this.drones = this.drones.filter((d) => d !== drone);
         this.onDelivered();
       },

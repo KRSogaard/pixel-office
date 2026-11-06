@@ -91,6 +91,16 @@ button {
   flex: 1;
 }
 
+.hud-style {
+  background: var(--panel-2);
+  color: inherit;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 2px 4px;
+  font: inherit;
+  cursor: pointer;
+}
+
 .hud-toggle {
   display: flex;
   align-items: center;
@@ -1147,6 +1157,7 @@ body:not(.admin) .admin-only {
 
 /* TV mode: a screen on the wall. */
 body.tv #hud .hud-tools,
+body.tv #hud .hud-style,
 body.tv #hud .hud-toggle,
 body.tv #hud .hud-zoom,
 body.tv #hud .hud-logout,

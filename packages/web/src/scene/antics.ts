@@ -73,7 +73,7 @@ const PIZZA_CROWD = 5;
 
 export class Antics {
   private prev = new Map<string, AgentState>();
-  private ducks = new Map<string, Phaser.GameObjects.Graphics>();
+  private ducks = new Map<string, Phaser.GameObjects.Graphics | Phaser.GameObjects.Image>();
   private lastCourier = new Map<string, number>();
   private lastPrint = new Map<string, number>();
   private lastYawn = new Map<string, number>();

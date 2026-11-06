@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import { propImage } from "../art/style.js";
 import { TILE, type Office } from "../office/layout.js";
 import type { Point } from "../office/pathfind.js";
 
@@ -16,6 +17,8 @@ interface Bug {
   target: { x: number; y: number };
   born: number;
   gfx: Phaser.GameObjects.Graphics;
+  /** The style's bug image, when it has one (otherwise `gfx` draws a pixel beetle). */
+  img: Phaser.GameObjects.Image | undefined;
   hue: number;
 }
 
@@ -40,7 +43,7 @@ export class Bugs {
   spawn(sessionId: string, x: number, y: number, now: number): void {
     if (this.bugs.length >= MAX_BUGS) this.kill(this.bugs[0]!, false);
     const gfx = this.scene.add.graphics();
-    const bug: Bug = { sessionId, x, y: y - 2, target: { x, y }, born: now, gfx, hue: [0x5c3d2e, 0x3b5c2e, 0x5c2e4a][this.bugs.length % 3]! };
+    const bug: Bug = { sessionId, x, y: y - 2, target: { x, y }, born: now, gfx, img: propImage(this.scene, "bug"), hue: [0x5c3d2e, 0x3b5c2e, 0x5c2e4a][this.bugs.length % 3]! };
     bug.target = this.wanderTarget(bug);
     this.bugs.push(bug);
   }
@@ -82,6 +85,7 @@ export class Bugs {
   private kill(b: Bug, splat: boolean): void {
     this.bugs = this.bugs.filter((x) => x !== b);
     b.gfx.destroy();
+    b.img?.destroy();
     if (!splat) return;
     const s = this.scene.add.graphics().setDepth(b.y);
     s.fillStyle(0x6fd08c, 0.8).fillRect(b.x - 3, b.y - 1, 6, 2).fillRect(b.x - 1, b.y - 3, 2, 6);
@@ -111,8 +115,13 @@ function jitter(p: Point, r: number): { x: number; y: number } {
   return { x: p.x + Phaser.Math.Between(-r, r), y: p.y + Phaser.Math.Between(-r, r) };
 }
 
-/** A 7×4 beetle with scuttling legs. */
+/** A 7×4 beetle with scuttling legs, or the style's bug image scuttling (a wobble) in its direction. */
 function draw(b: Bug, now: number, dx: number): void {
+  if (b.img) {
+    const wobble = Math.floor(now / 90) % 2 ? 8 : -8;
+    b.img.setPosition(b.x, b.y + 3).setDepth(b.y).setFlipX(dx > 0).setAngle(wobble);
+    return;
+  }
   const g = b.gfx.clear().setDepth(b.y);
   const x = Math.round(b.x) - 3;
   const y = Math.round(b.y) - 2;

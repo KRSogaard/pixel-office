@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import { chosenStyle, loadStyle } from "./art/style.js";
 import { OfficeStore } from "./net.js";
 import { OfficeScene } from "./scene/OfficeScene.js";
 import { AchievementToasts, StatsBoard } from "./ui/board.js";
@@ -21,7 +22,7 @@ const sfx = new Sfx();
 const board = new StatsBoard(document.getElementById("sidebar")!, () => {
   // The stage changed size: let Phaser pick it up, then fit the office again.
   requestAnimationFrame(() => {
-    game.scale.refresh();
+    game?.scale.refresh();
     scene.fit();
   });
 });
@@ -85,23 +86,27 @@ const hud = new Hud(document.getElementById("hud")!, {
   stats: () => board.toggle(),
 });
 
-const game = new Phaser.Game({
-  type: Phaser.AUTO,
-  parent: "stage",
-  pixelArt: true,
-  roundPixels: true,
-  backgroundColor: "#1d1f27",
-  // Every sound is synthesized through ui/audio.ts. Phaser's own sound system
-  // would open the audio output on the first click and hold it, pulling
-  // AirPods away from a phone that's playing something.
-  audio: { noAudio: true },
-  scale: { mode: Phaser.Scale.RESIZE, width: "100%", height: "100%" },
-  scene: [],
-  callbacks: {
-    postBoot: (game) => {
-      game.scene.add("office", scene, true, { store, overlay, onSelect: select, sfx, board });
+// The art style's images load first; the office is drawn with them.
+let game: Phaser.Game | undefined;
+void loadStyle(chosenStyle()).then(() => {
+  game = new Phaser.Game({
+    type: Phaser.AUTO,
+    parent: "stage",
+    pixelArt: true,
+    roundPixels: true,
+    backgroundColor: "#1d1f27",
+    // Every sound is synthesized through ui/audio.ts. Phaser's own sound system
+    // would open the audio output on the first click and hold it, pulling
+    // AirPods away from a phone that's playing something.
+    audio: { noAudio: true },
+    scale: { mode: Phaser.Scale.RESIZE, width: "100%", height: "100%" },
+    scene: [],
+    callbacks: {
+      postBoot: (game) => {
+        game.scene.add("office", scene, true, { store, overlay, onSelect: select, sfx, board });
+      },
     },
-  },
+  });
 });
 
 store.subscribe((state) => {

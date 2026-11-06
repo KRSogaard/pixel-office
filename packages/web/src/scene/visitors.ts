@@ -1,6 +1,7 @@
 import Phaser from "phaser";
 import type { AgentState, OfficeStats } from "@pixel-office/protocol";
 import type { Appearance } from "../art/characters.js";
+import { artStyle } from "../art/style.js";
 import { TILE, type Office, type SpotKind } from "../office/layout.js";
 import type { Point } from "../office/pathfind.js";
 import { Character, type Destination, type Step } from "./Character.js";
@@ -12,15 +13,19 @@ import { Character, type Destination, type Step } from "./Character.js";
  * some react to what's really going on — the Auditor turns up after a scary
  * command, the Investor comments on today's numbers.
  *
+ * Each art style has its own cast (`ArtStyle.visitors`): the pixel office gets
+ * famous faces, the toon office the Big Boss.
+ *
  * `?visitors=fast` in the URL brings one every ~20 seconds, for a preview.
  */
 
-export type VisitorKind = "ceo" | "trump" | "consultant" | "intern" | "auditor" | "investor" | "grandpa";
+export type VisitorKind = "ceo" | "trump" | "boss" | "consultant" | "intern" | "auditor" | "investor" | "grandpa";
 
 const skin = { skin: "#f6d3b3", skinShade: "#e3b48f" };
 const LOOKS: Record<VisitorKind, Appearance> = {
   ceo: { ...skin, hair: "#2b2118", hairStyle: 0, shirt: "#1d1f27", shirtShade: "#111216", pants: "#3d4a8a", shoes: "#e8e8e8" },
   trump: { ...skin, hair: "#e2b75c", hairStyle: 2, shirt: "#2f3a56", shirtShade: "#e8e8e8", pants: "#2f3a56", shoes: "#1e1e22" },
+  boss: { ...skin, hair: "#2b2118", hairStyle: 0, shirt: "#3b3f4a", shirtShade: "#c0504d", pants: "#3b3f4a", shoes: "#1e1e22" },
   consultant: { ...skin, hair: "#5a3a22", hairStyle: 2, shirt: "#2f3a56", shirtShade: "#e8e8e8", pants: "#2f3a56", shoes: "#1e1e22" },
   intern: { ...skin, hair: "#a5682f", hairStyle: 1, shirt: "#6fbf73", shirtShade: "#4f9a52", pants: "#46566e", shoes: "#e8e8e8" },
   auditor: { skin: "#eac09a", skinShade: "#d19f77", hair: "#7d8590", hairStyle: 0, shirt: "#5c6370", shirtShade: "#3b3f4a", pants: "#3b3f4a", shoes: "#1e1e22" },
@@ -31,6 +36,7 @@ const LOOKS: Record<VisitorKind, Appearance> = {
 const NAMES: Record<VisitorKind, string> = {
   ceo: "Elon Musk",
   trump: "Donald Trump",
+  boss: "The Big Boss",
   consultant: "The Consultant",
   intern: "The Lost Intern",
   auditor: "The Auditor",
@@ -56,6 +62,15 @@ const LINES: Record<VisitorKind, string[]> = {
     "Nobody refactors like me. Everybody says so.",
     "We're going to build a firewall, and the bugs are going to pay for it.",
     "This codebase is huge. The biggest. Possibly ever.",
+  ],
+  boss: [
+    "Who's been eating the tokens? I'm docking somebody's pay.",
+    "I want that feature yesterday. No — the day before.",
+    "Is this what I'm paying you for? Keep going.",
+    "Time is money, and you're using both.",
+    "Somebody get me a status report on the status reports.",
+    "Faster! The competition already shipped it twice.",
+    "Nice work. Don't let it go to your head.",
   ],
   consultant: [
     "Have you considered microservices?",
@@ -157,7 +172,8 @@ export class Visitors {
   update(dtMs: number, now: number): void {
     if (now > this.nextAt && this.visitors.length < 2) {
       this.nextAt = now + Phaser.Math.Between(NEXT_MS[0]!, NEXT_MS[1]!);
-      const kinds: VisitorKind[] = ["ceo", "trump", "consultant", "intern", "investor", "grandpa"];
+      // The Auditor only comes when called (a scary command).
+      const kinds = artStyle().visitors.filter((k): k is VisitorKind => k in LINES && k !== "auditor");
       const choices = kinds.filter((k) => k !== this.lastKind);
       this.arrive(choices[Math.floor(Math.random() * choices.length)]!);
     }
@@ -186,7 +202,7 @@ export class Visitors {
     if (!door) return;
     this.lastKind = kind;
     const id = `visitor:${kind}:${++this.n}`;
-    const c = new Character(this.scene, `visitor:${kind}`, door, () => this.host.office().walkable, LOOKS[kind]);
+    const c = new Character(this.scene, `visitor:${kind}`, door, () => this.host.office().walkable, { name: kind, appearance: LOOKS[kind] });
     c.sprite.disableInteractive();
     const v: Visitor = { id, kind, c, prop: this.scene.add.graphics(), leaving: false, done: false };
     this.visitors.push(v);
@@ -210,6 +226,8 @@ export class Visitors {
         return [toAgent(), line(), hold(2600), this.goto(v, () => this.spot("git"), run), line(), hold(2600), toAgent(), line(), hold(2600)];
       case "trump":
         return [toAgent(), line(), hold(3200), this.goto(v, () => this.spot("git")), line(), hold(3200)];
+      case "boss":
+        return [toAgent(), line(), hold(2800), toAgent(), line(), hold(2800), toSpot("git"), line(), hold(2400)];
       case "consultant":
         return [toAgent(), line(), hold(2800), toAgent(), line(), hold(2800), say("📄 I'll leave my invoice here."), hold(2000)];
       case "intern":
@@ -276,6 +294,8 @@ export class Visitors {
   /** Props: the CEO's scooter, the consultant's laptop, the auditor's clipboard, grandpa's walking stick… */
   private drawProp(v: Visitor, now: number): void {
     const g = v.prop.clear().setDepth(v.c.y + 1);
+    // Drawn for the pixel figures' hands; other styles draw what their cast carries.
+    if (!artStyle().pixelProps) return;
     const x = Math.round(v.c.x);
     const y = Math.round(v.c.y);
     switch (v.kind) {
