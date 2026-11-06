@@ -91,6 +91,10 @@ const game = new Phaser.Game({
   pixelArt: true,
   roundPixels: true,
   backgroundColor: "#1d1f27",
+  // Every sound is synthesized through ui/audio.ts. Phaser's own sound system
+  // would open the audio output on the first click and hold it, pulling
+  // AirPods away from a phone that's playing something.
+  audio: { noAudio: true },
   scale: { mode: Phaser.Scale.RESIZE, width: "100%", height: "100%" },
   scene: [],
   callbacks: {

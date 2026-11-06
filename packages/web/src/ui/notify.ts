@@ -1,4 +1,5 @@
 import type { AgentState, OfficeState } from "@pixel-office/protocol";
+import { audioFor } from "./audio.js";
 
 /**
  * Tells you when an agent needs you, or when a main agent finishes its turn:
@@ -10,7 +11,6 @@ export class Notifier {
   desktop = localStorage.getItem("po.desktop") === "1";
   private prev = new Map<string, Pick<AgentState, "status" | "activitySince">>();
   private primed = false;
-  private audio: AudioContext | undefined;
 
   setSound(on: boolean): void {
     this.sound = on;
@@ -59,25 +59,22 @@ export class Notifier {
 
   /** "waiting": a two-tone desk bell. "done": a soft rising chime. */
   private chime(kind: "waiting" | "done"): void {
-    try {
-      this.audio ??= new AudioContext();
-      const ctx = this.audio;
-      const notes = kind === "waiting" ? [1318.5, 1046.5] : [659.3, 880, 1174.7];
-      notes.forEach((freq, i) => {
-        const t = ctx.currentTime + i * (kind === "waiting" ? 0.14 : 0.09);
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = kind === "waiting" ? "triangle" : "sine";
-        osc.frequency.value = freq;
-        gain.gain.setValueAtTime(0.0001, t);
-        gain.gain.exponentialRampToValueAtTime(0.18, t + 0.01);
-        gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.6);
-        osc.connect(gain).connect(ctx.destination);
-        osc.start(t);
-        osc.stop(t + 0.65);
-      });
-    } catch {
-      // No audio available; stay quiet.
-    }
+    const notes = kind === "waiting" ? [1318.5, 1046.5] : [659.3, 880, 1174.7];
+    const step = kind === "waiting" ? 0.14 : 0.09;
+    const ctx = audioFor(notes.length * step + 0.65);
+    if (!ctx) return; // no audio available; stay quiet
+    notes.forEach((freq, i) => {
+      const t = ctx.currentTime + i * step;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = kind === "waiting" ? "triangle" : "sine";
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.0001, t);
+      gain.gain.exponentialRampToValueAtTime(0.18, t + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.6);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(t);
+      osc.stop(t + 0.65);
+    });
   }
 }

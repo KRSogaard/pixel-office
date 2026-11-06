@@ -1,3 +1,5 @@
+import { audioFor } from "./audio.js";
+
 /**
  * Sound effects, synthesized on the fly (no audio files): a rocket rumble, the
  * lab's fire alarm, Byte's meow, bug squashes, a courier's ding, an achievement
@@ -5,7 +7,6 @@
  */
 export class Sfx {
   enabled = localStorage.getItem("po.sfx") === "1";
-  private ctx: AudioContext | undefined;
   private lastClick = 0;
 
   set(on: boolean): void {
@@ -23,7 +24,7 @@ export class Sfx {
   }
 
   meow(): void {
-    const a = this.audio();
+    const a = this.audio(0.55);
     if (!a) return;
     const t = a.currentTime;
     const osc = a.createOscillator();
@@ -65,18 +66,13 @@ export class Sfx {
     this.noise(0.015, 3000 + Math.random() * 2000, 0.025, 0, 0.015);
   }
 
-  private audio(): AudioContext | undefined {
-    if (!this.enabled) return undefined;
-    try {
-      this.ctx ??= new AudioContext();
-      return this.ctx;
-    } catch {
-      return undefined;
-    }
+  /** Nothing touches the audio output while effects are off. */
+  private audio(seconds: number): AudioContext | undefined {
+    return this.enabled ? audioFor(seconds) : undefined;
   }
 
   private tone(freq: number, at: number, dur: number, type: OscillatorType, vol: number): void {
-    const a = this.audio();
+    const a = this.audio(at + dur + 0.05);
     if (!a) return;
     const t = a.currentTime + at;
     const osc = a.createOscillator();
@@ -93,7 +89,7 @@ export class Sfx {
 
   /** Filtered noise: rumbles (low cutoff) and clicks (high cutoff). */
   private noise(dur: number, cutoff: number, vol: number, attack: number, release: number): void {
-    const a = this.audio();
+    const a = this.audio(Math.max(dur, attack + release));
     if (!a) return;
     const t = a.currentTime;
     const buf = a.createBuffer(1, Math.ceil(a.sampleRate * dur), a.sampleRate);
