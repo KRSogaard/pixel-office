@@ -93,8 +93,10 @@ export class Pet {
     this.tile = this.randomFloor() ?? { x: 2, y: 2 };
     this.sprite = scene.add.sprite(0, 0, KEY, 2).setOrigin(0.5, 1).setInteractive({ useHandCursor: true });
     this.place();
-    this.sprite.on("pointerdown", (p: Phaser.Input.Pointer) => {
-      p.event.stopPropagation();
+    this.sprite.on("pointerdown", (_p: Phaser.Input.Pointer, _x: number, _y: number, ev: Phaser.Types.Input.EventData) => {
+      // Phaser's own propagation, not the DOM event's: keeps the scene's
+      // "click on empty floor closes the panel" handler from firing too.
+      ev.stopPropagation();
       this.purr();
     });
   }

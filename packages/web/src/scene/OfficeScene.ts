@@ -439,8 +439,10 @@ export class OfficeScene extends Phaser.Scene {
     const c = new Character(this, agent.id, beside ?? this.doorSpot(), () => this.office.walkable);
     if (beside) poof(this, c.x, c.y, this.sessionColor(agent.sessionId));
     if (this.seasonal?.season.birthday) c.setHat(true);
-    c.sprite.on("pointerdown", (p: Phaser.Input.Pointer) => {
-      p.event.stopPropagation();
+    c.sprite.on("pointerdown", (_p: Phaser.Input.Pointer, _x: number, _y: number, ev: Phaser.Types.Input.EventData) => {
+      // Phaser's own propagation, not the DOM event's: keeps the scene's
+      // "click on empty floor closes the panel" handler from firing too.
+      ev.stopPropagation();
       this.deps.onSelect(agent.id);
     });
     const actor: Actor = {
