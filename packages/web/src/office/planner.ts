@@ -1,6 +1,7 @@
 import { DEFAULT_SETTINGS, type AgentState, type OfficeSettings, type OfficeState } from "@pixel-office/protocol";
 import { placeFor } from "./director.js";
 import { MIN_ROOMS, WORKERS_PER_ROW, type OfficePlan, type RoomCapacities, type TeamPlan } from "./generate.js";
+import type { SpotKind } from "./layout.js";
 
 /** Rooms and team areas only shrink after being too big for this long. */
 export const SHRINK_AFTER_MS = 60_000;
@@ -40,9 +41,19 @@ export class OfficePlanner {
   private teamSize = new Map<string, Sized>();
   private roomSize = new Map<RoomKind, Sized>();
 
-  plan(state: OfficeState, now: number, settings: OfficeSettings = DEFAULT_SETTINGS): OfficePlan {
+  /**
+   * `claimed` is who actually holds or wants a spot of each kind right now (from
+   * the allocator). It covers agents the activity alone misses: still standing
+   * in a room they're about to leave, or on a coffee break.
+   */
+  plan(
+    state: OfficeState,
+    now: number,
+    settings: OfficeSettings = DEFAULT_SETTINGS,
+    claimed: ReadonlyMap<SpotKind, ReadonlySet<string>> = new Map(),
+  ): OfficePlan {
     const live = Object.values(state.agents).filter((a) => a.status !== "ended");
-    return { rooms: this.rooms(live, now, settings), teams: this.teams(live, now), settings };
+    return { rooms: this.rooms(live, now, settings, claimed), teams: this.teams(live, now), settings };
   }
 
   private teams(live: AgentState[], now: number): (TeamPlan | null)[] {
@@ -78,16 +89,20 @@ export class OfficePlanner {
     });
   }
 
-  private rooms(live: AgentState[], now: number, settings: OfficeSettings): RoomCapacities {
-    const demand: RoomCapacities = { library: 0, server: 0, lab: 0, git: 0, mail: 0, lounge: 0, reception: 0, globe: 0, filing: 0 };
+  private rooms(live: AgentState[], now: number, settings: OfficeSettings, claimed: ReadonlyMap<SpotKind, ReadonlySet<string>>): RoomCapacities {
+    const demand = new Map<RoomKind, Set<string>>(ROOM_KINDS.map((k) => [k, new Set()]));
     for (const a of live) {
       const room = SPOT_TO_ROOM[placeFor(a.activity).kind];
-      if (room) demand[room]++;
+      if (room) demand.get(room)!.add(a.id);
+    }
+    for (const [kind, ids] of claimed) {
+      const room = SPOT_TO_ROOM[kind];
+      if (room) for (const id of ids) demand.get(room)!.add(id);
     }
     const out = { ...settings.minRooms };
     for (const k of ROOM_KINDS) {
       // One spare spot, rounded up to an even number so sizes change in steps.
-      const wanted = Math.max(settings.minRooms[k], Math.ceil((demand[k] + 1) / 2) * 2);
+      const wanted = Math.max(settings.minRooms[k], Math.ceil((demand.get(k)!.size + 1) / 2) * 2);
       out[k] = this.settle(this.roomSize, k, wanted, now);
     }
     return out;

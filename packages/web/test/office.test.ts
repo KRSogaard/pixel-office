@@ -84,6 +84,13 @@ describe("planner", () => {
     expect(planner.plan(calm, 1000).rooms.library).toBe(8);
     expect(planner.plan(calm, 1000 + SHRINK_AFTER_MS).rooms.library).toBe(MIN_ROOMS.library);
   });
+
+  it("sizes rooms for agents still holding a spot there, not just by activity", () => {
+    const state = reduceAll(emptyState(), [ev({ kind: "tool.start", agentId: "a", callId: "c", tool: "Read", category: "read" })]);
+    const holders = new Set(Array.from({ length: 9 }, (_, i) => `h${i}`));
+    const rooms = new OfficePlanner().plan(state, 0, undefined, new Map([["library", new Set([...holders, "a"])]])).rooms;
+    expect(rooms.library).toBeGreaterThanOrEqual(11); // 10 agents (a counted once) + a spare
+  });
 });
 
 describe("allocator", () => {
@@ -111,6 +118,30 @@ describe("allocator", () => {
 
   it("has no seat for a session the office doesn't have yet", () => {
     expect(new Allocator(office).seatFor({ id: "x", sessionId: "nope" })).toBeUndefined();
+  });
+
+  it("moves a sub-agent to a free desk when its desk goes away, never onto someone else's", () => {
+    const a = new Allocator(generateOffice({ ...quiet, teams: [team("s1", "app", 9)] }));
+    const sub = (id: string) => ({ id, sessionId: "s1", parentId: "m" });
+    for (let i = 0; i < 9; i++) a.seatFor(sub(`w${i}`));
+    for (let i = 0; i < 7; i++) a.remove(`w${i}`); // w7 and w8 are left, on desks 8 and 9
+    const shrunk = generateOffice({ ...quiet, teams: [team("s1", "app", 3)] });
+    a.setOffice(shrunk);
+    const seats = ["w7", "w8", "n1"].map((id) => a.seatFor(sub(id)));
+    expect(new Set(seats).size).toBe(3);
+    for (const s of seats) expect(shrunk.teams[0]!.workerSeats).toContain(s);
+  });
+
+  it("notes who found a room full, so the planner can grow it", () => {
+    const a = new Allocator(office);
+    const n = office.spots.filter((s) => s.kind === "globe").length;
+    for (let i = 0; i < n; i++) a.reserve(`a${i}`, "globe", { x: 0, y: 0 });
+    expect(a.shortage).toBe(false);
+    a.reserve("late", "globe", { x: 0, y: 0 });
+    expect(a.shortage).toBe(true);
+    expect(a.claimants().get("globe")?.size).toBe(n + 1);
+    a.release("late");
+    expect(a.shortage).toBe(false);
   });
 
   it("spreads agents over shared spots", () => {

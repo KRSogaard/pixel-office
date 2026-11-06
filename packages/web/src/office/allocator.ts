@@ -13,11 +13,16 @@ export interface Seatable {
  *    (the slot index survives the office being regenerated; only its
  *    coordinates change);
  *  - shared spots (library, lounge, …) are reserved briefly so agents spread out.
+ *
+ * One agent per desk and per spot. The planner sizes the office from
+ * `claimants()`, so when a room runs out of spots it grows instead of agents
+ * doubling up.
  */
 export class Allocator {
   private slotOf = new Map<string, { sessionId: string; slot: number }>();
   private reserved = new Map<string, string>(); // spotKey → agentId
   private reservationOf = new Map<string, string>(); // agentId → spotKey
+  private wanting = new Map<string, SpotKind>(); // agentId → kind it found full
 
   constructor(private office: Office) {}
 
@@ -26,27 +31,35 @@ export class Allocator {
     this.office = office;
     this.reserved.clear();
     this.reservationOf.clear();
+    this.wanting.clear();
   }
 
   seatFor(agent: Seatable): Spot | undefined {
     const team = this.office.teams.find((t) => t.sessionId === agent.sessionId);
     if (!team) return undefined;
     if (!agent.parentId) return team.managerSeat;
+    const seats = team.workerSeats;
     let slot = this.slotOf.get(agent.id);
-    if (!slot) {
-      const taken = new Set([...this.slotOf.values()].filter((s) => s.sessionId === agent.sessionId).map((s) => s.slot));
+    // A new sub-agent, or one whose desk went away when the team area shrank:
+    // take the first free desk.
+    if (!slot || slot.slot >= seats.length) {
+      const taken = new Set(
+        [...this.slotOf.entries()].filter(([id, s]) => id !== agent.id && s.sessionId === agent.sessionId).map(([, s]) => s.slot),
+      );
       let i = 0;
       while (taken.has(i)) i++;
       slot = { sessionId: agent.sessionId, slot: i };
       this.slotOf.set(agent.id, slot);
     }
-    // More sub-agents than desks (until the office grows): share the last desk.
-    return team.workerSeats[slot.slot] ?? team.workerSeats[team.workerSeats.length - 1];
+    // The planner always leaves a free desk, so this only happens for a moment
+    // while the office catches up: share the last desk until it grows.
+    return seats[slot.slot] ?? seats[seats.length - 1];
   }
 
   /**
-   * Reserve the free spot of `kind` closest to `near`. Falls back to sharing the
-   * closest spot when every one is taken.
+   * Reserve the free spot of `kind` closest to `near`. When every one is taken
+   * the agent is noted as wanting one (see `shortage`) and shares the closest
+   * spot until the office grows.
    */
   reserve(agentId: string, kind: SpotKind, near: { x: number; y: number }): Spot | undefined {
     const current = this.reservationOf.get(agentId);
@@ -63,11 +76,35 @@ export class Allocator {
     if (free[0]) {
       this.reserved.set(key(spot), agentId);
       this.reservationOf.set(agentId, key(spot));
+    } else {
+      this.wanting.set(agentId, kind);
     }
     return spot;
   }
 
+  /** Some agent asked for a spot and found every one taken. */
+  get shortage(): boolean {
+    return this.wanting.size > 0;
+  }
+
+  /** Who holds or wants a shared spot, by kind: what the rooms must fit. */
+  claimants(): Map<SpotKind, Set<string>> {
+    const out = new Map<SpotKind, Set<string>>();
+    const add = (kind: SpotKind, agentId: string) => {
+      let ids = out.get(kind);
+      if (!ids) out.set(kind, (ids = new Set()));
+      ids.add(agentId);
+    };
+    for (const [agentId, k] of this.reservationOf) {
+      const spot = this.spotByKey(k);
+      if (spot) add(spot.kind, agentId);
+    }
+    for (const [agentId, kind] of this.wanting) add(kind, agentId);
+    return out;
+  }
+
   release(agentId: string): void {
+    this.wanting.delete(agentId);
     const k = this.reservationOf.get(agentId);
     if (k) {
       this.reserved.delete(k);

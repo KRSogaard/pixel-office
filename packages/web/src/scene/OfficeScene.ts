@@ -220,6 +220,8 @@ export class OfficeScene extends Phaser.Scene {
       points.set(id, this.toScreen(actor.c.x, actor.c.y - 27, cam));
       if (actor.c.destination?.pose === "type" && actor.c.arrived && Math.random() < 0.05) this.deps.sfx.click();
     }
+    // Someone found a room full: grow it now rather than have them share a spot.
+    if (this.allocator.shortage) this.replan(this.deps.store.state, true);
     this.visitors.update(Math.min(delta, 100), time);
     for (const [id, at] of this.visitorTags) points.set(id, this.toScreen(at.x, at.y - 27, cam));
     this.deps.overlay.placeAll(points, time);
@@ -486,7 +488,7 @@ export class OfficeScene extends Phaser.Scene {
    * resizes wait for a short cooldown so the office doesn't twitch.
    */
   private replan(state: OfficeState, force = false): void {
-    const plan = this.planner.plan(state, this.now, this.deps.store.settings);
+    const plan = this.planner.plan(state, this.now, this.deps.store.settings, this.allocator.claimants());
     const key = planKey(plan);
     if (key === this.builtKey) return;
     const teams = JSON.stringify(plan.teams.map((t) => t && [t.sessionId, t.workerSlots]));
