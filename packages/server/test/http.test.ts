@@ -74,14 +74,16 @@ describe("ingest", () => {
     expect(hub.snapshot.agents["claude:abc"]).toBeDefined();
   });
 
-  it("ignores sessions in mktemp folders (tmp.XXXXXXXXXX)", async () => {
+  it("ignores background sessions: mktemp folders (tmp.XXXXXXXXXX) and claude-mem's observer", async () => {
     const { app, hub } = setup();
     const h = { authorization: "Bearer tok-123", "content-type": "application/json" };
     const start = (id: string, cwd: string) =>
       app.request("/ingest/claude", { method: "POST", body: JSON.stringify({ session_id: id, cwd, hook_event_name: "SessionStart", source: "startup" }), headers: h });
     expect((await start("tmp", "/var/folders/xy/T/tmp.Ab3dEf9Gh1")).status).toBe(204);
+    await start("observer", "/Users/kasper/.claude-mem/observer-sessions");
     await start("real", "/code/my-tmp.app"); // "tmp." only counts at the start of the folder name
     expect(hub.snapshot.agents["claude:tmp"]).toBeUndefined();
+    expect(hub.snapshot.agents["claude:observer"]).toBeUndefined();
     expect(hub.snapshot.agents["claude:real"]).toBeDefined();
   });
 

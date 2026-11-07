@@ -22,12 +22,16 @@ export function validEvents(candidates: unknown[]): AgentEvent[] {
 }
 
 /**
- * Sessions in a throwaway folder made by `mktemp -d` (named `tmp.XXXXXXXXXX`),
- * e.g. scripts and tools that start an agent for a few seconds. They'd only
- * pop in and out of the office, so they're left out.
+ * Background sessions that would only pop in and out of the office, so
+ * they're left out:
+ *  - a throwaway folder made by `mktemp -d` (named `tmp.XXXXXXXXXX`), e.g.
+ *    scripts and tools that start an agent for a few seconds;
+ *  - `observer-sessions`: the claude-mem plugin's background agent
+ *    (~/.claude-mem/observer-sessions), which watches real sessions to take notes.
  */
 export function isThrowawaySession(event: AgentEvent): boolean {
-  return event.project.name.startsWith("tmp.");
+  const name = event.project.name;
+  return name.startsWith("tmp.") || name === "observer-sessions";
 }
 
 export interface Adapter {
