@@ -21,6 +21,15 @@ export function validEvents(candidates: unknown[]): AgentEvent[] {
   return out;
 }
 
+/**
+ * Sessions in a throwaway folder made by `mktemp -d` (named `tmp.XXXXXXXXXX`),
+ * e.g. scripts and tools that start an agent for a few seconds. They'd only
+ * pop in and out of the office, so they're left out.
+ */
+export function isThrowawaySession(event: AgentEvent): boolean {
+  return event.project.name.startsWith("tmp.");
+}
+
 export interface Adapter {
   /** Turns one native payload into zero or more normalized events. */
   toEvents(payload: unknown, now: number): AgentEvent[];

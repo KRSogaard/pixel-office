@@ -6,6 +6,7 @@ import { Hono, type Context } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import type { Adapter } from "./adapters/index.js";
+import { isThrowawaySession } from "./adapters/common.js";
 import type { Config } from "./config.js";
 import type { Hub } from "./hub.js";
 import type { SettingsStore } from "./settings.js";
@@ -183,7 +184,8 @@ export function createApp(deps: AppDeps): Hono {
       }
       const now = clock();
       if (person) users?.touch(person.id, now);
-      hub.apply(adapter.toEvents(payload, now).map((e) => stampUser(e, person?.name)));
+      const events = adapter.toEvents(payload, now).filter((e) => !isThrowawaySession(e));
+      hub.apply(events.map((e) => stampUser(e, person?.name)));
       return c.body(null, 204);
     },
   );

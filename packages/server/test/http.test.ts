@@ -74,6 +74,17 @@ describe("ingest", () => {
     expect(hub.snapshot.agents["claude:abc"]).toBeDefined();
   });
 
+  it("ignores sessions in mktemp folders (tmp.XXXXXXXXXX)", async () => {
+    const { app, hub } = setup();
+    const h = { authorization: "Bearer tok-123", "content-type": "application/json" };
+    const start = (id: string, cwd: string) =>
+      app.request("/ingest/claude", { method: "POST", body: JSON.stringify({ session_id: id, cwd, hook_event_name: "SessionStart", source: "startup" }), headers: h });
+    expect((await start("tmp", "/var/folders/xy/T/tmp.Ab3dEf9Gh1")).status).toBe(204);
+    await start("real", "/code/my-tmp.app"); // "tmp." only counts at the start of the folder name
+    expect(hub.snapshot.agents["claude:tmp"]).toBeUndefined();
+    expect(hub.snapshot.agents["claude:real"]).toBeDefined();
+  });
+
   it("accepts x-po-token, 404s unknown sources, 400s bad JSON, 413s huge bodies", async () => {
     const { app } = setup();
     const h = { "x-po-token": "tok-123", "content-type": "application/json" };
