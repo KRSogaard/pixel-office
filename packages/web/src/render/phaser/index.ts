@@ -6,6 +6,7 @@ import type { WorldEvent } from "../../world/events.js";
 import type { World } from "../../world/world.js";
 import type { Renderer, RendererInput } from "../renderer.js";
 import { BinsView } from "./bins.js";
+import { BotsView } from "./bots.js";
 import { BugsView, DronesView, PetView } from "./critters.js";
 import { WallDecor } from "./decor.js";
 import { confetti, fire, poof, printPages, puff, sweat } from "./effects.js";
@@ -92,6 +93,7 @@ class FlatOffice extends Phaser.Scene {
   private links!: Phaser.GameObjects.Graphics;
   private figures = new Map<string, Figure>();
   private bins!: BinsView;
+  private bots!: BotsView;
   private bugs!: BugsView;
   private drones!: DronesView;
   private pet!: PetView;
@@ -121,6 +123,7 @@ class FlatOffice extends Phaser.Scene {
     this.paintBackground();
     this.links = this.add.graphics().setDepth(99_999);
     this.bins = new BinsView(this);
+    this.bots = new BotsView(this, (id) => this.world.colorOf(id));
     this.lighting = new Lighting(this);
     this.lighting.resize(w.office.width * TILE, w.office.height * TILE);
     this.pet = new PetView(this, w.pet);
@@ -143,6 +146,7 @@ class FlatOffice extends Phaser.Scene {
     const w = this.world;
     this.syncFigures(delta, time);
     this.bins.update(w.bins(), time);
+    this.bots.update(w.bots.list, time);
     this.drawTeamLinks(time);
     this.pet.update(time);
     this.boxes.update(w.extras.boxes);

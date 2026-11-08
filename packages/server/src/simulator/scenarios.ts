@@ -88,6 +88,17 @@ class Script {
   close(w: Who, callId: string, d = 400, ok = true) {
     return this.at(d, { ...w, kind: "tool.end", callId, ok });
   }
+  /** A command left running in the background (its call returns at once); returns the job's id. */
+  background(w: Who, command: string, label: string, d = 400): string {
+    const callId = this.open(w, "Bash", { command, description: label, run_in_background: true }, d);
+    this.at(50, { ...w, kind: "job.start", callId, summary: summarizeTool("Bash", { command }), label });
+    this.at(300, { ...w, kind: "tool.end", callId, ok: true });
+    return callId;
+  }
+  /** A background command finishes (reported when the agent's next turn ends). */
+  jobDone(w: Who, callId: string, ok: boolean, d = 400) {
+    return this.at(d, { ...w, kind: "job.end", callId, ok });
+  }
 }
 
 /** Interleaves several scripts by absolute time so agents act in parallel. */
@@ -322,7 +333,27 @@ const fun: Scenario = (loop) => {
   return merge(a, b, c);
 };
 
+/** Builds and test runs left running in the background: robots go out, agents wait at their desks. */
+const background: Scenario = (loop) => {
+  const a = agent("claude", `kai-${loop}`, "pixel-office");
+  const b = agent("claude", `lena-${loop}`, "magicdoor-api");
+  const sa = new Script(loop * 10 + 1).start(a, 300).prompt(a, "Build it and run the whole test suite");
+  sa.tool(a, "Read", { file_path: "package.json" }, 1500);
+  const build = sa.background(a, "pnpm build", "building", 600);
+  const tests = sa.background(a, "pnpm test", "testing", 800);
+  // Turn over: nothing to do but wait for the two jobs.
+  sa.idle(a, 1500);
+  sa.jobDone(a, build, true, 20_000).at(200, { ...a, kind: "busy" }).tool(a, "Read", { file_path: "dist/index.html" }, 1500).idle(a, 600);
+  sa.jobDone(a, tests, true, 15_000).at(200, { ...a, kind: "busy" }).idle(a, 1500).end(a, 8000);
+  const sb = new Script(loop * 10 + 2).start(b, 2000).prompt(b, "Run the integration tests in the background while you fix the linter");
+  const it = sb.background(b, "pnpm vitest run --project integration", "integration tests", 800);
+  sb.tool(b, "Edit", { file_path: "src/lint.ts" }, 4000).tool(b, "Bash", { command: "pnpm lint" }, 3000).idle(b, 800);
+  sb.jobDone(b, it, false, 18_000).at(200, { ...b, kind: "busy" }).idle(b, 1500).end(b, 8000);
+  return merge(sa, sb);
+};
+
 export const SCENARIOS: Record<string, Scenario> = {
+  background,
   fun,
   "busy-day": busyDay,
   "delegation-tree": delegationTree,

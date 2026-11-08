@@ -63,6 +63,7 @@ const ICONS: [Activity, string][] = [
   ["delegate", "Handing work to sub-agents"],
   ["message", "Talking to another agent"],
   ["waiting", "Needs you"],
+  ["background", "Waiting at its desk for a background job (a build, a test run)"],
   ["compact", "Compacting its context"],
   ["other", "Some other tool"],
   ["idle", "Idle"],
@@ -71,6 +72,7 @@ const ICONS: [Activity, string][] = [
 const EVENTS: Row[] = [
   { name: "Rocket launch", what: "Someone pushed, opened a PR or made a release. The git room's sign counts the launches." },
   { name: "Confetti + arms up", what: "A test run passed." },
+  { name: "Little robot", what: "A command running in the background (a build, a test run). It works in the test lab or the server room while its agent waits at its desk (⏳), then rolls back with ✓ or ✗." },
   { name: "Lab bench on fire", what: "Two failed test runs in a row. “This is fine.”" },
   { name: "Sweat + 😱", what: "Someone ran a scary command (rm -rf, --force, reset --hard, DROP TABLE, sudo…). Coworkers gasp." },
   { name: "Courier", what: "An agent used a connected service (MCP): an envelope arrives from the mailroom." },

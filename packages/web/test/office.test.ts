@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { agentEventSchema, emptyState, reduceAll, type AgentEventInput } from "@pixel-office/protocol";
 import { Allocator } from "../src/office/allocator.js";
 import { MIN_DWELL_MS, PlaceDebouncer, placeFor, SETTLE_MS } from "../src/office/director.js";
-import { MIN_ROOMS, generateOffice, type OfficePlan } from "../src/office/generate.js";
+import { MIN_ROOMS, WORKERS_PER_ROW, generateOffice, type OfficePlan } from "../src/office/generate.js";
 import { findPath } from "../src/office/pathfind.js";
 import { OfficePlanner, SHRINK_AFTER_MS } from "../src/office/planner.js";
 
@@ -20,12 +20,14 @@ describe("office generator", () => {
   });
 
   it("gives each session a manager's chair and its worker desks", () => {
-    const office = generateOffice({ ...quiet, teams: [team("s1", "app", 6), team("s2")] });
+    const office = generateOffice({ ...quiet, teams: [team("s1", "app", 2 * WORKERS_PER_ROW), team("s2")] });
     expect(office.teams).toHaveLength(2);
     const [a, b] = office.teams;
     expect(a!.managerSeat.kind).toBe("manager");
-    expect(a!.workerSeats).toHaveLength(6);
-    expect(b!.workerSeats).toHaveLength(3);
+    expect(a!.workerSeats).toHaveLength(2 * WORKERS_PER_ROW);
+    expect(b!.workerSeats).toHaveLength(WORKERS_PER_ROW);
+    // Each worker sits right in front of their own one-monitor desk.
+    for (const s of a!.workerSeats) expect(office.tiles[s.y - 1]![s.x]).toBe("d");
     expect(office.tiles[a!.managerSeat.y - 1]![a!.managerSeat.x]).toBe("E");
   });
 
@@ -63,13 +65,14 @@ describe("planner", () => {
   it("makes one team per session, sized for its sub-agents plus a free desk", () => {
     const state = reduceAll(emptyState(), [
       ev({ kind: "session.start", agentId: "main" }),
-      ...[1, 2, 3].map((i) => ev({ kind: "session.start", agentId: `sub${i}`, parentAgentId: "main" })),
+      // One more agent than a row of desks holds: a second row.
+      ...Array.from({ length: WORKERS_PER_ROW }, (_, i) => ev({ kind: "session.start", agentId: `sub${i}`, parentAgentId: "main" })),
       ev({ kind: "session.start", agentId: "other", sessionId: "s2" }),
     ]);
     const plan = new OfficePlanner().plan(state, 0);
     expect(plan.teams.map((x) => [x!.sessionId, x!.workerSlots])).toEqual([
-      ["s1", 6],
-      ["s2", 3],
+      ["s1", 2 * WORKERS_PER_ROW],
+      ["s2", WORKERS_PER_ROW],
     ]);
   });
 

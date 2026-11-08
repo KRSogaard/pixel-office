@@ -21,7 +21,8 @@ export const pixelPack: ArtPack = {
   prop: () => undefined,
   visitors: ["ceo", "trump", "consultant", "intern", "auditor", "investor", "grandpa"],
   pixelProps: true,
-  screen: { dx: 10, dy: -14, w: 12, h: 7 },
+  // The screen of the one-monitor desk above the seat (see "d" in tiles.ts).
+  screen: { dx: 3, dy: -14, w: 10, h: 7 },
 };
 
 const skin = { skin: "#f6d3b3", skinShade: "#e3b48f" };

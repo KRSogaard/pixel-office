@@ -182,6 +182,11 @@ export function createApp(deps: AppDeps): Hono {
       if (branch && payload && typeof payload === "object" && !Array.isArray(payload)) {
         (payload as Record<string, unknown>)._git_branch = branch;
       }
+      // …and background commands that finished, found in the transcript: "toolu_1:completed,toolu_2:failed".
+      const jobs = c.req.header("x-po-jobs");
+      if (jobs && payload && typeof payload === "object" && !Array.isArray(payload)) {
+        (payload as Record<string, unknown>)._jobs = parseJobs(jobs);
+      }
       const now = clock();
       if (person) users?.touch(person.id, now);
       const events = adapter.toEvents(payload, now).filter((e) => !isThrowawaySession(e));
@@ -198,7 +203,7 @@ export function createApp(deps: AppDeps): Hono {
   };
   app.get("/login", (c) => (authed(c) ? c.redirect("/") : c.html(loginPage(LOGIN_ERRORS[c.req.query("e") ?? ""]))));
 
-  // Log in with your name and your personal token (the one in your Claude plugin).
+  // Log in with your name and your own password, or your personal token (the one in your Claude plugin).
   // The admin token works too (name ignored) — the setup / emergency key. Until
   // someone has the admin role, the old shared password still works as well.
   app.post("/login", async (c) => {
@@ -207,10 +212,10 @@ export function createApp(deps: AppDeps): Hono {
     const name = typeof form.name === "string" ? form.name.trim() : "";
     // `password` is the field name older login pages used.
     const secret = typeof form.token === "string" ? form.token.trim() : typeof form.password === "string" ? form.password : "";
-    const fail = () => c.html(loginPage("That name and token don't match.", name), 401);
+    const fail = () => c.html(loginPage("That name and password (or token) don't match.", name), 401);
     if (!secret) return fail();
 
-    const person = users?.findUserByToken(secret);
+    const person = users?.findUserByToken(secret) ?? (name ? users?.findUserByPassword(name, secret) : undefined);
     if (person) {
       if (person.name.toLowerCase() !== name.toLowerCase()) return fail();
       attempts.delete(clientIp(c));
@@ -255,7 +260,7 @@ export function createApp(deps: AppDeps): Hono {
     const s = session(c);
     if (!s) return c.body(null, 401);
     const person = s.userId ? users?.getUser(s.userId) : undefined;
-    const me: Me = { role: s.role, ...(person ? { user: { id: person.id, name: person.name } } : {}) };
+    const me: Me = { role: s.role, ...(person ? { user: { id: person.id, name: person.name, ...(person.hasPassword ? { hasPassword: true } : {}) } } : {}) };
     return c.json(me);
   });
 
@@ -267,6 +272,29 @@ export function createApp(deps: AppDeps): Hono {
     if (c.req.header("x-po-csrf") !== "1") return c.body(null, 403);
     const token = users?.regenerateUserToken(s.userId);
     return token ? c.json({ token }) : c.body(null, 404);
+  });
+
+  // A person sets or changes their own password. Changing it needs the current one.
+  app.post("/api/me/password", bodyLimit({ maxSize: 1024, onError: (c) => c.body(null, 413) }), async (c) => {
+    const s = session(c);
+    if (!s) return c.body(null, 401);
+    if (!s.userId || !users) return c.body(null, 403);
+    if (c.req.header("x-po-csrf") !== "1") return c.body(null, 403);
+    const body = (await c.req.json().catch(() => ({}))) as { current?: unknown; password?: unknown };
+    if (users.getUser(s.userId)?.hasPassword) {
+      if (!allowAttempt(c)) return c.json({ error: "Too many attempts. Try again in a few minutes." }, 429);
+      if (typeof body.current !== "string" || !users.checkPassword(s.userId, body.current)) {
+        return c.json({ error: "Your current password isn't right." }, 403);
+      }
+      attempts.delete(clientIp(c));
+    }
+    try {
+      const user = users.setPassword(s.userId, body.password);
+      return user ? c.body(null, 204) : c.body(null, 404);
+    } catch (err) {
+      if (err instanceof UserError) return c.json({ error: err.message }, 400);
+      throw err;
+    }
   });
 
   app.post("/logout", (c) => {
@@ -334,6 +362,13 @@ export function createApp(deps: AppDeps): Hono {
       if (err instanceof UserError) return c.json({ error: err.message }, 400);
       throw err;
     }
+  });
+
+  // An admin clears someone's forgotten password: they log in with their token again and pick a new one.
+  app.delete("/api/users/:id/password", (c) => {
+    const denied = requireAdmin(c, true);
+    if (denied) return denied;
+    return users?.clearPassword(c.req.param("id")) ? c.body(null, 204) : c.body(null, 404);
   });
 
   app.delete("/api/users/:id", (c) => {
@@ -411,4 +446,14 @@ async function resolveStatic(root: string, urlPath: string): Promise<string | un
 function stampUser(e: AgentEvent, user: string | undefined): AgentEvent {
   const { user: _ignored, ...rest } = e;
   return (user ? { ...rest, user } : rest) as AgentEvent;
+}
+
+/** The x-po-jobs header: finished background commands as tool call id → status (at most 50). */
+export function parseJobs(header: string): { callId: string; status: string }[] {
+  return header
+    .split(",")
+    .slice(0, 50)
+    .map((pair) => pair.trim().split(":"))
+    .filter((p): p is [string, string] => p.length === 2 && /^[A-Za-z0-9_-]{1,200}$/.test(p[0]!) && /^[a-z_]{1,20}$/.test(p[1]!))
+    .map(([callId, status]) => ({ callId, status }));
 }

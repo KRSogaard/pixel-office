@@ -1122,6 +1122,35 @@ body:not(.admin) .admin-only {
   margin: 0;
 }
 
+/* Set / change your own password. */
+#me .me-password {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 10px 0;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+}
+#me .me-password p {
+  margin: 0;
+}
+#me .me-password input {
+  font: inherit;
+  color: inherit;
+  background: #11151c;
+  border: 1px solid var(--line);
+  padding: 3px 6px;
+}
+#me .me-password button {
+  align-self: flex-start;
+}
+#me .me-password .ok {
+  color: #6fd08c;
+}
+#me .me-password .error {
+  color: #ff7a7a;
+}
+
 .hud-me {
   font: inherit;
   padding: 2px 8px;
@@ -1153,6 +1182,29 @@ body:not(.admin) .admin-only {
 
 #people .err {
   color: var(--hot);
+}
+
+/* Name tag modes (the "Tags" dropdown). Compact: just a dot in the session's
+   colour over each head (speech bubbles still show). None: no tags or bubbles. */
+body.tags-none .tag {
+  display: none;
+}
+body.tags-compact .tag-line,
+body.tags-compact .tag-why {
+  display: none;
+}
+body.tags-compact .tag-card {
+  width: 0.9em;
+  height: 0.9em;
+  border: 2px solid rgba(20, 22, 30, 0.85);
+  border-radius: 50%;
+  background: var(--session, #9097a6);
+}
+body.tags-compact .tag.mine .tag-card {
+  box-shadow: 0 0 0 2px #f0c45a;
+}
+body.tags-compact .tag.lifted::after {
+  display: none;
 }
 
 /* TV mode: a screen on the wall. */

@@ -1,6 +1,6 @@
 {
   "name": "pixel-office",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Shows your Claude Code sessions as little people in a self-hosted pixel-art office. Sends hook events to your pixel-office server; costs the model zero tokens.",
   "author": { "name": "Kasper Sogaard" },
   "license": "MIT",

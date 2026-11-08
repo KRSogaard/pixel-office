@@ -97,6 +97,22 @@ export const agentEventSchema = z.discriminatedUnion("kind", [
   z.object({ ...base, kind: z.literal("todos"), items: z.array(todoItem).max(100) }),
   /** One todo added or changed (Claude TaskCreated / TaskCompleted). */
   z.object({ ...base, kind: z.literal("todo"), item: todoItem }),
+  /**
+   * A command the agent started in the background (a build, a test run…): it
+   * keeps running after the tool call returns, while the agent waits or does
+   * other work. `callId` is the tool call that started it.
+   */
+  z.object({
+    ...base,
+    kind: z.literal("job.start"),
+    callId: id,
+    /** The command, summarized like a tool call ("Bash: pnpm test"). */
+    summary: text,
+    /** What it's for, in a few words ("Run the test suite"), when the agent said. */
+    label: text.optional(),
+  }),
+  /** A background command finished (`ok`: it succeeded; false: it failed or was stopped). */
+  z.object({ ...base, kind: z.literal("job.end"), callId: id, ok: z.boolean() }),
 ]);
 
 export type AgentEvent = z.output<typeof agentEventSchema>;
@@ -198,6 +214,8 @@ export interface OfficeUser {
   createdAt: number;
   /** Last time one of their agents sent an event. */
   lastSeenAt?: number;
+  /** They've set their own password (they can log in with it as well as their token). */
+  hasPassword?: boolean;
 }
 
 /** A read-only link for a screen (TV) in the office. */
@@ -219,7 +237,7 @@ export type Role = "admin" | "member" | "viewer";
 export interface Me {
   role: Role;
   /** The logged-in person, if it's a person (not the admin token or a TV). */
-  user?: { id: string; name: string };
+  user?: { id: string; name: string; hasPassword?: boolean };
 }
 
 /** Messages the server sends to browsers over the WebSocket. */

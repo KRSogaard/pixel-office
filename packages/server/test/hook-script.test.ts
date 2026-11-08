@@ -27,7 +27,7 @@ function runHook(env: Record<string, string>, input = payload): Promise<{ status
 describe("po-hook.sh", () => {
   let server: Server;
   let port = 0;
-  const received: { auth?: string; context?: string; branch?: string; body: string }[] = [];
+  const received: { auth?: string; context?: string; branch?: string; jobs?: string; body: string }[] = [];
 
   beforeAll(async () => {
     server = createServer((req, res) => {
@@ -36,7 +36,9 @@ describe("po-hook.sh", () => {
       req.on("end", () => {
         const context = req.headers["x-po-context-tokens"];
         const branch = req.headers["x-po-git-branch"];
+        const jobs = req.headers["x-po-jobs"];
         received.push({
+          ...(typeof jobs === "string" ? { jobs } : {}),
           ...(req.headers.authorization ? { auth: req.headers.authorization } : {}),
           ...(typeof context === "string" ? { context } : {}),
           ...(typeof branch === "string" ? { branch } : {}),
@@ -50,6 +52,25 @@ describe("po-hook.sh", () => {
     port = (server.address() as { port: number }).port;
   });
   afterAll(() => server.close());
+
+  it("on Stop, reports the background commands the transcript says have finished", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "po-hook-"));
+    const transcript = join(dir, "t.jsonl");
+    const note = (task: string, call: string, status: string) =>
+      JSON.stringify({ type: "queue-operation", content: `<task-notification>\n<task-id>${task}</task-id>\n<tool-use-id>${call}</tool-use-id>\n<output-file>/tmp/x/${task}.output</output-file>\n<status>${status}</status>\n<summary>Background command "Run tests" completed (exit code 0)</summary>\n</task-notification>` });
+    writeFileSync(transcript, [note("b1", "toolu_01AAA", "completed"), note("b2", "toolu_01BBB", "failed"), note("b1", "toolu_01AAA", "completed")].join("\n") + "\n");
+    const stop = JSON.stringify({ session_id: "abc", cwd: "/x", hook_event_name: "Stop", transcript_path: transcript });
+    const r = await runHook({ CLAUDE_PLUGIN_OPTION_SERVER_URL: `http://127.0.0.1:${port}`, CLAUDE_PLUGIN_OPTION_TOKEN: "tok", TMPDIR: join(dir, "elsewhere") }, stop);
+    expect(r.stdout).toBe("");
+    expect(received.at(-1)?.jobs).toBe("toolu_01AAA:completed,toolu_01BBB:failed");
+
+    // The next turn ends: only what finished since then is reported.
+    writeFileSync(transcript, note("b3", "toolu_01CCC", "completed") + "\n", { flag: "a" });
+    await runHook({ CLAUDE_PLUGIN_OPTION_SERVER_URL: `http://127.0.0.1:${port}`, CLAUDE_PLUGIN_OPTION_TOKEN: "tok", TMPDIR: dir }, stop);
+    await runHook({ CLAUDE_PLUGIN_OPTION_SERVER_URL: `http://127.0.0.1:${port}`, CLAUDE_PLUGIN_OPTION_TOKEN: "tok", TMPDIR: dir }, stop);
+    expect(received.at(-1)?.jobs).toBeUndefined();
+    expect(received.at(-2)?.jobs).toBe("toolu_01AAA:completed,toolu_01BBB:failed,toolu_01CCC:completed");
+  });
 
   it("forwards the payload with the token and prints nothing", async () => {
     const r = await runHook({ CLAUDE_PLUGIN_OPTION_SERVER_URL: `http://127.0.0.1:${port}/`, CLAUDE_PLUGIN_OPTION_TOKEN: "tok" });

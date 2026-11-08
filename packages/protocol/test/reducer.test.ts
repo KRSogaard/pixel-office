@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { emptyState, reduceAll, type AgentEventInput, agentEventSchema, ENDED_RETENTION_MS } from "../src/index.js";
+import { emptyState, reduceAll, type AgentEventInput, agentEventSchema, ENDED_RETENTION_MS, JOB_GIVE_UP_MS } from "../src/index.js";
 
 const project = { path: "/code/app", name: "app" };
 let t = 1_000;
@@ -9,6 +9,47 @@ function ev(e: Omit2<AgentEventInput, "ts" | "source" | "project" | "sessionId">
 }
 
 describe("reduce", () => {
+  it("background jobs: the agent waits on them instead of going idle, and their end counts like a test run", () => {
+    const s = reduceAll(emptyState(), [
+      ev({ kind: "prompt", agentId: "a", text: "build and test" }),
+      ev({ kind: "tool.start", agentId: "a", callId: "c1", tool: "Bash", category: "shell", summary: "Bash: pnpm test" }),
+      ev({ kind: "job.start", agentId: "a", callId: "c1", summary: "Bash: pnpm test", label: "testing" }),
+      ev({ kind: "tool.end", agentId: "a", callId: "c1", ok: true }),
+      ev({ kind: "idle", agentId: "a" }),
+    ]);
+    const a = s.agents.a!;
+    expect(a.activity).toBe("background");
+    expect(a.status).toBe("working");
+    expect(a.jobs).toEqual([expect.objectContaining({ callId: "c1", label: "testing" })]);
+    expect(a.lastWinAt).toBeUndefined(); // the tool call returning isn't the tests passing
+
+    // The job ends (reported at the end of the turn it woke the agent for).
+    const s2 = reduceAll(s, [ev({ kind: "job.end", agentId: "a", callId: "c1", ok: true })]);
+    expect(s2.agents.a!.activity).toBe("idle");
+    expect(s2.agents.a!.jobs![0]).toMatchObject({ ok: true });
+    expect(s2.agents.a!.lastWinAt).toBeDefined();
+
+    // Reported again on a later turn end: nothing new.
+    const win = s2.agents.a!.lastWinAt;
+    const s3 = reduceAll(s2, [ev({ kind: "job.end", agentId: "a", callId: "c1", ok: false })]);
+    expect(s3.agents.a!.lastWinAt).toBe(win);
+    expect(s3.agents.a!.lastErrorAt).toBeUndefined();
+  });
+
+  it("background jobs: a failed one is an error; jobs never heard from again stop counting", () => {
+    const s = reduceAll(emptyState(), [
+      ev({ kind: "job.start", agentId: "a", callId: "j1", summary: "Bash: make" }),
+      ev({ kind: "job.start", agentId: "a", callId: "j2", summary: "Bash: make docs" }),
+      ev({ kind: "job.end", agentId: "a", callId: "j1", ok: false }),
+      ev({ kind: "idle", agentId: "a" }),
+    ]);
+    expect(s.agents.a!.lastErrorAt).toBeDefined();
+    expect(s.agents.a!.activity).toBe("background"); // j2 still runs
+    t += JOB_GIVE_UP_MS;
+    const later = reduceAll(s, [ev({ kind: "idle", agentId: "a" })]);
+    expect(later.agents.a!.activity).toBe("idle");
+  });
+
   it("creates an agent on first event and tracks a prompt → tool → idle turn", () => {
     const s = reduceAll(emptyState(), [
       ev({ kind: "session.start", agentId: "a" }),

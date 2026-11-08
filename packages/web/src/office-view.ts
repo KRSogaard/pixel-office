@@ -20,6 +20,8 @@ export interface OfficeViewDeps {
 const TAG_LIFT = 27;
 /** …and for someone lying on a stretcher. */
 const TAG_LIFT_LYING = 14;
+/** …and over a job robot (they're small). */
+const TAG_LIFT_BOT = 16;
 
 /**
  * The office on screen: the world (what happens), a renderer (how it looks)
@@ -103,6 +105,15 @@ export class OfficeView {
       if (!this.shownVisitors.has(v.id)) overlay.ensure(visitorRecord(v.id, v.name), {}, () => {});
       points.set(v.id, this.at(v.person.x, v.person.y, TAG_LIFT));
     }
+    // Job robots: what the job is and how long it's been going.
+    for (const b of w.bots.list) {
+      visiting.add(b.id);
+      const owner = w.actors.get(b.agentId)?.agent;
+      const what = b.job.label ?? b.job.summary.replace(/^\w+: /, "");
+      const ran = b.result === undefined ? ` · ${elapsed(Date.now() - b.job.startedAt)}` : "";
+      overlay.ensure({ ...visitorRecord(b.id, `🤖 ${what}${ran}`), ...(owner?.user ? { user: owner.user } : {}) }, { sessionColor: w.colorOf(b.sessionId) }, () => this.deps.onSelect(b.agentId));
+      points.set(b.id, this.at(b.person.x, b.person.y, TAG_LIFT_BOT));
+    }
     for (const id of this.shownVisitors) if (!visiting.has(id)) overlay.remove(id);
     this.shownVisitors = visiting;
 
@@ -174,6 +185,15 @@ export class OfficeView {
 /** The bottom middle of a whiteboard (two tiles wide), where its todo badge sits. */
 function whiteboardCorner(wb: Point): [number, number] {
   return [(wb.x + 1) * TILE, (wb.y + 1) * TILE];
+}
+
+/** "42s", "12m", "1h05". */
+function elapsed(ms: number): string {
+  const s = Math.max(0, Math.floor(ms / 1000));
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m`;
+  return `${Math.floor(m / 60)}h${String(m % 60).padStart(2, "0")}`;
 }
 
 /** A visitor as an agent-shaped record, so it gets a regular name tag. */

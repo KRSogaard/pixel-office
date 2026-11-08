@@ -19,6 +19,7 @@ const STATUS_ICON: Record<Activity, string> = {
   message: "💬",
   compact: "🗄",
   waiting: "!",
+  background: "⏳",
   idle: "z",
   ended: "👋",
 };

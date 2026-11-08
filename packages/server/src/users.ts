@@ -2,12 +2,14 @@ import { createHash, randomBytes, randomUUID, timingSafeEqual } from "node:crypt
 import { existsSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { DisplayLink, OfficeUser } from "@pixel-office/protocol";
+import { hashPassword, verifyPassword } from "./secrets.js";
 
 /**
  * People and screens, saved as DATA_DIR/users.json.
  *
  *  - A person has their own ingest token; events sent with it are labelled
- *    with their name.
+ *    with their name. They log in with their name and that token, or with a
+ *    password they chose themselves (the token stays the plugin's key).
  *  - A display link is a read-only key for a screen (a TV in the office):
  *    opening /tv?key=… once logs that browser in as a viewer.
  *
@@ -24,6 +26,8 @@ interface StoredUser {
   /** Missing in users.json from older versions → "member". */
   role?: PersonRole;
   tokenHash: string;
+  /** Their own password for logging in (scrypt), if they've set one. */
+  passwordHash?: string;
   createdAt: number;
   lastSeenAt?: number;
 }
@@ -87,6 +91,15 @@ function cleanRole(role: unknown): PersonRole {
   if (role === undefined || role === null || role === "") return "member";
   if (role === "admin" || role === "member") return role;
   throw new UserError("invalid", 'role must be "admin" or "member"');
+}
+
+/** A password someone picked: 8–200 characters. */
+export const PASSWORD_MIN = 8;
+function cleanPassword(password: unknown): string {
+  if (typeof password !== "string") throw new UserError("invalid", "password must be a string");
+  if (password.length < PASSWORD_MIN) throw new UserError("invalid", `password must be at least ${PASSWORD_MIN} characters`);
+  if (password.length > 200) throw new UserError("invalid", "password must be at most 200 characters");
+  return password;
 }
 
 function cleanName(name: unknown): string {
@@ -183,6 +196,43 @@ export class UsersStore {
     // Compare against every stored hash so timing doesn't reveal which one matched.
     for (const u of this.data.users) if (sameHash(h, u.tokenHash)) found = u;
     return found && publicUser(found);
+  }
+
+  /** The person with this name, if they've set a password and it's this one. */
+  findUserByPassword(name: string, password: string): OfficeUser | undefined {
+    this.refresh();
+    const u = this.findByName(this.data.users, name);
+    // A miss still costs one scrypt, so timing doesn't tell who has a password.
+    const ok = verifyPassword(password, u?.passwordHash ?? DUMMY_HASH);
+    return u?.passwordHash && ok ? publicUser(u) : undefined;
+  }
+
+  /** Is `password` this person's current password? */
+  checkPassword(id: string, password: string): boolean {
+    this.refresh();
+    const u = this.data.users.find((x) => x.id === id);
+    return !!u?.passwordHash && verifyPassword(password, u.passwordHash);
+  }
+
+  /** Set (or change) someone's password. Their token keeps working. */
+  setPassword(id: string, password: unknown): OfficeUser | undefined {
+    this.refresh();
+    const p = cleanPassword(password);
+    const u = this.data.users.find((x) => x.id === id);
+    if (!u) return undefined;
+    u.passwordHash = hashPassword(p);
+    this.save();
+    return publicUser(u);
+  }
+
+  /** Forget someone's password (they log in with their token again, and can set a new one). */
+  clearPassword(id: string): OfficeUser | undefined {
+    this.refresh();
+    const u = this.data.users.find((x) => x.id === id);
+    if (!u) return undefined;
+    delete u.passwordHash;
+    this.save();
+    return publicUser(u);
   }
 
   /** Remember when someone's agents were last seen. Saved at most once a minute. */
@@ -327,8 +377,18 @@ export class UsersStore {
 }
 
 function publicUser(u: StoredUser): OfficeUser {
-  return { id: u.id, name: u.name, role: u.role ?? "member", createdAt: u.createdAt, ...(u.lastSeenAt ? { lastSeenAt: u.lastSeenAt } : {}) };
+  return {
+    id: u.id,
+    name: u.name,
+    role: u.role ?? "member",
+    createdAt: u.createdAt,
+    ...(u.lastSeenAt ? { lastSeenAt: u.lastSeenAt } : {}),
+    ...(u.passwordHash ? { hasPassword: true } : {}),
+  };
 }
+
+/** Checked against when a name has no password, so a miss takes as long as a hit. */
+const DUMMY_HASH = hashPassword("pixel-office-no-password");
 
 function publicDisplay(d: StoredDisplay): DisplayLink {
   return { id: d.id, name: d.name, createdAt: d.createdAt };

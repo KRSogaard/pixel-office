@@ -42,7 +42,7 @@ export interface OfficePlan {
   settings?: OfficeSettings;
 }
 
-export const WORKERS_PER_ROW = 3;
+export const WORKERS_PER_ROW = 5;
 const TEAM_W = 12;
 const ROOM_H = 7;
 const MIN_WIDTH = 45;
@@ -288,8 +288,8 @@ export function generateOffice(plan: OfficePlan): Office {
  *   P...EEE.WW.P   manager's desk, whiteboard (the team's todo list)
  *   .....q......   manager's chair
  *   ...........Y   printer
- *   .dd..dd..dd.   worker desks, three per row
- *   .a...a...a..   worker chairs (slot order: left to right, top to bottom)
+ *   .d.d.d.d.d..   worker desks (one monitor each), five per row
+ *   .a.a.a.a.a..   worker chairs, right in front (slot order: left to right, top to bottom)
  *   ............
  */
 function placeTeam(g: Grid, t: TeamPlan, x: number, y: number): TeamArea {
@@ -305,8 +305,8 @@ function placeTeam(g: Grid, t: TeamPlan, x: number, y: number): TeamArea {
   for (let r = 0; r < rows; r++) {
     const ry = y + 4 + r * 3;
     for (let c = 0; c < WORKERS_PER_ROW; c++) {
-      const cx = x + 1 + c * 4;
-      g.put(cx, ry, "dd");
+      const cx = x + 1 + c * 2;
+      g.put(cx, ry, "d");
       g.put(cx, ry + 1, "a");
       workerSeats.push({ kind: "seat", x: cx, y: ry + 1, facing: "up" });
     }

@@ -305,7 +305,7 @@ export class PersonView {
     const hip = this.root.getObjectByName("Hip");
     if (!hip) return;
     const at = hip.getWorldPosition(new THREE.Vector3()).sub(this.group.position);
-    this.root.position.add(new THREE.Vector3(0, seat.top + HIP_ABOVE_SEAT, 0).sub(at));
+    this.root.position.add(new THREE.Vector3(0, seat.top + HIP_ABOVE_SEAT, 0).addScaledVector(forward, seat.tucked).sub(at));
     let fit = fitted;
     if (!fit) {
       // Measure only once they've finished turning to face out of the seat.
@@ -344,7 +344,8 @@ export class PersonView {
         v.fromBufferAttribute(pos, i);
         o.applyBoneTransform(i, v);
         v.applyMatrix4(o.matrixWorld).sub(this.group.position);
-        points.push({ f: v.dot(forward), s: v.dot(across), y: v.y, part });
+        // Measured from the middle of the seat.
+        points.push({ f: v.dot(forward) - seat.tucked, s: v.dot(across), y: v.y, part });
       }
     });
     const margin = 0.01;

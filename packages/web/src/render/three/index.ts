@@ -10,7 +10,7 @@ import { Effects } from "./effects.js";
 import { WALL_H, buildOffice, type BuiltOffice } from "./office.js";
 import { Cast, Icons, PersonView } from "./people.js";
 import { toFloor, toHeight } from "./space.js";
-import { CatView, SiloView, binView, boxView, decorations, bugView, disposeObject, droneView, duckView, heldView } from "./things.js";
+import { CatView, SiloView, binView, botView, boxView, decorations, bugView, disposeObject, droneView, duckView, heldView } from "./things.js";
 
 /** Camera: looking down at 50°, turned 35° from straight on — an isometric-ish view with the rooms at the back. */
 const ELEVATION = (50 * Math.PI) / 180;
@@ -48,6 +48,7 @@ export class ThreeRenderer implements Renderer {
   private dynamic = new THREE.Group();
   private bins = binView(this.dynamic, () => this.now);
   private bugs = bugView(this.dynamic, () => this.now);
+  private bots = botView(this.dynamic, () => this.now, (id) => this.world.colorOf(id));
   private drones = droneView(this.dynamic, () => this.now);
   private held = heldView(this.dynamic);
   private boxes = boxView(this.dynamic);
@@ -56,6 +57,8 @@ export class ThreeRenderer implements Renderer {
   private silo: SiloView | undefined;
   private season: ReturnType<typeof decorations> | undefined;
   private links = new THREE.Group();
+  /** The code that scrolls on a monitor while someone types at it. */
+  private code = codeScreen();
   private now = 0;
   private userMovedCamera = false;
   private shakeUntil = 0;
@@ -177,6 +180,7 @@ export class ThreeRenderer implements Renderer {
       this.effects.scraps(b.seat.x + 1.5, 0.4, b.seat.y + 0.5);
     }
     this.bugs.update(w.bugs.list);
+    this.bots.update(w.bots.list);
     this.drones.update(w.drones.list);
     this.held.update(w.people().filter((p) => p.item));
     this.boxes.update(w.extras.boxes);
@@ -222,10 +226,11 @@ export class ThreeRenderer implements Renderer {
       const s = this.office.screens.get(`${p.tile.x},${p.tile.y}`);
       if (s) typing.add(s);
     }
+    if (typing.size) this.code.update(now);
     for (const s of new Set(this.office.screens.values())) {
-      const m = s.material as THREE.MeshStandardMaterial;
-      if (typing.has(s)) m.emissive.setHex(Math.floor(now / 220) % 2 ? 0x2c6a8a : 0x24587a);
-      else m.emissive.setHex(0x000000);
+      // Each screen keeps its own (dark) material; while in use it shows the scrolling code instead.
+      s.userData.idle ??= s.material;
+      s.material = typing.has(s) ? this.code.material : (s.userData.idle as THREE.Material);
     }
   }
 
@@ -451,6 +456,48 @@ export class ThreeRenderer implements Renderer {
 function point(p: Person): THREE.Vector3 {
   const f = toFloor(p.x, p.y);
   return new THREE.Vector3(f.x, 0.7, f.z);
+}
+
+/**
+ * Lines of code scrolling up a dark screen: one shared texture, redrawn a few
+ * times a second, on every monitor someone is typing at.
+ */
+function codeScreen(): { material: THREE.MeshBasicMaterial; update(now: number): void } {
+  const c = document.createElement("canvas");
+  c.width = 96;
+  c.height = 56;
+  const g = c.getContext("2d")!;
+  const texture = new THREE.CanvasTexture(c);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.magFilter = THREE.NearestFilter;
+  const colors = ["#8fd0f0", "#f0c45a", "#9bbb59", "#e9e4d8", "#c77dff"];
+  let drawn = -1;
+  return {
+    // Unlit: a screen gives its own light.
+    material: new THREE.MeshBasicMaterial({ map: texture }),
+    update(now) {
+      const step = Math.floor(now / 160);
+      if (step === drawn) return;
+      drawn = step;
+      g.fillStyle = "#14202c";
+      g.fillRect(0, 0, c.width, c.height);
+      // Six lines, scrolling up one line per step; the newest one is being typed.
+      for (let row = 0; row < 6; row++) {
+        const n = step + row;
+        const indent = ((n * 7) % 4) * 6;
+        let w = 18 + ((n * 37) % 50);
+        if (row === 5) w = Math.min(w, ((step * 9) % 60) + 6);
+        g.fillStyle = colors[n % colors.length]!;
+        g.fillRect(6 + indent, 5 + row * 8, Math.min(w, c.width - 12 - indent), 4);
+      }
+      // Blinking cursor.
+      if (Math.floor(now / 400) % 2) {
+        g.fillStyle = "#ffffff";
+        g.fillRect(6, 5 + 6 * 8 - 2, 6, 4);
+      }
+      texture.needsUpdate = true;
+    },
+  };
 }
 
 function glowTexture(): THREE.CanvasTexture {

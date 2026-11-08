@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import type { Point } from "../../office/pathfind.js";
+import type { Bot } from "../../world/bots.js";
 import type { Bug } from "../../world/bugs.js";
 import type { Drone } from "../../world/drones.js";
 import type { PizzaBox } from "../../world/extras.js";
@@ -92,6 +93,76 @@ export function binView(parent: THREE.Object3D, now: () => number): Keyed<string
       paper.scale.y = h;
       paper.position.y = h / 2 + 0.01;
       (paper.material as THREE.MeshStandardMaterial).color.setHex(b.fill > 0.85 ? 0xff5d5d : b.fill > 0.6 ? 0xf0c45a : 0x6fd08c);
+    },
+  );
+}
+
+/**
+ * Job robots: a little wheeled robot with a visor in its session's colour. At
+ * its station its arms work and its antenna light blinks; on the way back it
+ * holds up a green or red flag with the result.
+ */
+export function botView(parent: THREE.Object3D, now: () => number, colorOf: (sessionId: string) => number): Keyed<string, Bot> {
+  const FACE: Record<string, number> = { down: 0, right: Math.PI / 2, up: Math.PI, left: -Math.PI / 2 };
+  const state = new WeakMap<THREE.Object3D, { last?: { x: number; z: number }; heading: number }>();
+  return new Keyed<string, Bot>(
+    parent,
+    (b) => b.id,
+    (b) => {
+      const g = new THREE.Group();
+      const body = new THREE.Group();
+      body.name = "body";
+      g.add(body);
+      for (const dx of [-0.13, 0.13]) part(g, new THREE.CylinderGeometry(0.07, 0.07, 0.05, 8), 0x1d1f27, dx, 0.07, 0).rotation.z = Math.PI / 2;
+      part(body, new THREE.BoxGeometry(0.3, 0.22, 0.22), 0x7d8590, 0, 0.22, 0);
+      part(body, new THREE.BoxGeometry(0.26, 0.2, 0.22), 0x9aa3ad, 0, 0.45, 0);
+      part(body, new THREE.BoxGeometry(0.2, 0.06, 0.02), colorOf(b.sessionId), 0, 0.47, 0.115).name = "visor";
+      part(body, new THREE.CylinderGeometry(0.01, 0.01, 0.12, 4), 0x3b3f4a, 0, 0.6, 0);
+      const light = new THREE.Mesh(new THREE.SphereGeometry(0.03, 6, 4), new THREE.MeshBasicMaterial({ color: 0xff5d5d }));
+      light.position.set(0, 0.67, 0);
+      light.name = "light";
+      body.add(light);
+      for (const side of [-1, 1]) {
+        const arm = part(body, new THREE.BoxGeometry(0.04, 0.18, 0.04), 0x5c6370, side * 0.18, 0.24, 0.02);
+        arm.geometry.translate(0, -0.08, 0);
+        arm.position.y = 0.32;
+        arm.name = side < 0 ? "armL" : "armR";
+      }
+      const flag = new THREE.Group();
+      flag.name = "flag";
+      part(flag, new THREE.CylinderGeometry(0.008, 0.008, 0.4, 4), 0x3b3f4a, 0, 0.2, 0);
+      const cloth = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.1, 0.01), new THREE.MeshBasicMaterial({ color: 0x5af07a }));
+      cloth.position.set(0.08, 0.35, 0);
+      cloth.name = "cloth";
+      flag.add(cloth);
+      flag.position.set(0.2, 0.3, 0);
+      body.add(flag);
+      state.set(g, { heading: FACE[b.person.facing] ?? 0 });
+      return g;
+    },
+    (g, b) => {
+      const t = now();
+      const p = b.person;
+      const { x, z } = toFloor(p.x, p.y);
+      g.position.set(x, 0, z);
+      const st = state.get(g)!;
+      let target = FACE[p.facing] ?? 0;
+      if (p.pose === "walk" && st.last && Math.hypot(x - st.last.x, z - st.last.z) > 1e-4) target = Math.atan2(x - st.last.x, z - st.last.z);
+      st.last = { x, z };
+      let d = target - st.heading;
+      while (d > Math.PI) d -= Math.PI * 2;
+      while (d < -Math.PI) d += Math.PI * 2;
+      st.heading += d * 0.25;
+      g.rotation.y = st.heading;
+      const body = g.getObjectByName("body")!;
+      body.position.y = p.pose === "walk" ? Math.abs(Math.sin(t / 90)) * 0.03 : 0;
+      const swing = b.working ? Math.sin(t / 120) * 0.9 : 0;
+      g.getObjectByName("armL")!.rotation.x = -swing;
+      g.getObjectByName("armR")!.rotation.x = swing;
+      ((g.getObjectByName("light") as THREE.Mesh).material as THREE.MeshBasicMaterial).color.setHex(Math.floor(t / 400) % 2 ? 0xff5d5d : 0x5a1e1e);
+      const flag = g.getObjectByName("flag")!;
+      flag.visible = b.result !== undefined;
+      if (b.result !== undefined) ((g.getObjectByName("cloth") as THREE.Mesh).material as THREE.MeshBasicMaterial).color.setHex(b.result ? 0x5af07a : 0xff5d5d);
     },
   );
 }

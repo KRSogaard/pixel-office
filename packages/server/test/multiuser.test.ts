@@ -321,7 +321,7 @@ describe("name + token login", () => {
     const { token } = users.addUser("Morten");
     const res = await app.request("/login", login({ name: "Ada", token }));
     expect(res.status).toBe(401);
-    expect(await res.text()).toContain("That name and token don");
+    expect(await res.text()).toContain("That name and password (or token) don");
     expect(res.headers.get("set-cookie")).toBeNull();
   });
 
@@ -356,6 +356,51 @@ describe("name + token login", () => {
     expect(users.findUserByToken(token)).toBeUndefined();
     expect(users.findUserByToken(fresh)?.name).toBe("Ada");
     expect(await me(app, cookie)).toMatchObject({ role: "member" });
+  });
+
+  it("lets a person set their own password and log in with it; changing it needs the old one", async () => {
+    const { app, users } = setup();
+    const { token } = users.addUser("Ada");
+    const cookie = cookieOf(await app.request("/login", login({ name: "Ada", token })));
+    const setPw = (body: Record<string, unknown>, c = cookie) =>
+      app.request("/api/me/password", { method: "POST", headers: { cookie: c, "x-po-csrf": "1", "content-type": "application/json" }, body: JSON.stringify(body) });
+
+    // Too short; then a good one.
+    expect((await setPw({ password: "short" })).status).toBe(400);
+    expect((await setPw({ password: "correct horse" })).status).toBe(204);
+    expect(await me(app, cookie)).toMatchObject({ user: { name: "Ada", hasPassword: true } });
+
+    // Log in with it (any case for the name); the token still works too (it's the plugin's key).
+    expect((await app.request("/login", login({ name: "ada", token: "correct horse" }))).status).toBe(303);
+    expect((await app.request("/login", login({ name: "Ada", token }))).status).toBe(303);
+    // Not with someone else's name, nor a wrong password.
+    users.addUser("Morten");
+    expect((await app.request("/login", login({ name: "Morten", token: "correct horse" }))).status).toBe(401);
+    expect((await app.request("/login", login({ name: "Ada", token: "wrong horse" }))).status).toBe(401);
+
+    // Changing it: the current one is required.
+    expect((await setPw({ password: "battery staple" })).status).toBe(403);
+    expect((await setPw({ current: "nope nope", password: "battery staple" })).status).toBe(403);
+    expect((await setPw({ current: "correct horse", password: "battery staple" })).status).toBe(204);
+    expect((await app.request("/login", login({ name: "Ada", token: "correct horse" }))).status).toBe(401);
+    expect((await app.request("/login", login({ name: "Ada", token: "battery staple" }))).status).toBe(303);
+  });
+
+  it("stores only a hash of a password, and an admin can clear a forgotten one", async () => {
+    const { app, users, admin, dataDir } = setup();
+    const { user } = users.addUser("Ada");
+    users.setPassword(user.id, "correct horse");
+    expect(readFileSync(join(dataDir, "users.json"), "utf8")).not.toContain("correct horse");
+    expect(users.listUsers()[0]).toMatchObject({ hasPassword: true });
+    expect((await app.request(`/api/users/${user.id}/password`, { method: "DELETE", headers: { cookie: admin, "x-po-csrf": "1" } })).status).toBe(204);
+    expect(users.listUsers()[0]?.hasPassword).toBeUndefined();
+    expect((await app.request("/login", login({ name: "Ada", token: "correct horse" }))).status).toBe(401);
+  });
+
+  it("only people have a password (not the admin token or a TV)", async () => {
+    const { app, admin } = setup();
+    const res = await app.request("/api/me/password", { method: "POST", headers: { cookie: admin, "x-po-csrf": "1", "content-type": "application/json" }, body: JSON.stringify({ password: "correct horse" }) });
+    expect(res.status).toBe(403);
   });
 
   it("only people can renew 'their own' token (not the admin token or a TV)", async () => {

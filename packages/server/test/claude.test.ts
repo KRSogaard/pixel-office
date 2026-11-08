@@ -11,6 +11,26 @@ const common = {
 const run = (p: Record<string, unknown>) => claudeToEvents({ ...common, ...p }, NOW);
 
 describe("claude adapter", () => {
+  it("follows background commands: started by a Bash call, ended by the hook's report at the end of a turn", () => {
+    const start = run({
+      hook_event_name: "PreToolUse",
+      tool_name: "Bash",
+      tool_use_id: "toolu_1",
+      tool_input: { command: "pnpm test", description: "testing", run_in_background: true },
+    });
+    expect(start.map((e) => e.kind)).toEqual(["tool.start", "job.start"]);
+    expect(start[1]).toMatchObject({ callId: "toolu_1", summary: expect.stringContaining("pnpm test"), label: "testing" });
+
+    const plain = run({ hook_event_name: "PreToolUse", tool_name: "Bash", tool_use_id: "toolu_2", tool_input: { command: "ls" } });
+    expect(plain.map((e) => e.kind)).toEqual(["tool.start"]);
+
+    const stop = run({ hook_event_name: "Stop", _jobs: [{ callId: "toolu_1", status: "completed" }, { callId: "toolu_3", status: "killed" }] });
+    expect(stop.filter((e) => e.kind === "job.end")).toEqual([
+      expect.objectContaining({ callId: "toolu_1", ok: true, agentId: "claude:abc123" }),
+      expect.objectContaining({ callId: "toolu_3", ok: false }),
+    ]);
+  });
+
   it("maps SessionStart with identity and project", () => {
     const [e] = run({ hook_event_name: "SessionStart", source: "startup", model: "claude-opus-5" });
     expect(e).toMatchObject({

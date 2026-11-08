@@ -40,6 +40,18 @@ export function claudeToEvents(payload: unknown, now: number): AgentEvent[] {
       tokens: Math.round(contextTokens),
     });
   }
+  // Background commands that finished (the hook finds them in the transcript at the end of a turn).
+  if (Array.isArray(payload._jobs)) {
+    for (const j of payload._jobs) {
+      if (!isObj(j)) continue;
+      const id = str(j, "callId");
+      const status = str(j, "status");
+      if (id && status) {
+        // Sent for the main agent; the reducer hands it to whichever agent of the session started the job.
+        out.push({ source: "claude", agentId: `claude:${sessionId}`, sessionId: `claude:${sessionId}`, project: base.project, ts: now, kind: "job.end", callId: id, ok: status === "completed" });
+      }
+    }
+  }
   const branch = payload._git_branch;
   if (typeof branch === "string" && branch) {
     out.push({ source: "claude", agentId: `claude:${sessionId}`, sessionId: `claude:${sessionId}`, project: base.project, ts: now, kind: "branch", branch });
@@ -67,6 +79,13 @@ export function claudeToEvents(payload: unknown, now: number): AgentEvent[] {
         summary: summarizeTool(toolName, toolInput),
         ...withDetail(detailTool(toolName, toolInput)),
       });
+      // A command left running in the background: the office follows it until it finishes.
+      if (toolName === "Bash" && toolInput?.run_in_background === true) {
+        const label = str(toolInput, "description");
+        // The summary is the command itself (not the description), so a test run is recognised as one.
+        const { description: _, ...command } = toolInput;
+        out.push({ ...base, kind: "job.start", callId, summary: summarizeTool(toolName, command), ...(label ? { label } : {}) });
+      }
       if (toolName === "SendMessage") {
         const to = str(toolInput, "to") ?? str(toolInput, "recipient");
         const text = str(toolInput, "message") ?? str(toolInput, "content") ?? str(toolInput, "summary");

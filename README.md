@@ -25,6 +25,9 @@ What's in the office:
   sub-agent, a rubber duck for long thinks, pizza when five agents are busy.
 - **Flying robots** carrying every commit's crate to the rocket silo, **bugs** that escape
   from failures and get squashed by passing tests.
+- **Job robots** for commands left running in the background (a build, a test run): each
+  rolls to the test lab or the server room and works there with a timer, while its agent
+  waits at its desk (⏳) instead of looking idle; then it rolls back with ✓ or ✗.
 - **A production sidebar (📊)** with today's numbers, **achievements** with a fanfare, lounge
   **gossip** about what just happened, and **seasonal** decorations.
 - **Visitors** dropping by now and then — Elon Musk, Donald Trump, the Consultant, the Lost Intern,
@@ -157,9 +160,14 @@ One office can show everyone's agents. Each person gets their own token: their a
 labelled with their name, and they **log in with their name and that token** (the same one
 they put in the Claude plugin). A TV gets a 6-letter code.
 
+**Your own password:** click your name in the top bar to set a password you choose (at least 8
+characters) and log in with that instead of pasting the token. The token keeps working for
+the plugin; changing one doesn't touch the other. Forgot it? An admin clicks **Reset
+password** in 👥 People, and you log in with your token again and pick a new one.
+
 **Roles**
 
-| | Watch | Get a new token for themselves | Settings, people, screens |
+| | Watch | Set their own password, get a new token for themselves | Settings, people, screens |
 |---|---|---|---|
 | **member** | ✓ | ✓ | |
 | **admin** | ✓ | ✓ | ✓ |
@@ -232,8 +240,9 @@ plain-http office the TV keeps itself awake by quietly looping a tiny silent vid
 "Tap to keep this screen on" button appears, tap it once. To be safe, also set the iPad's
 Settings → Display & Brightness → Auto-Lock → Never (and keep it plugged in).
 
-**Art style on a TV:** the style dropdown is hidden in TV mode, so pick it in the address:
-`http://<server>:8790/?style=toon`.
+**Art style and name tags on a TV:** the dropdowns are hidden in TV mode, so pick them in the
+address: `http://<server>:8790/?style=lowpoly&tags=compact`. `tags` is `full` (name and what it's
+working on), `compact` (just a dot in the session's colour) or `none`.
 
 When you update the server (`git pull && pnpm start`), open browsers — the TV included —
 notice the new version and reload themselves. Removing the screen logs it out; **New code** replaces a lost code (a TV that's already logged

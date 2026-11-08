@@ -10,6 +10,7 @@ import type { Overlay } from "../ui/overlay.js";
 import type { Sfx } from "../ui/sounds.js";
 import { STUCK_MS } from "../ui/listview.js";
 import { Antics } from "./antics.js";
+import { Bots } from "./bots.js";
 import { Bugs } from "./bugs.js";
 import { Clock } from "./clock.js";
 import { Drones } from "./drones.js";
@@ -85,6 +86,8 @@ export class World {
   readonly visitors: Visitors;
   readonly seasonal: Seasonal;
   readonly antics: Antics;
+  /** A robot per background job. */
+  readonly bots: Bots;
   readonly actors = new Map<string, Actor>();
   selected: string | undefined;
 
@@ -167,6 +170,15 @@ export class World {
       },
       deps.cast,
     );
+    this.bots = new Bots({
+      office: () => this.office,
+      allocator: this.allocator,
+      agentTile: (id) => {
+        const a = this.actors.get(id);
+        return a && !a.gone ? a.person.tile : undefined;
+      },
+      say: (id, text) => this.say(id, text),
+    });
     deps.store.subscribe((state) => this.sync(state));
     // Office settings changed (here or in another browser): rebuild right away.
     deps.store.onSettings(() => this.replan(deps.store.state, true));
@@ -216,6 +228,7 @@ export class World {
     // Someone found a room full: grow it now rather than have them share a spot.
     if (this.allocator.shortage) this.replan(this.deps.store.state, true);
     this.visitors.update(dt, now);
+    this.bots.update(dt, now);
     this.pet.update(dt, now);
     this.extras.update(dt, now);
     this.antics.tick(now);
@@ -332,6 +345,12 @@ export class World {
       }
     }
 
+    // Background jobs: a robot each, rolling out from the agent's desk.
+    this.bots.sync(
+      [...this.actors.values()].filter((a) => !a.gone).map((a) => ({ agent: a.agent, from: this.allocator.seatFor(a.agent) ?? a.person.tile })),
+      initial,
+    );
+
     // Speech and scenes — after all actors exist, so both sides of a scene are on screen.
     const now = this.clock.now;
     for (const agent of Object.values(state.agents)) {
@@ -434,6 +453,7 @@ export class World {
     this.extras.relocate();
     this.visitors.relocate();
     this.bugs.relocate();
+    this.bots.relocate();
     this.seasonal.relocate();
     // Anyone now standing inside furniture or a wall steps out; everyone re-routes.
     for (const actor of this.actors.values()) {

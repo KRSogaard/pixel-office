@@ -52,9 +52,9 @@ export function loginPage(error?: string, name = ""): string {
   ${error ? `<div class="err">${esc(error)}</div>` : ""}
   <label for="name">Your name</label>
   <input id="name" name="name" type="text" autocomplete="username" value="${esc(name)}" autofocus>
-  <label for="token" class="gap">Your token</label>
+  <label for="token" class="gap">Password or token</label>
   <input id="token" name="token" type="password" autocomplete="current-password" required>
-  <p class="hint">Use the personal token you put in the Claude plugin. Setting up? Paste the admin token (name can stay empty).</p>
+  <p class="hint">Your own password (set it under your name in the top bar), or the personal token you put in the Claude plugin. Setting up? Paste the admin token (name can stay empty).</p>
   <button type="submit">Enter the office</button>
 </form>
 <form method="post" action="/tv" class="tv">

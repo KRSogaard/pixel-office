@@ -177,6 +177,22 @@ const waiting: Painter = (px, f) => {
   px("#fff", 5, 9, 2, 2);
 };
 
+const background: Painter = (px, f) => {
+  // An hourglass, sand running down: waiting on a background job.
+  const sand = "#f0c45a";
+  px(INK, 2, 0, 8, 1);
+  px(INK, 2, 11, 8, 1);
+  px(PAPER, 3, 1, 6, 2);
+  px(PAPER, 4, 3, 4, 2);
+  px(PAPER, 5, 5, 2, 2);
+  px(PAPER, 4, 7, 4, 2);
+  px(PAPER, 3, 9, 6, 2);
+  px(sand, 3, 1 + f, 6, 2 - Math.min(f, 2));
+  px(sand, 4, 3, 4, f < 2 ? 1 : 0);
+  px(sand, 5, 5 + (f % 2), 2, 1);
+  px(sand, 3, 10 - f, 6, 1 + f);
+};
+
 const other: Painter = (px, f) => {
   const c = "#a9b0ba";
   px(c, 3, 3, 6, 6);
@@ -209,6 +225,7 @@ const PAINTERS: Partial<Record<Activity, { painter: Painter; frames: number; fps
   delegate: { painter: delegate, frames: 2, fps: 2 },
   message: { painter: message, frames: 3, fps: 3 },
   waiting: { painter: waiting, frames: 2, fps: 2 },
+  background: { painter: background, frames: 3, fps: 1.5 },
   other: { painter: other, frames: 2, fps: 3 },
   idle: { painter: idle, frames: 3, fps: 1 },
 };

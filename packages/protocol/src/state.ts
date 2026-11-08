@@ -16,11 +16,25 @@ export type Activity =
   | "message"
   | "other"
   | "waiting"
+  /** Nothing to do but wait for its background commands (builds, test runs) to finish. */
+  | "background"
   | "compact"
   | "idle"
   | "ended";
 
 export type AgentStatus = "working" | "waiting" | "idle" | "ended";
+
+/** A command running in the background (see the `job.start` event). */
+export interface Job {
+  callId: string;
+  /** The command, summarized like a tool call ("Bash: pnpm test"). */
+  summary: string;
+  /** What it's for ("Run the test suite"), when the agent said. */
+  label?: string;
+  startedAt: number;
+  endedAt?: number;
+  ok?: boolean;
+}
 
 export interface ToolCall {
   callId: string;
@@ -81,6 +95,8 @@ export interface AgentState {
   branch?: string;
   /** The agent's todo list, in its own order. */
   todos?: TodoItem[];
+  /** Background commands: the running ones, and the last few that finished (newest last). */
+  jobs?: Job[];
   /** Delegations this agent started (tool call ids) that haven't been matched to a child yet. */
   pendingDelegations: string[];
   startedAt: number;
@@ -98,6 +114,13 @@ export interface OfficeState {
 }
 
 export const RECENT_TOOLS = 20;
+/** Finished background jobs kept on an agent (running ones are always kept). */
+export const RECENT_JOBS = 5;
+/**
+ * A background job we never heard the end of (the session was killed, the
+ * hook didn't run) stops counting as running after this long.
+ */
+export const JOB_GIVE_UP_MS = 6 * 60 * 60_000;
 /** Ended agents are dropped from the state this long after they ended. */
 export const ENDED_RETENTION_MS = 60_000;
 

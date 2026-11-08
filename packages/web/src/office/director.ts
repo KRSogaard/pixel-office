@@ -24,6 +24,8 @@ const PLACE_BY_ACTIVITY: Record<Activity, Place> = {
   // Compaction: back at the desk, stomping the overflowing wastepaper bin flat.
   compact: { kind: "seat", pose: "stomp" },
   waiting: { kind: "reception", pose: "hand" },
+  // Its background jobs (a robot each) are out working: it waits at its desk.
+  background: { kind: "seat", pose: "think" },
   idle: { kind: "lounge", pose: "lounge" },
   ended: { kind: "door", pose: "stand" },
 };

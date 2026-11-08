@@ -69,7 +69,7 @@ const THINGS: Record<string, { img: Furniture; w: number; h?: number }> = {
   w: { img: "water-cooler", w: 1 },
   a: { img: "chair", w: 1 },
   q: { img: "chair", w: 1 },
-  d: { img: "desk", w: 2 },
+  d: { img: "desk", w: 1 },
   E: { img: "manager-desk", w: 3 },
   W: { img: "whiteboard", w: 2 },
   O: { img: "silo", w: 3, h: 3 },
@@ -124,7 +124,7 @@ export async function loadToonPack(): Promise<ArtPack> {
     visitors: ["boss", "consultant", "intern", "auditor", "investor", "grandpa"],
     pixelProps: false,
     // Measured on desk.png: the screen of the monitor in the middle of the desk.
-    screen: { dx: 13, dy: -22, w: 6, h: 5.5 },
+    screen: { dx: 6.5, dy: -22, w: 3, h: 5.5 },
   };
 }
 

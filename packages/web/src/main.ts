@@ -5,7 +5,7 @@ import { createRenderer } from "./render/index.js";
 import { AchievementToasts, StatsBoard } from "./ui/board.js";
 import { HelpPanel } from "./ui/help.js";
 import { Sfx } from "./ui/sounds.js";
-import { Hud } from "./ui/hud.js";
+import { Hud, setTagMode, tagMode } from "./ui/hud.js";
 import { ListView } from "./ui/listview.js";
 import { Overlay } from "./ui/overlay.js";
 import { Notifier } from "./ui/notify.js";
@@ -17,6 +17,7 @@ import { SettingsPanel } from "./ui/settings.js";
 import "./style.css";
 
 const store = new OfficeStore();
+setTagMode(tagMode(), false);
 const overlay = new Overlay(document.getElementById("overlay")!);
 const sfx = new Sfx();
 const board = new StatsBoard(document.getElementById("sidebar")!, () => {

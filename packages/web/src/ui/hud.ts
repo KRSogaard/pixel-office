@@ -21,6 +21,34 @@ export interface HudActions {
   me: () => void;
 }
 
+/** How much of the name tags to show. */
+export type TagMode = "full" | "compact" | "none";
+const TAG_MODES: readonly TagMode[] = ["full", "compact", "none"];
+
+/** The tag mode for this browser: `?tags=compact` in the URL (for TVs), else the dropdown's choice. */
+export function tagMode(): TagMode {
+  const fromUrl = new URLSearchParams(location.search).get("tags");
+  if (TAG_MODES.includes(fromUrl as TagMode)) return fromUrl as TagMode;
+  try {
+    const saved = localStorage.getItem("po.tags");
+    if (TAG_MODES.includes(saved as TagMode)) return saved as TagMode;
+  } catch {
+    // Storage blocked: the default.
+  }
+  return "full";
+}
+
+/** Show tags in full, as just a dot of the session's colour, or not at all (a class on <body>; see style.css). */
+export function setTagMode(mode: TagMode, remember = true): void {
+  for (const m of TAG_MODES) document.body.classList.toggle(`tags-${m}`, m === mode);
+  if (!remember) return;
+  try {
+    localStorage.setItem("po.tags", mode);
+  } catch {
+    // Storage blocked: just for this visit.
+  }
+}
+
 /** Top bar: counts, connection, privacy toggle, zoom. Also drives the tab title + favicon. */
 export class Hud {
   private counts: HTMLElement;
@@ -49,6 +77,9 @@ export class Hud {
       </div>
       <select class="hud-style" title="Art style (this browser only)">
         ${STYLES.map((s) => `<option value="${s.id}">${s.label}</option>`).join("")}
+      </select>
+      <select class="hud-style hud-tags" title="Name tags: full (name and what it's on), compact (just the session colour), or none">
+        ${TAG_MODES.map((m) => `<option value="${m}">Tags: ${m}</option>`).join("")}
       </select>
       <label class="hud-toggle" title="Hide prompts and messages (for screen sharing)">
         <input type="checkbox" class="privacy" /> privacy
@@ -107,6 +138,9 @@ export class Hud {
     const style = root.querySelector<HTMLSelectElement>(".hud-style")!;
     style.value = chosenStyle();
     style.onchange = () => chooseStyle(style.value as StyleId);
+    const tags = root.querySelector<HTMLSelectElement>(".hud-tags")!;
+    tags.value = tagMode();
+    tags.onchange = () => setTagMode(tags.value as TagMode);
     const privacy = root.querySelector<HTMLInputElement>(".privacy")!;
     privacy.checked = localStorage.getItem("po.privacy") === "1";
     privacy.onchange = () => {

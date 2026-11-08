@@ -1,4 +1,7 @@
-import type { DisplayLink, OfficeUser } from "@pixel-office/protocol";
+import type { DisplayLink, Me as MeInfo, OfficeUser } from "@pixel-office/protocol";
+
+/** The logged-in person, as the "Me" panel shows them. */
+type Me = NonNullable<MeInfo["user"]>;
 
 /**
  * People and TV links (admins only).
@@ -82,7 +85,7 @@ Ingest token: (the token above)</pre>
       <section><span class="section-title">People</span>
         <p class="muted">Everyone gets their own token: their agents carry their name, and they log in with their name + token. Admins can also manage people, screens and settings.</p>
         <table class="people">
-          ${this.users.map((u) => `<tr><td><b>${esc(u.name)}</b> <span class="role role-${u.role}">${u.role === "admin" ? "admin ★" : "member"}</span></td><td class="muted">last seen ${when(u.lastSeenAt)}</td><td><button data-role="${esc(u.id)}" data-to="${u.role === "admin" ? "member" : "admin"}" data-name="${esc(u.name)}">${u.role === "admin" ? "Make member" : "Make admin"}</button> <button data-new-user="${esc(u.id)}" data-name="${esc(u.name)}">New token</button> <button data-del-user="${esc(u.id)}" data-name="${esc(u.name)}">Remove</button></td></tr>`).join("") || `<tr><td class="muted">Nobody yet.</td></tr>`}
+          ${this.users.map((u) => `<tr><td><b>${esc(u.name)}</b> <span class="role role-${u.role}">${u.role === "admin" ? "admin ★" : "member"}</span></td><td class="muted">last seen ${when(u.lastSeenAt)}</td><td><button data-role="${esc(u.id)}" data-to="${u.role === "admin" ? "member" : "admin"}" data-name="${esc(u.name)}">${u.role === "admin" ? "Make member" : "Make admin"}</button> <button data-new-user="${esc(u.id)}" data-name="${esc(u.name)}">New token</button>${u.hasPassword ? ` <button data-reset-pw="${esc(u.id)}" data-name="${esc(u.name)}" title="For a forgotten password: they log in with their token again and pick a new one">Reset password</button>` : ""} <button data-del-user="${esc(u.id)}" data-name="${esc(u.name)}">Remove</button></td></tr>`).join("") || `<tr><td class="muted">Nobody yet.</td></tr>`}
         </table>
         <form class="add" data-add="user"><input name="name" maxlength="40" placeholder="Name, e.g. Morten" required /><label class="muted"><input type="checkbox" name="admin" /> admin</label><button>Add person</button></form>
       </section>
@@ -150,6 +153,17 @@ Ingest token: (the token above)</pre>
         await this.reload();
       };
     });
+    this.root.querySelectorAll<HTMLButtonElement>("[data-reset-pw]").forEach((b) => {
+      b.onclick = async () => {
+        if (!confirm(`Clear ${b.dataset.name}'s password? They log in with their token until they set a new one.`)) return;
+        try {
+          await api("DELETE", `/api/users/${b.dataset.resetPw}/password`);
+        } catch (err) {
+          alert(String(err instanceof Error ? err.message : err));
+        }
+        await this.reload();
+      };
+    });
     this.root.querySelectorAll<HTMLButtonElement>("[data-del-user],[data-del-display]").forEach((b) => {
       b.onclick = async () => {
         const isUser = !!b.dataset.delUser;
@@ -165,18 +179,23 @@ Ingest token: (the token above)</pre>
   }
 }
 
-/** "You": your name and role, a new token for yourself, and log out. */
+/** "You": your name and role, your own password, a new token for yourself, and log out. */
 export class MePanel {
   private token: string | undefined;
+  /** What happened to the last password change: a note to show, good or bad. */
+  private passwordNote: { ok: boolean; text: string } | undefined;
 
   constructor(private root: HTMLElement) {}
 
-  async toggle(me: { id: string; name: string } | undefined, role: string): Promise<void> {
+  async toggle(me: Me | undefined, role: string): Promise<void> {
     if (this.root.classList.toggle("open")) this.render(me, role);
-    else this.token = undefined;
+    else {
+      this.token = undefined;
+      this.passwordNote = undefined;
+    }
   }
 
-  private render(me: { id: string; name: string } | undefined, role: string): void {
+  private render(me: Me | undefined, role: string): void {
     const origin = location.origin;
     this.root.innerHTML = `
       <div class="set-head"><b>${me ? esc(me.name) : "Admin token"}</b><button class="set-close" title="Close">×</button></div>
@@ -189,6 +208,23 @@ export class MePanel {
              <p class="muted">Put it in the Claude plugin (/config → pixel-office, server ${esc(origin)}) and use it next time you log in.</p></div>`
           : ""
       }
+      ${
+        me
+          ? `<form class="me-password">
+               <b>${me.hasPassword ? "Change your password" : "Set a password"}</b>
+               <p class="muted">${
+                 me.hasPassword
+                   ? "You log in with your name and this password. Your token still works too (it's what the Claude plugin uses)."
+                   : "Pick your own password to log in with, instead of pasting your token. The plugin keeps using the token."
+               }</p>
+               ${me.hasPassword ? `<input name="current" type="password" autocomplete="current-password" placeholder="Current password" required />` : ""}
+               <input name="password" type="password" autocomplete="new-password" minlength="8" placeholder="New password (at least 8 characters)" required />
+               <input name="repeat" type="password" autocomplete="new-password" minlength="8" placeholder="New password again" required />
+               ${this.passwordNote ? `<p class="${this.passwordNote.ok ? "ok" : "error"}">${esc(this.passwordNote.text)}</p>` : ""}
+               <button type="submit">${me.hasPassword ? "Change password" : "Set password"}</button>
+             </form>`
+          : ""
+      }
       <div class="set-actions">
         ${me ? `<button class="me-new">Get a new token</button>` : "<span></span>"}
         <form method="post" action="/logout"><button type="submit">Log out</button></form>
@@ -198,6 +234,30 @@ export class MePanel {
       const b = e.currentTarget as HTMLButtonElement;
       await navigator.clipboard?.writeText(b.dataset.copy!).catch(() => {});
       b.textContent = "Copied";
+    });
+    this.root.querySelector<HTMLFormElement>(".me-password")?.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      if (!me) return;
+      const f = new FormData(e.currentTarget as HTMLFormElement);
+      const password = String(f.get("password") ?? "");
+      if (password !== String(f.get("repeat") ?? "")) {
+        this.passwordNote = { ok: false, text: "The two new passwords aren't the same." };
+        return this.render(me, role);
+      }
+      const res = await fetch("/api/me/password", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "x-po-csrf": "1", "content-type": "application/json" },
+        body: JSON.stringify({ password, ...(me.hasPassword ? { current: String(f.get("current") ?? "") } : {}) }),
+      }).catch(() => undefined);
+      if (res?.ok) {
+        this.passwordNote = { ok: true, text: me.hasPassword ? "Password changed." : "Password set. Use it next time you log in." };
+        me.hasPassword = true;
+      } else {
+        const why = res ? ((await res.json().catch(() => ({}))) as { error?: string }).error : undefined;
+        this.passwordNote = { ok: false, text: why ? why[0]!.toUpperCase() + why.slice(1) : "That didn't work. Try again." };
+      }
+      this.render(me, role);
     });
     this.root.querySelector<HTMLButtonElement>(".me-new")?.addEventListener("click", async () => {
       if (!confirm("Get a new token? Your current one stops working right away — in the Claude plugin too.")) return;

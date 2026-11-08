@@ -24,6 +24,8 @@ export const DESK_H = 0.62;
  * the furniture below is built from them, so the two always agree.
  */
 export interface SeatShape {
+  /** How far the seat sits from the middle of its tile, towards where the sitter faces (a desk chair is tucked in). */
+  tucked: number;
   top: number;
   behind: number;
   ahead: number;
@@ -31,8 +33,8 @@ export interface SeatShape {
   backTop: number;
 }
 export const SEATS = {
-  chair: { top: 0.34, behind: 0.21, ahead: 0.13, width: 0.46, backTop: 0.76 },
-  sofa: { top: 0.26, behind: 0.21, ahead: 0.15, width: 0.6, backTop: 0.68 },
+  chair: { tucked: 0.2, top: 0.34, behind: 0.21, ahead: 0.13, width: 0.46, backTop: 0.76 },
+  sofa: { tucked: 0, top: 0.26, behind: 0.21, ahead: 0.15, width: 0.6, backTop: 0.68 },
 } satisfies Record<string, SeatShape>;
 
 const FLOOR: Record<string, number> = { ".": 0xc8955f, ",": 0x56739a, ":": 0x8e98a5, ";": 0xe6eaed };
@@ -311,9 +313,10 @@ function chair(b: Builder, cx: number, cz: number, facing: "up" | "down", color:
   const back = facing === "up" ? 1 : -1;
   const s = SEATS.chair;
   const depth = s.behind + s.ahead;
-  b.cylinder(PALETTE.dark, cx, 0, cz, 0.03, 0.03, s.top - 0.07, 5);
-  b.box(color, cx, s.top - 0.07, cz + (back * (s.behind - s.ahead)) / 2, s.width, 0.07, depth);
-  b.box(color, cx, s.top, cz + back * (s.behind + 0.03), s.width, s.backTop - s.top, 0.06);
+  const z = cz - back * s.tucked;
+  b.cylinder(PALETTE.dark, cx, 0, z, 0.03, 0.03, s.top - 0.07, 5);
+  b.box(color, cx, s.top - 0.07, z + (back * (s.behind - s.ahead)) / 2, s.width, 0.07, depth);
+  b.box(color, cx, s.top, z + back * (s.behind + 0.03), s.width, s.backTop - s.top, 0.06);
 }
 
 /** A lounge armchair facing +z: a shallow seat (knees hang over the front), a backrest and two arms. */

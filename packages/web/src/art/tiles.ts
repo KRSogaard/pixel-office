@@ -265,6 +265,18 @@ function paintThing(ctx: Ctx, office: Office, c: string, x: number, y: number, p
       break;
     }
     case "d": {
+      if (t[y]?.[x + 1] !== "d" && t[y]?.[x - 1] !== "d") {
+        // A one-monitor desk: monitor in the middle, keyboard in front.
+        paintDeskBase(ctx, px, py, true, true);
+        rect(ctx, C.monitor, px + 2, py + 1, 12, 9);
+        rect(ctx, C.screen, px + 3, py + 2, 10, 7);
+        rect(ctx, C.screenGlow, px + 4, py + 3, 3, 1);
+        rect(ctx, C.screenGlow, px + 4, py + 5, 6, 1);
+        rect(ctx, C.monitor, px + 7, py + 10, 2, 1);
+        rect(ctx, C.monitor, px + 5, py + 11, 6, 1);
+        rect(ctx, "#e2e2e2", px + 3, py + 12, 10, 2);
+        break;
+      }
       const leftHalf = t[y]?.[x + 1] === "d" && t[y]?.[x - 1] !== "d";
       paintDeskBase(ctx, px, py, !leftHalf, leftHalf);
       if (leftHalf) {
