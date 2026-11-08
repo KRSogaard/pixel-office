@@ -1,6 +1,7 @@
 import { hash } from "@pixel-office/protocol";
 import { TILE, isFloor, floorAt, type Floor, type Office } from "../office/layout.js";
-import type { ArtStyle, Look, Prop, PropName, Sheet } from "./style.js";
+import type { Look } from "../world/person.js";
+import type { ArtPack, Prop, PropName, Sheet } from "./pack.js";
 
 /**
  * "Toon": a 1940s-cartoon look. Furniture, people, the cat and props are
@@ -86,7 +87,7 @@ function loadImage(name: string): Promise<HTMLImageElement> {
 }
 
 /** Load every image; optional ones (props, cast) may be missing. Throws if the core art is missing. */
-export async function loadToonStyle(): Promise<ArtStyle> {
+export async function loadToonPack(): Promise<ArtPack> {
   const optional = async (name: string) => loadImage(name).catch(() => undefined);
   const [furniture, agents, cast, props, cat] = await Promise.all([
     Promise.all(FURNITURE.map((n) => loadImage(n))),

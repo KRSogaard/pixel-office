@@ -1,5 +1,5 @@
 import Phaser from "phaser";
-import { propImage } from "../art/style.js";
+import { propImage } from "./textures.js";
 
 /** One-off particle effects. Everything cleans itself up. */
 

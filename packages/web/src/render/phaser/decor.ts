@@ -1,5 +1,5 @@
 import Phaser from "phaser";
-import { TILE, type Office } from "../office/layout.js";
+import { TILE, type Office } from "../../office/layout.js";
 
 /**
  * Things on the walls that follow your clock: windows looking out on a city

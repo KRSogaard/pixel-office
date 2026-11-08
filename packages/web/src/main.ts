@@ -1,7 +1,7 @@
-import Phaser from "phaser";
-import { chosenStyle, loadStyle } from "./art/style.js";
+import { chosenStyle } from "./art/style.js";
 import { OfficeStore } from "./net.js";
-import { OfficeScene } from "./scene/OfficeScene.js";
+import { OfficeView } from "./office-view.js";
+import { createRenderer } from "./render/index.js";
 import { AchievementToasts, StatsBoard } from "./ui/board.js";
 import { HelpPanel } from "./ui/help.js";
 import { Sfx } from "./ui/sounds.js";
@@ -20,11 +20,8 @@ const store = new OfficeStore();
 const overlay = new Overlay(document.getElementById("overlay")!);
 const sfx = new Sfx();
 const board = new StatsBoard(document.getElementById("sidebar")!, () => {
-  // The stage changed size: let Phaser pick it up, then fit the office again.
-  requestAnimationFrame(() => {
-    game?.scale.refresh();
-    scene.fit();
-  });
+  // The stage changed size: let the renderer pick it up (and fit the office again).
+  requestAnimationFrame(() => office?.resize());
 });
 const toasts = new AchievementToasts(document.getElementById("toasts")!, () => sfx.fanfare());
 store.onStats((s) => toasts.observe(s));
@@ -40,17 +37,18 @@ store.onNewVersion(() => {
 let selected: string | undefined;
 
 const panel = new Panel(document.getElementById("panel")!, () => select(undefined));
-const scene = new OfficeScene();
+/** The office on screen; set once the art style has loaded. */
+let office: OfficeView | undefined;
 
 function select(id: string | undefined) {
   selected = id;
-  scene.select(id);
+  office?.select(id);
   panel.show(id, store.state);
 }
 
 const notifier = new Notifier();
 const replay = new Replay(document.getElementById("replay")!, store, () => {
-  scene.reset();
+  office?.reset();
   hud.setReplay(store.mode === "replay");
 });
 const settings = new SettingsPanel(document.getElementById("settings")!, store);
@@ -58,12 +56,12 @@ const people = new PeoplePanel(document.getElementById("people")!);
 const mePanel = new MePanel(document.getElementById("me")!);
 const startParams = new URLSearchParams(location.search);
 const help = new HelpPanel(document.getElementById("help")!, !startParams.has("people") && !startParams.has("tv"));
-const list = new ListView(document.getElementById("list")!, (id) => select(id), (sessionId) => scene.colorOf(sessionId));
+const list = new ListView(document.getElementById("list")!, (id) => select(id), (sessionId) => office?.colorOf(sessionId) ?? 0x888888);
 
 const hud = new Hud(document.getElementById("hud")!, {
-  zoomIn: () => scene.zoomBy(1.25),
-  zoomOut: () => scene.zoomBy(0.8),
-  fit: () => scene.fit(),
+  zoomIn: () => office?.zoomBy(1.25),
+  zoomOut: () => office?.zoomBy(0.8),
+  fit: () => office?.fit(),
   togglePrivacy: (on) => {
     overlay.privacy = on;
     panel.privacy = on;
@@ -86,27 +84,11 @@ const hud = new Hud(document.getElementById("hud")!, {
   stats: () => board.toggle(),
 });
 
-// The art style's images load first; the office is drawn with them.
-let game: Phaser.Game | undefined;
-void loadStyle(chosenStyle()).then(() => {
-  game = new Phaser.Game({
-    type: Phaser.AUTO,
-    parent: "stage",
-    pixelArt: true,
-    roundPixels: true,
-    backgroundColor: "#1d1f27",
-    // Every sound is synthesized through ui/audio.ts. Phaser's own sound system
-    // would open the audio output on the first click and hold it, pulling
-    // AirPods away from a phone that's playing something.
-    audio: { noAudio: true },
-    scale: { mode: Phaser.Scale.RESIZE, width: "100%", height: "100%" },
-    scene: [],
-    callbacks: {
-      postBoot: (game) => {
-        game.scene.add("office", scene, true, { store, overlay, onSelect: select, sfx, board });
-      },
-    },
-  });
+// The art style (its renderer and images) loads first; then the office starts.
+void createRenderer(chosenStyle()).then((renderer) => {
+  office = new OfficeView(renderer, { store, overlay, sfx, board, onSelect: select });
+  office.start(document.getElementById("stage")!);
+  (window as unknown as { pixelOffice: unknown }).pixelOffice = { store, office };
 });
 
 store.subscribe((state) => {
@@ -124,12 +106,12 @@ void store.loadRole().then((role) => {
   document.body.classList.toggle("admin", role === "admin");
   hud.setMe(store.me?.name, role);
   overlay.me = store.me?.name;
-  if (role === "viewer" || params.has("tv")) startTvMode(() => scene.fit(), role);
+  if (role === "viewer" || params.has("tv")) startTvMode(() => office?.fit(), role);
   if (role === "admin" && params.has("people")) void people.toggle();
 });
 
 // The "working for" clock in the panel ticks even when no events arrive.
 setInterval(() => selected && panel.render(store.state), 1000);
 
-// Handle for poking at the office from the browser console.
-(window as unknown as { pixelOffice: unknown }).pixelOffice = { store, scene };
+// Handle for poking at the office from the browser console (the office joins once it has loaded).
+(window as unknown as { pixelOffice: unknown }).pixelOffice = { store };

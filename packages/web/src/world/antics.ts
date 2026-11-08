@@ -1,10 +1,11 @@
-import type Phaser from "phaser";
 import { isShipCommand, isTestRun, type AgentState, type ToolCall } from "@pixel-office/protocol";
 import { TILE, type Office, type TeamArea } from "../office/layout.js";
 import type { Point } from "../office/pathfind.js";
-import type { Character } from "./Character.js";
-import { confetti, duck, fire, printPages, sweat } from "./effects.js";
+import type { Clock } from "./clock.js";
+import type { WorldListener } from "./events.js";
 import type { Extras } from "./extras.js";
+import type { Person } from "./person.js";
+import { shuffle } from "./random.js";
 import type { RocketSilo } from "./silo.js";
 
 /**
@@ -24,12 +25,13 @@ import type { RocketSilo } from "./silo.js";
 
 export interface ActorView {
   id: string;
-  c: Character;
+  person: Person;
   agent: AgentState;
 }
 
 export interface AnticsHost {
-  scene: Phaser.Scene;
+  clock: Clock;
+  emit: WorldListener;
   extras: Extras;
   silo: RocketSilo;
   actors(): Iterable<ActorView>;
@@ -55,15 +57,6 @@ const SMALL_TALK = [
   { line: "I renamed a variable and broke prod.", reply: "Classic Tuesday." },
 ];
 
-function shuffle<T>(xs: T[]): T[] {
-  const a = [...xs];
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j]!, a[i]!];
-  }
-  return a;
-}
-
 const SCARY = /\b(rm -rf|rm -fr|--force\b|push -f\b|reset --hard|drop (table|database)|truncate table|sudo |chmod -R 777|mkfs|dd if=|kubectl delete|terraform destroy)/i;
 const DOCUMENT = /\.(md|mdx|txt|rst|adoc|pdf|docx)\b|README|CHANGELOG/i;
 const DUCK_AFTER_MS = 20_000;
@@ -72,8 +65,9 @@ const PIZZA_EVERY_MS = 20 * 60_000;
 const PIZZA_CROWD = 5;
 
 export class Antics {
+  /** Rubber ducks on desks: agent id → the desk tile the duck sits on (above the seat). */
+  readonly ducks = new Map<string, Point>();
   private prev = new Map<string, AgentState>();
-  private ducks = new Map<string, Phaser.GameObjects.Graphics | Phaser.GameObjects.Image>();
   private lastCourier = new Map<string, number>();
   private lastPrint = new Map<string, number>();
   private lastYawn = new Map<string, number>();
@@ -100,8 +94,8 @@ export class Antics {
 
     const allDone = (a: AgentState) => !!a.todos && a.todos.length >= 2 && a.todos.every((t) => t.status === "completed");
     if (allDone(next) && !allDone(before)) {
-      actor.c.cheer(now);
-      confetti(this.host.scene, actor.c.x, actor.c.y);
+      actor.person.cheer(now);
+      this.host.emit({ type: "confetti", x: actor.person.x, y: actor.person.y });
       this.host.say(next.id, "🎉 All done!");
       this.gossip(`${next.name} finished their whole todo list`, "Show-off. 🙄");
     }
@@ -112,16 +106,14 @@ export class Antics {
     this.chat(now);
     const wall = Date.now();
     for (const a of this.host.actors()) {
-      const pose = a.c.destination?.pose;
-      const pondering = a.c.arrived && pose === "think" && a.agent.activity === "thinking" && wall - a.agent.activitySince > DUCK_AFTER_MS;
-      const existing = this.ducks.get(a.id);
-      if (pondering && !existing) {
-        const t = a.c.tile;
-        this.ducks.set(a.id, duck(this.host.scene, t.x * TILE + 4, (t.y - 1) * TILE + 6));
+      const p = a.person;
+      const pondering = p.arrived && p.destination?.pose === "think" && a.agent.activity === "thinking" && wall - a.agent.activitySince > DUCK_AFTER_MS;
+      const has = this.ducks.has(a.id);
+      if (pondering && !has) {
+        this.ducks.set(a.id, { x: p.tile.x, y: p.tile.y - 1 });
         this.host.say(a.id, "🦆 *squeak*");
         this.gossip(`${a.agent.name} is talking to a rubber duck again`, "Works for me, honestly.");
-      } else if (!pondering && existing) {
-        existing.destroy();
+      } else if (!pondering && has) {
         this.ducks.delete(a.id);
       }
 
@@ -156,31 +148,30 @@ export class Antics {
   private chat(now: number): void {
     if (now < this.nextGossip) return;
     this.nextGossip = now + 18_000 + Math.random() * 20_000;
-    const lounging = [...this.host.actors()].filter((a) => a.c.arrived && a.c.destination?.pose === "lounge");
+    const lounging = [...this.host.actors()].filter((a) => a.person.arrived && a.person.destination?.pose === "lounge");
     if (lounging.length < 2) return;
     const [a, b] = shuffle(lounging);
     const fresh = this.news.filter((n) => Date.now() - n.at < 10 * 60_000);
     const pick = fresh.length ? fresh[Math.floor(Math.random() * fresh.length)]! : SMALL_TALK[Math.floor(Math.random() * SMALL_TALK.length)]!;
     this.host.say(a!.id, pick.line);
-    this.host.scene.time.delayedCall(1800, () => this.host.say(b!.id, pick.reply));
+    this.host.clock.after(1800, () => this.host.say(b!.id, pick.reply));
   }
 
   forget(agentId: string): void {
     this.prev.delete(agentId);
-    this.ducks.get(agentId)?.destroy();
     this.ducks.delete(agentId);
   }
 
   private onNewCall(actor: ActorView, call: ToolCall, now: number): void {
-    const { scene } = this.host;
+    const p = actor.person;
     if (SCARY.test(call.summary)) {
-      sweat(scene, actor.c.x, actor.c.y);
+      this.host.emit({ type: "sweat", x: p.x, y: p.y });
       this.host.say(actor.id, "😬");
       this.host.onScary?.(actor.id);
       this.gossip(`${actor.agent.name} just ran ${call.summary.replace(/^\w+: /, "").slice(0, 28)}…`, "😱 brave.");
       for (const other of this.host.actors()) {
         if (other.id === actor.id) continue;
-        if (Math.abs(other.c.tile.x - actor.c.tile.x) + Math.abs(other.c.tile.y - actor.c.tile.y) <= 5) this.host.say(other.id, "😱");
+        if (Math.abs(other.person.tile.x - p.tile.x) + Math.abs(other.person.tile.y - p.tile.y) <= 5) this.host.say(other.id, "😱");
       }
     }
     if (isShipCommand(call.tool, call.summary)) {
@@ -191,14 +182,14 @@ export class Antics {
       const from = this.host.mailroom();
       if (from) {
         this.lastCourier.set(actor.id, now);
-        this.host.extras.courier(from, () => actor.c.tile, () => this.host.say(actor.id, "📨 Thanks!"));
+        this.host.extras.courier(from, () => p.tile, () => this.host.say(actor.id, "📨 Thanks!"));
       }
     }
     if (call.category === "edit" && DOCUMENT.test(call.summary)) {
       const team = this.host.team(actor.agent.sessionId);
       if (team && now - (this.lastPrint.get(team.sessionId) ?? -Infinity) > 8000) {
         this.lastPrint.set(team.sessionId, now);
-        printPages(scene, team.printer.x * TILE + 8, team.printer.y * TILE + 9);
+        this.host.emit({ type: "print", x: team.printer.x * TILE + 8, y: team.printer.y * TILE + 9 });
       }
     }
   }
@@ -206,16 +197,17 @@ export class Antics {
   /** Two failed test runs in a row: the nearest lab bench catches fire. */
   private labFire(actor: ActorView): void {
     const o = this.host.office();
+    const from = actor.person.tile;
     let best: Point | undefined;
     o.tiles.forEach((row, y) =>
       row.forEach((c, x) => {
         if (c !== "J") return;
-        const d = Math.abs(x - actor.c.tile.x) + Math.abs(y - actor.c.tile.y);
-        if (!best || d < Math.abs(best.x - actor.c.tile.x) + Math.abs(best.y - actor.c.tile.y)) best = { x, y };
+        const d = Math.abs(x - from.x) + Math.abs(y - from.y);
+        if (!best || d < Math.abs(best.x - from.x) + Math.abs(best.y - from.y)) best = { x, y };
       }),
     );
-    const at = best ?? actor.c.tile;
-    fire(this.host.scene, at.x * TILE + 8, at.y * TILE + 6);
+    const at = best ?? from;
+    this.host.emit({ type: "fire", x: at.x * TILE + 8, y: at.y * TILE + 6, ms: 7000 });
     this.host.say(actor.id, "🔥 This is fine.");
     this.host.onFire?.();
     this.gossip(`${actor.agent.name} set the lab on fire again 🔥`, "Classic.");

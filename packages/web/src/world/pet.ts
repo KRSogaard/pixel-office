@@ -1,45 +1,40 @@
-import Phaser from "phaser";
-import { addSheet, artStyle } from "../art/style.js";
 import { TILE, type Office } from "../office/layout.js";
 import { findPath, type Point } from "../office/pathfind.js";
+import type { WorldListener } from "./events.js";
+import { between } from "./random.js";
 
 /**
  * Byte, the office cat. Wanders between random spots, sits next to agents,
  * naps on the sofas, and purrs (with a heart) when you click it.
  */
 
-const KEY = "cat";
-const FRAMES = { walk: [0, 1], sit: [2], sleep: [3, 4] } as const;
-
-type Mode = "walk" | "sit" | "sleep";
+export type PetMode = "walk" | "sit" | "sleep";
 
 export class Pet {
-  readonly sprite: Phaser.GameObjects.Sprite;
+  x = 0;
+  y = 0;
+  /** Facing right (only meaningful while walking). */
+  right = false;
   private tile: Point;
   private path: Point[] = [];
-  private mode: Mode = "sit";
+  private resting: "sit" | "sleep" = "sit";
   private until = 0;
-  private flip = false;
   private visiting: Point | undefined;
+  private now = 0;
 
   constructor(
-    private scene: Phaser.Scene,
     private office: () => Office,
     private agentTiles: () => Point[],
+    private emit: WorldListener,
     /** Byte arrived next to an agent's tile (to sit on their keyboard). */
     private onVisit: (agentTile: Point) => void = () => {},
   ) {
-    const sheet = artStyle().cat();
-    addSheet(scene, KEY, sheet);
     this.tile = this.randomFloor() ?? { x: 2, y: 2 };
-    this.sprite = scene.add.sprite(0, 0, KEY, 2).setOrigin(0.5, 1).setScale(1 / sheet.scale).setInteractive({ useHandCursor: true });
     this.place();
-    this.sprite.on("pointerdown", (_p: Phaser.Input.Pointer, _x: number, _y: number, ev: Phaser.Types.Input.EventData) => {
-      // Phaser's own propagation, not the DOM event's: keeps the scene's
-      // "click on empty floor closes the panel" handler from firing too.
-      ev.stopPropagation();
-      this.purr();
-    });
+  }
+
+  get mode(): PetMode {
+    return this.path.length ? "walk" : this.resting;
   }
 
   /** The office was rebuilt: make sure the cat isn't inside a wall. */
@@ -51,6 +46,7 @@ export class Pet {
   }
 
   update(dtMs: number, now: number): void {
+    this.now = now;
     if (this.path.length) {
       this.step(dtMs);
       if (!this.path.length && this.visiting) {
@@ -58,24 +54,26 @@ export class Pet {
         this.visiting = undefined;
       }
     } else if (now > this.until) this.decide(now);
-    const t = now / 1000;
-    const frames = this.path.length ? FRAMES.walk : FRAMES[this.mode];
-    const fps = this.path.length ? 6 : this.mode === "sleep" ? 0.8 : 1;
-    this.sprite.setFrame(frames[Math.floor(t * fps) % frames.length]!);
-    this.sprite.setFlipX(this.path.length > 0 && this.flip);
-    this.sprite.setDepth(this.sprite.y);
+  }
+
+  /** Clicked: stop, sit, and purr. */
+  purr(): void {
+    this.resting = "sit";
+    this.path = [];
+    this.until = this.now + 3000;
+    this.emit({ type: "purr", x: this.x, y: this.y });
   }
 
   private decide(now: number): void {
     const roll = Math.random();
     if (roll < 0.15) {
-      this.mode = "sleep";
-      this.until = now + Phaser.Math.Between(8000, 20000);
+      this.resting = "sleep";
+      this.until = now + between(8000, 20000);
       return;
     }
     if (roll < 0.4) {
-      this.mode = "sit";
-      this.until = now + Phaser.Math.Between(2500, 6000);
+      this.resting = "sit";
+      this.until = now + between(2500, 6000);
       return;
     }
     // Walk somewhere: half the time to sit by an agent, otherwise anywhere.
@@ -85,8 +83,8 @@ export class Pet {
     if (!goal) return;
     this.visiting = target;
     this.path = findPath(this.office().walkable, this.tile, goal).slice(0, 40);
-    this.mode = "sit";
-    this.until = now + Phaser.Math.Between(2000, 5000);
+    this.resting = "sit";
+    this.until = now + between(2000, 5000);
   }
 
   private step(dtMs: number): void {
@@ -95,35 +93,27 @@ export class Pet {
       const next = this.path[0]!;
       const tx = next.x * TILE + TILE / 2;
       const ty = next.y * TILE + TILE - 2;
-      const dx = tx - this.sprite.x;
-      const dy = ty - this.sprite.y;
+      const dx = tx - this.x;
+      const dy = ty - this.y;
       const d = Math.hypot(dx, dy);
-      if (Math.abs(dx) > 0.5) this.flip = dx > 0;
+      if (Math.abs(dx) > 0.5) this.right = dx > 0;
       this.tile = { ...next };
       if (d <= budget) {
-        this.sprite.setPosition(tx, ty);
+        this.x = tx;
+        this.y = ty;
         this.path.shift();
         budget -= d;
       } else {
-        this.sprite.setPosition(this.sprite.x + (dx / d) * budget, this.sprite.y + (dy / d) * budget);
+        this.x += (dx / d) * budget;
+        this.y += (dy / d) * budget;
         budget = 0;
       }
     }
   }
 
-  private purr(): void {
-    this.mode = "sit";
-    this.path = [];
-    this.until = this.scene.time.now + 3000;
-    const heart = this.scene.add
-      .text(this.sprite.x, this.sprite.y - 14, "♥ purr", { fontFamily: "monospace", fontSize: "8px", color: "#ff7a9a", resolution: 4 })
-      .setOrigin(0.5, 1)
-      .setDepth(100_000);
-    this.scene.tweens.add({ targets: heart, y: heart.y - 12, alpha: 0, duration: 1400, onComplete: () => heart.destroy() });
-  }
-
   private place(): void {
-    this.sprite.setPosition(this.tile.x * TILE + TILE / 2, this.tile.y * TILE + TILE - 2);
+    this.x = this.tile.x * TILE + TILE / 2;
+    this.y = this.tile.y * TILE + TILE - 2;
   }
 
   private nextTo(p: Point): Point | undefined {
@@ -139,8 +129,8 @@ export class Pet {
   private randomFloor(): Point | undefined {
     const o = this.office();
     for (let i = 0; i < 50; i++) {
-      const x = Phaser.Math.Between(1, o.width - 2);
-      const y = Phaser.Math.Between(1, o.height - 2);
+      const x = between(1, o.width - 2);
+      const y = between(1, o.height - 2);
       if (o.walkable[y]?.[x] && o.tiles[y]?.[x] !== "D") return { x, y };
     }
     return undefined;

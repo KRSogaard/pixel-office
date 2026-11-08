@@ -257,19 +257,41 @@ manager's desk, and rooms grow when they get crowded. Room templates live in
 
 ### Art styles
 
-The office comes in two looks, picked per browser with the dropdown in the top bar (or
-`?style=toon` in the address):
+The office comes in three looks, picked per browser with the dropdown in the top bar (or
+`?style=toon` / `?style=lowpoly` in the address):
 
 - **Pixel**: everything drawn in code at 16 pixels per tile
   ([`packages/web/src/art/pixel.ts`](packages/web/src/art/pixel.ts) and the files it uses).
 - **Toon**: a 1940s-cartoon look. Furniture, people, visitors, the cat and props are images in
   [`packages/web/public/art/toon/`](packages/web/public/art/toon), generated with Nano Banana;
   floors, walls and rugs are painted in [`packages/web/src/art/toon.ts`](packages/web/src/art/toon.ts).
-  Each style has its own visitors.
+- **3D**: a low-poly office in Three.js, seen from a tilted camera that doesn't shrink things
+  with distance (so it reads like an isometric game). Drag to pan, scroll to zoom. People are
+  rigged 3D characters that walk, run and cheer, and sit properly at desks and on sofas; the
+  furniture is built in code from the same layout
+  ([`packages/web/src/render/three/`](packages/web/src/render/three)).
 
-Everything with a look goes through the `ArtStyle` interface in
-[`packages/web/src/art/style.ts`](packages/web/src/art/style.ts); adding a style means
-implementing it and listing it in `STYLES`.
+Each style has its own visitors.
+
+What happens in the office and how it's drawn are kept apart:
+
+- [`packages/web/src/world/`](packages/web/src/world) is the office's brain, with no drawing
+  in it: who sits where, who walks where, the scenes, visitors, bugs, rockets and the cat.
+- A **renderer** draws the world and owns the camera and clicks (the `Renderer` interface in
+  [`packages/web/src/render/renderer.ts`](packages/web/src/render/renderer.ts)). Pixel and
+  Toon both use the flat Phaser renderer in
+  [`packages/web/src/render/phaser/`](packages/web/src/render/phaser), each with its own art
+  pack (the `ArtPack` interface in [`packages/web/src/art/pack.ts`](packages/web/src/art/pack.ts)).
+- [`packages/web/src/office-view.ts`](packages/web/src/office-view.ts) runs the two together
+  and keeps the HTML name tags, bubbles and labels on top.
+
+Pixel and Toon both use the flat Phaser renderer; 3D has its own, in
+[`packages/web/src/render/three/`](packages/web/src/render/three).
+
+Adding a style means listing it in `STYLES` in
+[`packages/web/src/art/style.ts`](packages/web/src/art/style.ts) and giving
+[`packages/web/src/render/index.ts`](packages/web/src/render/index.ts) a case for it: either a
+new art pack for the Phaser renderer, or a renderer of its own.
 
 The toon images are made by [`packages/web/scripts/toon-art.py`](packages/web/scripts/toon-art.py)
 (needs Python with Pillow, and an OpenRouter key). It cuts out the white background,
@@ -283,6 +305,15 @@ OPENROUTER_API_KEY=… python3 scripts/toon-art.py          # generate what's mi
 python3 scripts/toon-art.py --process                      # re-process the cached images only
 OPENROUTER_API_KEY=… python3 scripts/toon-art.py --redo desk char-03--side   # regenerate these
 ```
+
+The 3D characters are in [`packages/web/public/art/lowpoly/`](packages/web/public/art/lowpoly):
+`agent-00` … `agent-08` (an agent gets one picked from its id) and one per visitor and extra
+(`boss`, `courier`, …). Each was drawn in the same low-poly style with FLUX.2 (in ComfyUI),
+then turned into a rigged, animated model by [Tripo](https://www.tripo3d.ai) (image to model,
+auto-rig, and its idle, walk, run and cheer animations), and slimmed down for the web by
+[`packages/web/scripts/slim-glb.py`](packages/web/scripts/slim-glb.py) (about 1.8 MB to 0.7 MB
+each). A new character works as long as it has Tripo's biped skeleton and those four
+animations; how it sits is measured on its own body the first time it sits down.
 
 ## Layout
 
