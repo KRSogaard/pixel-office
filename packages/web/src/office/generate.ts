@@ -44,6 +44,10 @@ export interface OfficePlan {
 
 export const WORKERS_PER_ROW = 5;
 const TEAM_W = 12;
+/** Walkway between team offices (and along the outer walls), so the back rows get to the rooms quickly. */
+const AISLE = 2;
+/** One office from wall to wall, plus the aisle on its left. */
+const OFFICE_STEP = TEAM_W + 2 + AISLE;
 const ROOM_H = 7;
 const MIN_WIDTH = 45;
 
@@ -176,13 +180,17 @@ export function generateOffice(plan: OfficePlan): Office {
   const topW = 1 + lw + 1 + sw + 1 + tw + 1 + gw + 1 + aw + 1;
   // Wide enough for the rooms, the strip, and the configured number of teams side by side.
   const perRow = Math.min(4, Math.max(1, settings.teamsPerRow));
-  const W = Math.max(MIN_WIDTH, topW, stripW, 3 + perRow * (TEAM_W + 1));
+  // Offices side by side, with an aisle before, between and after them.
+  const W = Math.max(MIN_WIDTH, topW, stripW, 2 + perRow * OFFICE_STEP + AISLE);
   tw += W - topW; // the test lab takes up any slack in the top band
 
   const teamRows: (TeamPlan | null)[][] = [];
   for (let i = 0; i < plan.teams.length; i += perRow) teamRows.push(plan.teams.slice(i, i + perRow));
-  const teamHeight = (t: TeamPlan | null) => 4 + 3 * Math.max(1, Math.ceil((t?.workerSlots ?? WORKERS_PER_ROW) / WORKERS_PER_ROW));
-  const bandHeights = teamRows.map((r) => Math.max(...r.map(teamHeight)));
+  // The inside: entry row, manager's desk, chair, printer, three rows per desk row, and a last empty row
+  // (so the side doorways never sit right by a corner).
+  const teamHeight = (t: TeamPlan | null) => 5 + 3 * Math.max(1, Math.ceil((t?.workerSlots ?? WORKERS_PER_ROW) / WORKERS_PER_ROW));
+  // A row of offices: glass front, inside, glass back, then a corridor to the next row.
+  const bandHeights = teamRows.map((r) => Math.max(...r.map(teamHeight)) + 3);
   const teamBandH = Math.max(7, bandHeights.reduce((a, b) => a + b, 0)) + 1;
 
   const TOP = 1 + ROOM_H + 1;
@@ -250,10 +258,12 @@ export function generateOffice(plan: OfficePlan): Office {
   const teams: TeamArea[] = [];
   let ty = TOP + STRIP;
   teamRows.forEach((teamRow, ri) => {
+    const inside = bandHeights[ri]! - 3;
     teamRow.forEach((t, ci) => {
       if (!t) return; // an empty spot, kept so neighbours don't move
-      const tx = 2 + ci * (TEAM_W + 1);
-      teams.push(placeTeam(g, t, tx, ty));
+      // The inside starts after the outer wall, the aisle and the office's own glass wall.
+      const tx = 1 + AISLE + ci * OFFICE_STEP + 1;
+      teams.push(placeTeam(g, t, tx, ty + 1, inside));
     });
     ty += bandHeights[ri]!;
   });
@@ -284,17 +294,40 @@ export function generateOffice(plan: OfficePlan): Office {
 }
 
 /**
- *   ............   label row
- *   P...EEE.WW.P   manager's desk, whiteboard (the team's todo list)
+ * A team's office. Glass walls (H) go around the inside, with an aisle
+ * between neighbours; the doorway is in the front (top) wall, the name plate
+ * over the manager's desk:
+ *
+ *  H..HHHHHHHHHHH   glass front: doorway, name plate over the manager's desk
+ *  H............H   just inside the door
+ *  HP...EEE.WW.PH   manager's desk, whiteboard (the team's todo list)
  *   .....q......   manager's chair
  *   ...........Y   printer
- *   .d.d.d.d.d..   worker desks (one monitor each), five per row
- *   .a.a.a.a.a..   worker chairs, right in front (slot order: left to right, top to bottom)
- *   ............
+ *  H.d.d.d.d.d..H   worker desks (one monitor each), five per row
+ *  H.a.a.a.a.a..H   worker chairs, right in front (slot order: left to right, top to bottom)
+ *  ..............   walkway, with doorways onto the aisles on both sides
+ *  H............H
+ *  HHHHHHHHHHHHHH   glass back
+ *
+ * `y` is the first row inside; `h` the inside height (the tallest office in
+ * the row, so the backs line up).
  */
-function placeTeam(g: Grid, t: TeamPlan, x: number, y: number): TeamArea {
+function placeTeam(g: Grid, t: TeamPlan, x: number, y: number, h: number): TeamArea {
   const rows = Math.max(1, Math.ceil(t.workerSlots / WORKERS_PER_ROW));
-  const h = 4 + rows * 3;
+  // Glass walls round the inside, with a two-tile doorway in the front.
+  g.put(x - 1, y - 1, "H".repeat(TEAM_W + 2));
+  g.put(x - 1, y + h, "H".repeat(TEAM_W + 2));
+  for (let r = y; r < y + h; r++) {
+    g.put(x - 1, r, "H");
+    g.put(x + TEAM_W, r, "H");
+  }
+  g.put(x + 1, y - 1, "..");
+  // Side doorways onto the aisles, from the walkway behind each row of desks.
+  for (let r = 0; r < rows; r++) {
+    const walkway = y + 6 + r * 3;
+    g.put(x - 1, walkway, ".");
+    g.put(x + TEAM_W, walkway, ".");
+  }
   g.put(x + 4, y + 1, "EEE");
   g.put(x + 8, y + 1, "WW");
   g.put(x + 11, y + 3, "Y");
@@ -321,6 +354,8 @@ function placeTeam(g: Grid, t: TeamPlan, x: number, y: number): TeamArea {
     managerSeat: { kind: "manager", x: x + 5, y: y + 2, facing: "up" },
     whiteboard: { x: x + 8, y: y + 1 },
     printer: { x: x + 11, y: y + 3 },
+    door: { x: x + 1, y: y - 1 },
+    sign: { x: x + 4, y: y - 1, w: 7 },
     workerSeats,
   };
 }

@@ -4,7 +4,7 @@ import { TILE, type TeamArea } from "../../office/layout.js";
 import type { ScreenPoint } from "../../ui/overlay.js";
 import type { WorldEvent } from "../../world/events.js";
 import type { World } from "../../world/world.js";
-import type { Renderer, RendererInput } from "../renderer.js";
+import type { Renderer, RendererInput, Sign } from "../renderer.js";
 import { BinsView } from "./bins.js";
 import { BotsView } from "./bots.js";
 import { BugsView, DronesView, PetView } from "./critters.js";
@@ -14,6 +14,7 @@ import { Lighting } from "./lighting.js";
 import { PersonView } from "./person.js";
 import { Ducks, HeldItem, PizzaBoxes, VisitorProp } from "./props.js";
 import { SeasonalView } from "./seasonal.js";
+import { SignsView } from "./signs.js";
 import { SiloView } from "./silo.js";
 import { addSheet, pack, usePack } from "./textures.js";
 
@@ -65,6 +66,10 @@ export class PhaserRenderer implements Renderer {
     this.scene.zoomBy(factor);
   }
 
+  signs(signs: readonly Sign[]): void {
+    this.scene.signs(signs);
+  }
+
   resize(): void {
     this.game?.scale.refresh();
     // The camera takes the new size on Phaser's next step: fit after it.
@@ -101,6 +106,7 @@ class FlatOffice extends Phaser.Scene {
   private boxes!: PizzaBoxes;
   private ducks!: Ducks;
   private seasonal!: SeasonalView;
+  private plates: SignsView | undefined;
   private decor!: WallDecor;
   private lighting!: Lighting;
   /** Once the user pans or zooms, a rebuilt office no longer re-fits the camera. */
@@ -157,6 +163,12 @@ class FlatOffice extends Phaser.Scene {
     this.silo.update(time);
     this.seasonal.update(time);
     if (Math.floor(time / 500) !== Math.floor((time - delta) / 500)) this.lighting.update(w.lightSpots());
+  }
+
+  /** The team offices' name plates (made once the scene exists). */
+  signs(signs: readonly Sign[]): void {
+    if (!this.ready) return;
+    (this.plates ??= new SignsView(this)).update(signs);
   }
 
   zoomBy(factor: number): void {

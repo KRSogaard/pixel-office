@@ -67,9 +67,21 @@ export interface BuiltOffice {
   dispose(): void;
 }
 
+/** Height of a team office's glass walls (units). */
+export const GLASS_H = 1.05;
+
 /** Collects static shapes per colour and merges them at the end. */
 class Builder {
   private parts = new Map<number, THREE.BufferGeometry[]>();
+  private panes: THREE.BufferGeometry[] = [];
+
+  /** A see-through glass pane (merged into one transparent mesh). */
+  pane(x: number, y: number, z: number, w: number, h: number, d: number): void {
+    const g = new THREE.BoxGeometry(w, h, d);
+    g.translate(x, y + h / 2, z);
+    g.deleteAttribute("uv");
+    this.panes.push(g.toNonIndexed());
+  }
 
   box(color: number, x: number, y: number, z: number, w: number, h: number, d: number, rotY = 0): void {
     const g = new THREE.BoxGeometry(w, h, d);
@@ -102,6 +114,18 @@ class Builder {
   }
 
   build(group: THREE.Group, materials: THREE.Material[]): void {
+    if (this.panes.length) {
+      const merged = mergeGeometries(this.panes);
+      for (const g of this.panes) g.dispose();
+      if (merged) {
+        merged.computeVertexNormals();
+        const mat = new THREE.MeshStandardMaterial({ color: 0xbfe4f8, transparent: true, opacity: 0.28, roughness: 0.1, metalness: 0.1, depthWrite: false });
+        materials.push(mat);
+        const glass = new THREE.Mesh(merged, mat);
+        glass.renderOrder = 1;
+        group.add(glass);
+      }
+    }
     for (const [color, geoms] of this.parts) {
       const merged = mergeGeometries(geoms);
       for (const g of geoms) g.dispose();
@@ -148,6 +172,9 @@ export function buildOffice(office: Office, colorOf: (sessionId: string) => numb
         }
         case "D":
           b.box(PALETTE.door, cx, 0, cz, 1, 0.02, 1);
+          break;
+        case "H":
+          glassWall(b, tiles, x, y);
           break;
         case "B":
           shelf(b, cx, cz, (i) => BOOKS[(x * 3 + i) % BOOKS.length]!);
@@ -287,6 +314,37 @@ function floorMesh(office: Office, colorOf: (sessionId: string) => number, rugs:
   mesh.receiveShadow = true;
   mesh.name = "floor";
   return { mesh, material, texture };
+}
+
+/**
+ * One tile of a team office's glass wall: a pane from the middle of the tile
+ * towards each glass neighbour, with an aluminium post, rails and a kick plate.
+ */
+function glassWall(b: Builder, tiles: string[][], x: number, y: number): void {
+  const cx = x + 0.5;
+  const cz = y + 0.5;
+  const frame = 0x9aa3ad;
+  const glass = (gx: number, gy: number) => tiles[gy]?.[gx] === "H";
+  const sides = [
+    [1, 0],
+    [-1, 0],
+    [0, 1],
+    [0, -1],
+  ].filter(([dx, dz]) => glass(x + dx!, y + dz!)) as [number, number][];
+  if (!sides.length) sides.push([1, 0], [-1, 0]);
+  for (const [dx, dz] of sides) {
+    const along = dx !== 0;
+    const mx = cx + dx * 0.25;
+    const mz = cz + dz * 0.25;
+    const w = along ? 0.5 : 0.05;
+    const d = along ? 0.05 : 0.5;
+    b.pane(mx, 0.12, mz, along ? 0.5 : 0.03, GLASS_H - 0.16, along ? 0.03 : 0.5);
+    b.box(frame, mx, GLASS_H - 0.04, mz, w, 0.04, d);
+    b.box(0x6b7480, mx, 0, mz, w, 0.12, d);
+  }
+  // A post at each tile, thicker where the wall ends at a doorway.
+  const end = sides.length === 1;
+  b.box(frame, cx, 0, cz, end ? 0.08 : 0.04, GLASS_H, end ? 0.08 : 0.04);
 }
 
 /** A shelf unit against the wall behind it, with rows of things on it. */

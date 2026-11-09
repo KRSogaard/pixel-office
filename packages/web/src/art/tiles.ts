@@ -153,6 +153,40 @@ function paintWall(ctx: Ctx, office: Office, x: number, y: number, window: boole
 function paintThing(ctx: Ctx, office: Office, c: string, x: number, y: number, px: number, py: number) {
   const t = office.tiles;
   switch (c) {
+    case "H": {
+      // Glass partition of a team's office: aluminium-framed pale glass, drawn
+      // from the middle of the tile towards each glass neighbour, so corners
+      // are clean L shapes and junctions clean T's.
+      const glass = (gx: number, gy: number) => t[gy]?.[gx] === "H";
+      const frame = "#8a94a3";
+      const pane = "rgba(190, 228, 248, 0.55)";
+      const left = glass(x - 1, y);
+      const right = glass(x + 1, y);
+      const up = glass(x, y - 1);
+      const down = glass(x, y + 1);
+      const across = left || right || (!up && !down);
+      // Left-right: a pane between a top rail and a kick plate, 9 px tall.
+      if (across) {
+        const x0 = left || (!right && !up && !down) ? 0 : 8;
+        const x1 = right || (!left && !up && !down) ? TILE : 8;
+        rect(ctx, pane, px + x0, py + 5, x1 - x0, 9);
+        rect(ctx, frame, px + x0, py + 4, x1 - x0, 1);
+        rect(ctx, frame, px + x0, py + 14, x1 - x0, 2);
+        if ((x + y) % 3 === 0 && x1 - x0 === TILE) rect(ctx, "rgba(255, 255, 255, 0.7)", px + 4, py + 7, 3, 1);
+      }
+      // Up-down: a thin pane between two mullions, from the middle up and/or down.
+      if (up || down) {
+        const y0 = up ? 0 : 4;
+        const y1 = down ? TILE : across ? 16 : 12;
+        rect(ctx, pane, px + 6, py + y0, 4, y1 - y0);
+        rect(ctx, frame, px + 5, py + y0, 1, y1 - y0);
+        rect(ctx, frame, px + 10, py + y0, 1, y1 - y0);
+      }
+      // A post at the middle (thicker where the wall ends at a doorway).
+      const ends = [left, right, up, down].filter(Boolean).length === 1;
+      if (ends || (across && (up || down))) rect(ctx, frame, px + 6, py + 3, 4, 13);
+      break;
+    }
     case "B": {
       rect(ctx, C.shelfDark, px, py + 1, TILE, 15);
       rect(ctx, C.shelf, px + 1, py + 2, 14, 13);

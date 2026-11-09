@@ -24,6 +24,23 @@ export interface Renderer {
   zoomBy(factor: number): void;
   /** The stage changed size. */
   resize(): void;
+  /** The name plates on the team offices (called every frame; redraw only what changed). */
+  signs(signs: readonly Sign[]): void;
+}
+
+/** A team office's name plate, on the wall tiles from (x, y), `w` wide. */
+export interface Sign {
+  /** The team's session. */
+  key: string;
+  x: number;
+  y: number;
+  w: number;
+  /** Big: the project. */
+  title: string;
+  /** Small: manager · person · ⎇ branch. */
+  subtitle: string;
+  /** The session's colour. */
+  color: number;
 }
 
 /** What the player clicked. */

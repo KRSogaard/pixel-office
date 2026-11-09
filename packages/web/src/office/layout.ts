@@ -11,7 +11,7 @@
  *   U  mission console   O  rocket silo (3×3)    Y  printer
  *   F  filing cabinet    G  globe desk           X  reception counter
  *   d  work desk         E  manager's desk       w  water cooler
- *   W  whiteboard
+ *   W  whiteboard        H  glass partition (a team's office walls)
  *
  * Tile legend — spots (walkable, agents stand or sit there):
  *   l  library           r  server rack terminal m  mailroom
@@ -47,7 +47,11 @@ export interface Spot {
   facing: Facing;
 }
 
-/** One session's corner of the office: a manager's desk with worker desks in front. */
+/**
+ * One session's own office, WeWork style: glass walls with a doorway and a
+ * name plate, a manager's desk and worker desks in front. x, y, w, h are the
+ * inside; the glass walls are the tiles around it.
+ */
 export interface TeamArea {
   sessionId: string;
   project: string;
@@ -61,6 +65,10 @@ export interface TeamArea {
   whiteboard: { x: number; y: number };
   /** The team's printer: prints when someone writes a document. */
   printer: { x: number; y: number };
+  /** The doorway in the office's glass front (left tile of two, in the wall row). */
+  door: { x: number; y: number };
+  /** The name plate on the glass front, over the manager's desk: wall tiles from x, w wide. */
+  sign: { x: number; y: number; w: number };
   /** Worker seats in a stable order: slot 0, 1, 2, … */
   workerSeats: Spot[];
 }
@@ -90,7 +98,7 @@ export interface Office {
   teams: TeamArea[];
 }
 
-export const BLOCKING = new Set("#=BRJQUOYMKPFGXdEwW");
+export const BLOCKING = new Set("#=BRJQUOYMKPFGXdEwWH");
 
 export const SPOT_KIND: Record<string, SpotKind> = {
   l: "library",

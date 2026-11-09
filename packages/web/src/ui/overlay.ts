@@ -67,7 +67,6 @@ export interface TagContext {
 
 export class Overlay {
   private tags = new Map<string, Tag>();
-  private teamLabels = new Map<string, HTMLDivElement>();
   private boards = new Map<string, HTMLDivElement>();
   private signs = new Map<string, HTMLDivElement>();
   /** The whiteboard whose full todo list is open, if any. */
@@ -213,20 +212,6 @@ export class Overlay {
     this.tags.delete(agentId);
   }
 
-  /** A label above a team area: "project · Manager", with the session colour. */
-  teamLabel(key: string, text: string, color: number, p: ScreenPoint): void {
-    let label = this.teamLabels.get(key);
-    if (!label) {
-      label = el("div", "team-label");
-      this.root.append(label);
-      this.teamLabels.set(key, label);
-    }
-    label.textContent = text;
-    label.style.setProperty("--session", hex(color));
-    label.style.transform = `translate(${Math.round(p.x)}px, ${Math.round(p.y)}px)`;
-    label.style.setProperty("--zoom", String(p.scale));
-  }
-
   /**
    * The team whiteboard: progress through the manager's todo list and what's
    * being worked on now. Hover for the whole list.
@@ -336,14 +321,12 @@ export class Overlay {
     }
   }
 
-  /** Remove labels and boards for teams that are no longer in the office. */
-  pruneTeamLabels(keep: Set<string>): void {
-    for (const map of [this.teamLabels, this.boards]) {
-      for (const [key, node] of map) {
-        if (keep.has(key)) continue;
-        node.remove();
-        map.delete(key);
-      }
+  /** Remove the whiteboards of teams that are no longer in the office. */
+  pruneBoards(keep: Set<string>): void {
+    for (const [key, node] of this.boards) {
+      if (keep.has(key)) continue;
+      node.remove();
+      this.boards.delete(key);
     }
   }
 

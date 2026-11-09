@@ -19,6 +19,50 @@ describe("office generator", () => {
     expect(office.teams).toEqual([]);
   });
 
+  it("gives each team its own glass-walled office, entered through its doorway", () => {
+    const office = generateOffice({ ...quiet, teams: [team("s1", "app", 2 * WORKERS_PER_ROW), team("s2"), team("s3"), team("s4"), team("s5")] });
+    const tile = (x: number, y: number) => office.tiles[y]![x]!;
+    for (const t of office.teams) {
+      // Glass all round the inside, except the two-tile doorway in the front.
+      for (let x = t.x - 1; x <= t.x + t.w; x++) {
+        const doorway = x === t.door.x || x === t.door.x + 1;
+        expect(tile(x, t.y - 1)).toBe(doorway ? "." : "H");
+        expect(tile(x, t.y + t.h)).toBe("H");
+      }
+      // Side walls: glass, with a doorway onto the aisle at the walkway behind each row of desks.
+      const walkways = new Set(t.workerSeats.map((s) => s.y + 1));
+      for (let y = t.y; y < t.y + t.h; y++) {
+        const side = walkways.has(y) ? "." : "H";
+        expect([tile(t.x - 1, y), tile(t.x + t.w, y)]).toEqual([side, side]);
+        // A side doorway never sits right by a corner: there's glass below it before the back wall.
+        if (walkways.has(y)) expect(y + 1).toBeLessThan(t.y + t.h);
+      }
+      // The name plate is on the glass front.
+      for (let x = t.sign.x; x < t.sign.x + t.sign.w; x++) expect(tile(x, t.sign.y)).toBe("H");
+      // Everyone can walk in from the corridor in front and reach every seat.
+      const outside = { x: t.door.x, y: t.door.y - 1 };
+      expect(office.walkable[outside.y]![outside.x]).toBe(true);
+      for (const seat of [t.managerSeat, ...t.workerSeats]) {
+        expect(findPath(office.walkable, outside, seat).length).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  it("leaves aisles between the offices, so the walk from any desk to the rooms is short", () => {
+    const office = generateOffice({ ...quiet, teams: [team("s1", "app", 2 * WORKERS_PER_ROW), team("s2"), team("s3"), team("s4"), team("s5"), team("s6")] });
+    for (const t of office.teams) {
+      for (const seat of [t.managerSeat, ...t.workerSeats]) {
+        for (const room of office.rooms) {
+          const path = findPath(office.walkable, seat, room.door);
+          const straight = Math.abs(seat.x - room.door.x) + Math.abs(seat.y - room.door.y);
+          // Out of the nearest office door and up an aisle: at most a few seconds' walk more than a straight line
+          // (a desk in the middle of a row steps back to the walkway, out the side door and up).
+          expect(path.length - straight, `${t.sessionId} seat ${seat.x},${seat.y} → ${room.kind}`).toBeLessThanOrEqual(14);
+        }
+      }
+    }
+  });
+
   it("gives each session a manager's chair and its worker desks", () => {
     const office = generateOffice({ ...quiet, teams: [team("s1", "app", 2 * WORKERS_PER_ROW), team("s2")] });
     expect(office.teams).toHaveLength(2);

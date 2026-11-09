@@ -369,20 +369,6 @@ button {
   background: #fff6d6;
 }
 
-.team-label {
-  position: absolute;
-  left: 0;
-  top: 0;
-  --zoom: 3;
-  font-size: clamp(9px, calc(var(--zoom) * 3.2px), 12px);
-  padding: 0 6px;
-  background: rgba(20, 22, 30, 0.7);
-  color: #f2e6c9;
-  border-left: 4px solid var(--session, #d9c3a0);
-  white-space: nowrap;
-  translate: -50% -50%;
-}
-
 /* Crowded tags (a huddle, a busy room) drop their "why" line. */
 .tag.crowded:not(.selected):not(.waiting) .tag-reason {
   display: none;
@@ -1221,7 +1207,6 @@ body.tv .tag {
   font-size: clamp(11px, calc(var(--zoom) * 4.2px), 16px);
 }
 
-body.tv .team-label,
 body.tv .room-sign {
   font-size: clamp(10px, calc(var(--zoom) * 3.6px), 14px);
 }

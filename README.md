@@ -11,8 +11,10 @@ outside the model, they print nothing, and they never block the agent.
 
 What's in the office:
 
-- **A team area per session**, on a rug in the session's colour: the main agent at a
-  manager's desk, its sub-agents at desks in front, and a **whiteboard** with its todo list.
+- **An office per session**, WeWork style: glass walls with a doorway, carpet in the
+  session's colour and a name plate on the front (project · manager · person · ⎇ branch).
+  The main agent sits at the manager's desk, its sub-agents at one-monitor desks in front,
+  and a **whiteboard** shows its todo list.
 - **Rooms that grow** when they get busy, and shrink back when quiet.
 - **Who's doing what, and why**: name tags with the prompt or task, animated activity icons,
   dotted lines between a selected agent and its team.
@@ -260,8 +262,8 @@ pnpm simulate busy-day --token <token>       # fake agents: busy-day, delegation
 pnpm test && pnpm typecheck
 ```
 
-The office is generated to fit who's online: every session gets a team area with a
-manager's desk, and rooms grow when they get crowded. Room templates live in
+The office is generated to fit who's online: every session gets its own glass-walled office
+with a manager's desk, and rooms grow when they get crowded. Room templates live in
 [`packages/web/src/office/generate.ts`](packages/web/src/office/generate.ts).
 
 ### Art styles

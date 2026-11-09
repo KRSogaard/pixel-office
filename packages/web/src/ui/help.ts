@@ -33,7 +33,7 @@ const ROOMS_MIDDLE: Row[] = [
 ];
 
 const TEAM: Row[] = [
-  { name: "Team area", what: "One per session, on a rug in that session's colour, labelled “project · manager · person · ⎇ branch”." },
+  { name: "Team office", what: "One per session: glass walls, carpet in that session's colour, and a name plate on the front: the project, then manager · person · ⎇ branch." },
   { name: "Manager's desk", what: "The big desk with two monitors: the main agent of the session sits here." },
   { name: "Worker desks", what: "Its sub-agents sit here. A new row appears when they run out of free desks." },
   { name: "Whiteboard", what: "The manager's todo list: done / total, a progress bar and the item in progress. Hover for the full list." },

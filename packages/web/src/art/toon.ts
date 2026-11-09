@@ -255,6 +255,10 @@ function paintOffice(office: Office, colorOf: (sessionId: string) => number, rug
   for (let y = 0; y < office.height; y++) {
     for (let x = 0; x < office.width; x++) {
       const c = t[y]![x]!;
+      if (c === "H") {
+        paintGlass(ctx, t, x, y);
+        continue;
+      }
       const thing = THINGS[c];
       if (!thing) continue;
       // A wide piece is drawn once, from its left (and top) tile.
@@ -269,6 +273,54 @@ function paintOffice(office: Office, colorOf: (sessionId: string) => number, rug
     }
   }
   return { canvas, frameW: canvas.width, frameH: canvas.height, scale: res };
+}
+
+/**
+ * A glass partition of a team's office: pale glass in an outlined frame, drawn
+ * from the middle of the tile towards each glass neighbour (clean corners).
+ */
+function paintGlass(ctx: Ctx, t: string[][], x: number, y: number) {
+  const px = x * TILE;
+  const py = y * TILE;
+  const glass = (gx: number, gy: number) => t[gy]?.[gx] === "H";
+  const left = glass(x - 1, y);
+  const right = glass(x + 1, y);
+  const up = glass(x, y - 1);
+  const down = glass(x, y + 1);
+  const across = left || right || (!up && !down);
+  ctx.lineWidth = 1;
+  ctx.strokeStyle = INK;
+  if (across) {
+    const x0 = px + (left || (!right && !up && !down) ? 0 : 8);
+    const x1 = px + (right || (!left && !up && !down) ? TILE : 8);
+    ctx.fillStyle = "rgba(190, 228, 248, 0.6)";
+    ctx.fillRect(x0, py + 4, x1 - x0, 10);
+    ctx.fillStyle = "#9aa6b5";
+    ctx.fillRect(x0, py + 13, x1 - x0, 3);
+    ctx.beginPath();
+    ctx.moveTo(x0, py + 4);
+    ctx.lineTo(x1, py + 4);
+    ctx.moveTo(x0, py + 16);
+    ctx.lineTo(x1, py + 16);
+    ctx.stroke();
+  }
+  if (up || down) {
+    const y0 = py + (up ? 0 : 4);
+    const y1 = py + (down ? TILE : across ? 16 : 12);
+    ctx.fillStyle = "rgba(190, 228, 248, 0.6)";
+    ctx.fillRect(px + 5, y0, 6, y1 - y0);
+    ctx.beginPath();
+    ctx.moveTo(px + 5, y0);
+    ctx.lineTo(px + 5, y1);
+    ctx.moveTo(px + 11, y0);
+    ctx.lineTo(px + 11, y1);
+    ctx.stroke();
+  }
+  if ([left, right, up, down].filter(Boolean).length === 1 || (across && (up || down))) {
+    ctx.fillStyle = "#9aa6b5";
+    ctx.fillRect(px + 6, py + 3, 4, 13);
+    ctx.strokeRect(px + 6, py + 3, 4, 13);
+  }
 }
 
 const FLOORS: Record<Floor, { base: string; line: string }> = {

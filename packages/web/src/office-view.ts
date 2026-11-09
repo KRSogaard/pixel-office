@@ -2,7 +2,7 @@ import { isTestRun, type AgentState } from "@pixel-office/protocol";
 import { TILE } from "./office/layout.js";
 import type { Point } from "./office/pathfind.js";
 import type { OfficeStore } from "./net.js";
-import type { Renderer } from "./render/renderer.js";
+import type { Renderer, Sign } from "./render/renderer.js";
 import type { StatsBoard } from "./ui/board.js";
 import type { Overlay, ScreenPoint } from "./ui/overlay.js";
 import type { Sfx } from "./ui/sounds.js";
@@ -123,25 +123,21 @@ export class OfficeView {
     this.deps.board.render(this.deps.store.stats, w.bugs.count);
   }
 
-  /** "project · Manager" above each team area, and its whiteboard with the manager's todo list. */
+  /** Each team office's name plate (drawn by the renderer), and its whiteboard with the manager's todo list. */
   private labelTeams(): void {
     const { overlay, store } = this.deps;
     const office = this.world.office;
     const state = store.state;
-    const shown = new Set<string>();
+    const signs: Sign[] = [];
     for (const t of office.teams) {
-      shown.add(t.sessionId);
       const manager = Object.values(state.agents).find((a) => a.sessionId === t.sessionId && !a.parentId);
       const color = this.world.colorOf(t.sessionId);
-      overlay.teamLabel(
-        t.sessionId,
-        `${manager ? `${t.project} · ${manager.name}` : t.project}${manager?.user ? ` · ${manager.user}` : ""}${manager?.branch ? ` · ⎇ ${manager.branch}` : ""}`,
-        color,
-        this.at((t.x + t.w / 2) * TILE, t.y * TILE + 7),
-      );
+      const who = [manager?.name, manager?.user, manager?.branch && `⎇ ${manager.branch}`].filter(Boolean).join(" · ");
+      signs.push({ key: t.sessionId, ...t.sign, title: t.project, subtitle: who, color });
       overlay.whiteboard(t.sessionId, manager ? `${manager.name} · ${t.project}` : t.project, manager?.todos, color, this.at(...whiteboardCorner(t.whiteboard)));
     }
-    overlay.pruneTeamLabels(shown);
+    this.renderer.signs(signs);
+    overlay.pruneBoards(new Set(office.teams.map((t) => t.sessionId)));
   }
 
   /** Name signs over the top rooms; the test lab's shows the latest test result in the office. */

@@ -5,10 +5,11 @@ import type { WorldEvent } from "../../world/events.js";
 import type { Person } from "../../world/person.js";
 import type { World } from "../../world/world.js";
 import { tintAt } from "../daylight.js";
-import type { Renderer, RendererInput } from "../renderer.js";
+import type { Renderer, RendererInput, Sign } from "../renderer.js";
 import { Effects } from "./effects.js";
 import { WALL_H, buildOffice, type BuiltOffice } from "./office.js";
 import { Cast, Icons, PersonView } from "./people.js";
+import { Signs } from "./signs.js";
 import { toFloor, toHeight } from "./space.js";
 import { CatView, SiloView, binView, botView, boxView, decorations, bugView, disposeObject, droneView, duckView, heldView } from "./things.js";
 
@@ -57,6 +58,7 @@ export class ThreeRenderer implements Renderer {
   private silo: SiloView | undefined;
   private season: ReturnType<typeof decorations> | undefined;
   private links = new THREE.Group();
+  private plates = new Signs();
   /** The code that scrolls on a monitor while someone types at it. */
   private code = codeScreen();
   private now = 0;
@@ -91,7 +93,7 @@ export class ThreeRenderer implements Renderer {
     this.sun.castShadow = true;
     this.sun.shadow.mapSize.set(2048, 2048);
     this.sun.shadow.bias = -0.0005;
-    this.scene.add(this.sun, this.sun.target, this.sky, this.dynamic, this.links);
+    this.scene.add(this.sun, this.sun.target, this.sky, this.dynamic, this.links, this.plates.group);
     this.cat = new CatView(world.pet);
     this.scene.add(this.cat.group);
     this.silo = new SiloView(world.silo);
@@ -146,6 +148,10 @@ export class ThreeRenderer implements Renderer {
     const h = this.canvasSize.h / BASE_PPU;
     this.camera.zoom = Math.max(0.3, Math.min(w / (maxX - minX), h / (maxY - minY)) * 0.96);
     this.camera.updateProjectionMatrix();
+  }
+
+  signs(signs: readonly Sign[]): void {
+    this.plates.update(signs);
   }
 
   zoomBy(factor: number): void {
