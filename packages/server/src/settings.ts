@@ -73,33 +73,23 @@ export class SettingsStore {
 }
 
 /**
- * Carry old settings files over: the meeting room became the test lab, the
- * git room was added (placed just before the mailroom, or at the end), the
- * café (placed just before the test lab, or at the end), the library became
- * the internet room (its size: the old web desks' or library's, whichever was
- * bigger), and the mailroom made way for the meeting room (sized like the old
- * reception counter), with the filing cabinets gone.
+ * Carry old settings files over. The rooms along the top have changed a lot
+ * (the meeting room became the test lab, then came the git room, the café,
+ * the library became the internet room, and the mailroom made way for a new
+ * meeting room), so an order saved before today's set of rooms is replaced by
+ * the default order. Sizes carry over: the internet room gets the bigger of the
+ * old library and web desks, the meeting room the old reception counter's
+ * (the mailroom's and filing cabinets' are dropped).
  *
- * "meeting" means two things here: in the oldest files it is the room that
- * became the test lab (they have no "lab" yet); since then it is the meeting room.
+ * "meeting" in sizes means two things: in the oldest files it is the room that
+ * became the test lab (they have no "lab" size yet); since then, the meeting room.
  */
 export function migrate(raw: Record<string, unknown>): Record<string, unknown> {
   const out = { ...raw };
   if (Array.isArray(out.roomOrder)) {
-    const legacy = !out.roomOrder.includes("lab");
-    const order = out.roomOrder.map((r) => (r === "meeting" && legacy ? "lab" : r === "library" ? "web" : r));
-    if (!order.includes("git")) {
-      const mail = order.indexOf("mail");
-      order.splice(mail >= 0 ? mail : order.length, 0, "git");
-    }
-    if (!order.includes("cafe")) {
-      const lab = order.indexOf("lab");
-      order.splice(lab >= 0 ? lab : order.length, 0, "cafe");
-    }
-    const mail = order.indexOf("mail");
-    if (mail >= 0) order.splice(mail, 1, ...(order.includes("meeting") ? [] : ["meeting"]));
-    else if (!order.includes("meeting")) order.push("meeting");
-    out.roomOrder = order;
+    const current = DEFAULT_SETTINGS.roomOrder;
+    const upToDate = out.roomOrder.length === current.length && current.every((r) => (out.roomOrder as unknown[]).includes(r));
+    if (!upToDate) out.roomOrder = [...current];
   }
   if (out.minRooms && typeof out.minRooms === "object") {
     const { meeting, library, globe, mail: _mail, filing: _filing, reception, ...rest } = out.minRooms as Record<string, unknown>;

@@ -153,7 +153,8 @@ export interface OfficeSettings {
 }
 
 export const DEFAULT_SETTINGS: OfficeSettings = {
-  roomOrder: ["web", "server", "cafe", "lab", "git", "meeting"],
+  // The meeting room (with the statue of the Almighty Prompter) first, where it's easy to see.
+  roomOrder: ["meeting", "server", "lab", "cafe", "web", "git"],
   minRooms: { web: 4, server: 4, lab: 3, git: 3, meeting: 4, lounge: 6 },
   teamsPerRow: 3,
   rugs: true,

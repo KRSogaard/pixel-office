@@ -18,7 +18,7 @@ describe("settings store", () => {
       }),
     );
     const s = new SettingsStore(dir).get();
-    expect(s.roomOrder).toEqual(["git", "meeting", "cafe", "lab", "server", "web"]);
+    expect(s.roomOrder).toEqual(["meeting", "server", "lab", "cafe", "web", "git"]);
     // The library became the internet room: the bigger of the old library and web desks.
     expect(s.minRooms.web).toBe(7);
     expect(s.minRooms.lab).toBe(3);
@@ -43,7 +43,7 @@ describe("settings: the café", () => {
         plants: true,
       }),
     );
-    expect(new SettingsStore(dir).get().roomOrder).toEqual(["web", "server", "cafe", "lab", "git", "meeting"]);
+    expect(new SettingsStore(dir).get().roomOrder).toEqual(["meeting", "server", "lab", "cafe", "web", "git"]);
   });
 });
 
@@ -54,21 +54,21 @@ describe("settings: the meeting room", () => {
     return new SettingsStore(dir).get();
   };
 
-  it("takes the mailroom's place, sized like the old reception counter", () => {
+  it("replaces an order saved before it existed with the default (meeting room first), sized like the old reception counter", () => {
     const s = save({
       roomOrder: ["mail", "web", "server", "cafe", "lab", "git"],
       minRooms: { web: 4, server: 4, lab: 3, git: 3, mail: 3, lounge: 6, reception: 7, filing: 3 },
     });
-    expect(s.roomOrder).toEqual(["meeting", "web", "server", "cafe", "lab", "git"]);
+    expect(s.roomOrder).toEqual(["meeting", "server", "lab", "cafe", "web", "git"]);
     expect(s.minRooms).toEqual({ web: 4, server: 4, lab: 3, git: 3, meeting: 7, lounge: 6 });
   });
 
-  it("keeps a saved meeting room as it is", () => {
+  it("keeps an order saved since, as it is", () => {
     const s = save({
-      roomOrder: ["meeting", "web", "server", "cafe", "lab", "git"],
+      roomOrder: ["web", "meeting", "server", "cafe", "lab", "git"],
       minRooms: { web: 4, server: 4, lab: 3, git: 3, meeting: 9, lounge: 6 },
     });
-    expect(s.roomOrder).toEqual(["meeting", "web", "server", "cafe", "lab", "git"]);
+    expect(s.roomOrder).toEqual(["web", "meeting", "server", "cafe", "lab", "git"]);
     expect(s.minRooms.meeting).toBe(9);
   });
 });
