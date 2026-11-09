@@ -2,8 +2,8 @@ import type { ScreenPoint } from "../ui/overlay.js";
 import type { World } from "../world/world.js";
 
 /**
- * Draws the world. Each art style has one: the pixel and toon styles draw it
- * flat with Phaser, the 3D style with Three.js. A renderer owns the canvas, the
+ * Draws the world. Each art style has one: the pixel style draws it flat with
+ * Phaser, the 3D style with Three.js. A renderer owns the canvas, the
  * camera and the animation loop; the world owns everything that happens.
  *
  * World positions are world pixels (`TILE` per tile) on the floor; `lift`

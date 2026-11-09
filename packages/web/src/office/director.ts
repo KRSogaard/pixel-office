@@ -2,7 +2,7 @@ import type { Activity } from "@pixel-office/protocol";
 import type { SpotKind } from "./layout.js";
 
 /** How the character holds itself once it arrives. */
-export type Pose = "type" | "think" | "station" | "lounge" | "hand" | "stand" | "stomp" | "cheer";
+export type Pose = "type" | "think" | "station" | "lounge" | "hand" | "stand" | "stomp" | "cheer" | "kneel";
 
 export interface Place {
   kind: SpotKind;
@@ -22,10 +22,12 @@ const PLACE_BY_ACTIVITY: Record<Activity, Place> = {
   git: { kind: "git", pose: "station" },
   // On the web: at a laptop in the internet room.
   web: { kind: "web", pose: "type" },
-  mcp: { kind: "mail", pose: "station" },
+  // A connected service (MCP): at the desk (the activity icon shows an envelope).
+  mcp: { kind: "seat", pose: "type" },
   // Compaction: back at the desk, stomping the overflowing wastepaper bin flat.
   compact: { kind: "seat", pose: "stomp" },
-  waiting: { kind: "reception", pose: "hand" },
+  // Needs you (a permission prompt, a question): seated in the meeting room, waiting for you to join.
+  waiting: { kind: "meeting", pose: "think" },
   // Its background jobs (a robot each) are out working: it waits at its desk.
   background: { kind: "seat", pose: "think" },
   idle: { kind: "lounge", pose: "lounge" },
@@ -89,5 +91,5 @@ export class PlaceDebouncer {
 
 function isUrgent(desired: Place, current: Place): boolean {
   // Needing the human, leaving the building, and getting off the sofa for a new prompt never wait.
-  return desired.kind === "reception" || desired.kind === "door" || current.kind === "lounge";
+  return desired.kind === "meeting" || desired.kind === "door" || current.kind === "lounge";
 }

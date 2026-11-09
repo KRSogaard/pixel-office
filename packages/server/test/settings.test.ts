@@ -18,11 +18,13 @@ describe("settings store", () => {
       }),
     );
     const s = new SettingsStore(dir).get();
-    expect(s.roomOrder).toEqual(["git", "mail", "cafe", "lab", "server", "web"]);
+    expect(s.roomOrder).toEqual(["git", "meeting", "cafe", "lab", "server", "web"]);
     // The library became the internet room: the bigger of the old library and web desks.
     expect(s.minRooms.web).toBe(7);
     expect(s.minRooms.lab).toBe(3);
     expect(s.minRooms.git).toBe(3);
+    // The old meeting room's size went with it to the test lab; the new meeting room is sized like reception was.
+    expect(s.minRooms.meeting).toBe(4);
     expect(s.teamsPerRow).toBe(2);
     expect(s.rugs).toBe(false);
   });
@@ -41,7 +43,33 @@ describe("settings: the café", () => {
         plants: true,
       }),
     );
-    expect(new SettingsStore(dir).get().roomOrder).toEqual(["web", "server", "cafe", "lab", "git", "mail"]);
+    expect(new SettingsStore(dir).get().roomOrder).toEqual(["web", "server", "cafe", "lab", "git", "meeting"]);
+  });
+});
+
+describe("settings: the meeting room", () => {
+  const save = (settings: object) => {
+    const dir = mkdtempSync(join(tmpdir(), "po-settings-"));
+    writeFileSync(join(dir, "settings.json"), JSON.stringify({ teamsPerRow: 3, rugs: true, plants: true, ...settings }));
+    return new SettingsStore(dir).get();
+  };
+
+  it("takes the mailroom's place, sized like the old reception counter", () => {
+    const s = save({
+      roomOrder: ["mail", "web", "server", "cafe", "lab", "git"],
+      minRooms: { web: 4, server: 4, lab: 3, git: 3, mail: 3, lounge: 6, reception: 7, filing: 3 },
+    });
+    expect(s.roomOrder).toEqual(["meeting", "web", "server", "cafe", "lab", "git"]);
+    expect(s.minRooms).toEqual({ web: 4, server: 4, lab: 3, git: 3, meeting: 7, lounge: 6 });
+  });
+
+  it("keeps a saved meeting room as it is", () => {
+    const s = save({
+      roomOrder: ["meeting", "web", "server", "cafe", "lab", "git"],
+      minRooms: { web: 4, server: 4, lab: 3, git: 3, meeting: 9, lounge: 6 },
+    });
+    expect(s.roomOrder).toEqual(["meeting", "web", "server", "cafe", "lab", "git"]);
+    expect(s.minRooms.meeting).toBe(9);
   });
 });
 

@@ -178,9 +178,6 @@ export function buildOffice(office: Office, colorOf: (sessionId: string) => numb
         case "Q":
           shelf(b, cx, cz, (i) => [0x7fd1c7, 0xd98fb5, 0xe6d27a][(x + i) % 3]!);
           break;
-        case "M":
-          shelf(b, cx, cz, () => 0xf4f1e8);
-          break;
         case "R":
           b.box(PALETTE.dark, cx, 0, cz - 0.05, 0.8, 1.7, 0.7);
           for (let i = 0; i < 5; i++) b.box(i % 2 ? 0x5af07a : 0x3d8a52, cx - 0.2, 0.3 + i * 0.28, cz + 0.31, 0.25, 0.05, 0.02);
@@ -205,19 +202,21 @@ export function buildOffice(office: Office, colorOf: (sessionId: string) => numb
           b.blob(PALETTE.green, cx, 0.62, cz, 0.36);
           b.blob(0x3b7a3c, cx + 0.12, 0.85, cz - 0.05, 0.22);
           break;
-        case "F":
-          b.box(PALETTE.metal, cx, 0, cz, 0.7, 1.1, 0.6);
-          for (let i = 0; i < 3; i++) b.box(PALETTE.dark, cx, 0.2 + i * 0.33, cz + 0.3, 0.3, 0.04, 0.02);
-          break;
         case "L":
           laptopBar(b, tiles, x, y, screens, group, materials);
           break;
         case "g":
           stool(b, cx, cz);
           break;
-        case "X":
-          b.box(PALETTE.woodLight, cx, 0, cz, 1, 1.0, 0.8);
-          b.box(PALETTE.wood, cx, 1.0, cz, 1.04, 0.06, 0.9);
+        case "T":
+          meetingTable(b, tiles, x, y);
+          break;
+        case "V":
+          // Two tiles wide: built once, from the left one.
+          if (row[x - 1] !== "V") statue(b, x + 1, cz);
+          break;
+        case "n":
+          chair(b, cx, cz, "up", 0x3d4a5c);
           break;
         case "Y":
           b.box(PALETTE.metal, cx, 0, cz, 0.6, 0.55, 0.5);
@@ -373,6 +372,51 @@ function chair(b: Builder, cx: number, cz: number, facing: "up" | "down", color:
   b.cylinder(PALETTE.dark, cx, 0, z, 0.03, 0.03, s.top - 0.07, 5);
   b.box(color, cx, s.top - 0.07, z + (back * (s.behind - s.ahead)) / 2, s.width, 0.07, depth);
   b.box(color, cx, s.top, z + back * (s.behind + 0.03), s.width, s.backTop - s.top, 0.06);
+}
+
+/** The 3D statue's head: its centre's height and how far its face is in front of the middle (the eyes glow there). */
+export const STATUE_HEAD = { y: 1.62, front: 0.17 };
+
+/**
+ * The statue of the Almighty Prompter in gold, on a stone plinth: one finger
+ * raised high, the other hand reaching for a keyboard on a lectern.
+ * (cx, cz): the middle of its two tiles.
+ */
+function statue(b: Builder, cx: number, cz: number): void {
+  const gold = 0xe0b84a;
+  const shade = 0xb08a2c;
+  b.box(0x8d8a82, cx, 0, cz, 1.5, 0.4, 0.75);
+  b.box(0xb9b5ab, cx, 0.4, cz, 1.6, 0.06, 0.85);
+  b.box(0xd4ad45, cx, 0.12, cz + 0.38, 0.6, 0.16, 0.02);
+  // Lectern and keyboard.
+  b.box(shade, cx - 0.55, 0.46, cz + 0.15, 0.08, 0.5, 0.08);
+  b.box(gold, cx - 0.55, 0.96, cz + 0.15, 0.36, 0.05, 0.18);
+  b.box(0xf6dc8a, cx - 0.42, 1.01, cz + 0.2, 0.08, 0.02, 0.06);
+  // Legs, body, head.
+  b.box(gold, cx - 0.12, 0.46, cz, 0.14, 0.45, 0.16);
+  b.box(gold, cx + 0.12, 0.46, cz, 0.14, 0.45, 0.16);
+  b.box(gold, cx, 0.91, cz, 0.46, 0.55, 0.26);
+  b.blob(gold, cx, STATUE_HEAD.y, cz, 0.17);
+  // The hand reaching for the keyboard, and the arm raised to the heavens.
+  b.box(gold, cx - 0.3, 0.98, cz + 0.08, 0.1, 0.45, 0.1);
+  b.box(gold, cx + 0.3, 1.2, cz, 0.1, 0.55, 0.1);
+  b.box(0xf6dc8a, cx + 0.3, 1.75, cz, 0.04, 0.15, 0.04);
+}
+
+/** One tile of a meeting table: the top runs on into its neighbours, legs only at the ends. */
+function meetingTable(b: Builder, tiles: string[][], x: number, y: number): void {
+  const cx = x + 0.5;
+  const cz = y + 0.5;
+  const left = tiles[y]?.[x - 1] === "T";
+  const right = tiles[y]?.[x + 1] === "T";
+  const w = 1 - (left ? 0 : 0.04) - (right ? 0 : 0.04);
+  const shift = ((left ? 0 : 0.04) - (right ? 0 : 0.04)) / 2;
+  b.box(PALETTE.wood, cx + shift, DESK_H - 0.05, cz, w, 0.05, 0.8);
+  for (const [end, dx] of [[left, -0.4], [right, 0.4]] as const) {
+    if (end) continue;
+    b.box(0x5a3a22, cx + dx, 0, cz - 0.3, 0.06, DESK_H - 0.05, 0.06);
+    b.box(0x5a3a22, cx + dx, 0, cz + 0.3, 0.06, DESK_H - 0.05, 0.06);
+  }
 }
 
 /**

@@ -246,6 +246,40 @@ const permissionStorm: Scenario = (loop) => {
   return merge(...scripts);
 };
 
+/**
+ * The statue of the Almighty Prompter: three agents ask for permission. One is
+ * approved quickly (from its chair); the other two wait over a minute, kneel
+ * and pray, then one is approved (a beam of light) and one denied (a storm
+ * cloud). Along the way: a coffee break, a failed push and a failed test run,
+ * for the offerings at the statue's feet.
+ */
+const prompter: Scenario = (loop) => {
+  const ask = (s: Script, w: Who, command: string, d = 600) => {
+    const callId = s.open(w, "Bash", { command }, d);
+    s.at(600, { ...w, kind: "waiting", reason: "permission", text: `Bash: ${command}`, callId });
+    return callId;
+  };
+  const quick = agent("claude", `quinn-${loop}`, "infra");
+  const sq = new Script(loop * 10 + 1).start(quick, 300).prompt(quick, "Rotate the staging certificates");
+  const q = ask(sq, quick, "kubectl apply -f certs.yaml");
+  sq.at(8000, { ...quick, kind: "tool.end", callId: q, ok: true }).idle(quick, 800);
+  sq.tool(quick, "Bash", { command: "git push origin main" }, 2500, 1500, false).idle(quick, 600).end(quick, 70_000);
+
+  const blessed = agent("claude", `bea-${loop}`, "billing");
+  const sb = new Script(loop * 10 + 2).start(blessed, 1200).prompt(blessed, "Clean the build output and rebuild");
+  sb.tool(blessed, "Bash", { command: "pnpm test" }, 3000, 400, false);
+  const b = ask(sb, blessed, "rm -rf dist");
+  sb.at(75_000, { ...blessed, kind: "tool.end", callId: b, ok: true }).idle(blessed, 1500).end(blessed, 12_000);
+
+  const denied = agent("opencode", `dax-${loop}`, "billing");
+  const sd = new Script(loop * 10 + 3).start(denied, 2000).prompt(denied, "Sync my branch with main");
+  sd.at(1500, { ...denied, kind: "error", text: "rate limit exceeded (429)" });
+  sd.prompt(denied, "try again", 12_000);
+  ask(sd, denied, "git push --force", 600);
+  sd.prompt(denied, "No! Never force push. Rebase instead.", 80_000).tool(denied, "Bash", { command: "git pull --rebase" }, 3000).idle(denied, 800).end(denied, 10_000);
+  return merge(sq, sb, sd);
+};
+
 const twoTools: Scenario = (loop) => {
   const c = agent("claude", `c-${loop}`, "pixel-office");
   const o = agent("opencode", `o-${loop}`, "pixel-office");
@@ -358,6 +392,7 @@ export const SCENARIOS: Record<string, Scenario> = {
   "busy-day": busyDay,
   "delegation-tree": delegationTree,
   "permission-storm": permissionStorm,
+  prompter,
   "two-tools": twoTools,
   team,
 };

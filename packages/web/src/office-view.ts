@@ -140,9 +140,12 @@ export class OfficeView {
     overlay.pruneBoards(new Set(office.teams.map((t) => t.sessionId)));
   }
 
-  /** Name signs over the top rooms; the test lab's shows the latest test result in the office. */
+  /**
+   * Name signs over the top rooms. The test lab's shows the latest test result;
+   * the meeting room's turns red and counts the agents waiting on you.
+   */
   private signRooms(): void {
-    const names = { web: "Internet room", server: "Server room", cafe: "Café", lab: "Test lab", git: "Git room", mail: "Mailroom" } as const;
+    const names = { web: "Internet room", server: "Server room", cafe: "Café", lab: "Test lab", git: "Git room", meeting: "Meeting room" } as const;
     const silo = this.world.silo;
     const keep = new Set<string>();
     for (const r of this.world.office.rooms) {
@@ -154,11 +157,24 @@ export class OfficeView {
         tone = result.tone;
         if (result.text) text += ` · ${result.text}`;
       }
+      if (r.kind === "meeting") {
+        const waiting = Object.values(this.deps.store.state.agents).filter((a) => a.activity === "waiting").length;
+        if (waiting) {
+          text += ` · ${waiting} waiting for you`;
+          tone = "fail";
+        }
+      }
       if (r.kind === "git" && silo.launches) {
         text += ` · 🚀 ×${silo.launches}`;
         if (Date.now() - silo.lastLaunchAt < 8000) tone = "pass";
       }
       this.deps.overlay.roomSign(r.kind, text, tone, this.at((r.x + r.w / 2) * TILE, (r.y + r.h) * TILE + 9));
+    }
+    // The plaque on the statue of the Almighty Prompter: a new inscription every little while.
+    const statue = this.world.office.statue;
+    if (statue) {
+      keep.add("plaque");
+      this.deps.overlay.roomSign("plaque", this.world.shrine.plaque(Date.now()), "plaque", this.at((statue.x + 1) * TILE, (statue.y + 1) * TILE - 3));
     }
     this.deps.overlay.pruneRoomSigns(keep);
   }

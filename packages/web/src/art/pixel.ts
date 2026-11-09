@@ -6,7 +6,6 @@ import { paintOffice } from "./tiles.js";
 /** The original look: everything drawn with rectangles at 16 pixels per tile. */
 export const pixelPack: ArtPack = {
   id: "pixel",
-  smooth: false,
   paintOffice: (office, colorOf, rugs) => {
     const canvas = paintOffice(office, colorOf, rugs);
     return { canvas, frameW: canvas.width, frameH: canvas.height, scale: 1 };

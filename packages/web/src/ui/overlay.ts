@@ -300,7 +300,7 @@ export class Overlay {
   }
 
   /** A sign over a room's door, e.g. "Test lab · ✓ pass". */
-  roomSign(key: string, text: string, tone: "plain" | "running" | "pass" | "fail", p: ScreenPoint): void {
+  roomSign(key: string, text: string, tone: "plain" | "running" | "pass" | "fail" | "plaque", p: ScreenPoint): void {
     let sign = this.signs.get(key);
     if (!sign) {
       sign = el("div", "room-sign");

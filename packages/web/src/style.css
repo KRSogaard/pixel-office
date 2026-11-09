@@ -509,6 +509,16 @@ button {
   color: #ffd0d0;
 }
 
+/* The brass plaque on the statue of the Almighty Prompter. */
+.room-sign.plaque {
+  font-size: clamp(6px, calc(var(--zoom) * 2.1px), 9px);
+  background: linear-gradient(#f3d77a, #c9a23a);
+  color: #4a3510;
+  border: 1px solid #8a6a1e;
+  font-variant: small-caps;
+  letter-spacing: 0.02em;
+}
+
 /* --- HUD tools, replay bar, settings ---------------------------------------- */
 
 .hud-tools {

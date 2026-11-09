@@ -38,8 +38,8 @@ export interface AnticsHost {
   say(agentId: string, text: string): void;
   office(): Office;
   team(sessionId: string): TeamArea | undefined;
-  /** A tile in the mailroom (where couriers start). */
-  mailroom(): Point | undefined;
+  /** The front door (where couriers come in). */
+  entrance(): Point | undefined;
   /** A tile in the lounge (where pizza goes). */
   lounge(): Point | undefined;
   /** Optional: the lab caught fire (for the alarm sound). */
@@ -179,7 +179,7 @@ export class Antics {
       this.gossip(`Did you see ${actor.agent.name}'s rocket? 🚀`, "Ship it! 🚀");
     }
     if (call.category === "mcp" && now - (this.lastCourier.get(actor.id) ?? -Infinity) > 15_000) {
-      const from = this.host.mailroom();
+      const from = this.host.entrance();
       if (from) {
         this.lastCourier.set(actor.id, now);
         this.host.extras.courier(from, () => p.tile, () => this.host.say(actor.id, "📨 Thanks!"));

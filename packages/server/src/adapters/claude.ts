@@ -92,7 +92,7 @@ export function claudeToEvents(payload: unknown, now: number): AgentEvent[] {
         if (to && text) out.push({ ...base, kind: "message", to, text });
       }
       if (toolName === "AskUserQuestion") {
-        out.push({ ...base, kind: "waiting", reason: "question", text: firstQuestion(toolInput) ?? "Question" });
+        out.push({ ...base, kind: "waiting", reason: "question", text: firstQuestion(toolInput) ?? "Question", ...(callId ? { callId } : {}) });
       }
       if (toolName === "TodoWrite") {
         const items = todoItems(toolInput?.todos);
@@ -131,6 +131,7 @@ export function claudeToEvents(payload: unknown, now: number): AgentEvent[] {
         kind: "waiting",
         reason: "permission",
         text: toolName ? summarizeTool(toolName, toolInput) : "Permission needed",
+        ...(callId ? { callId } : {}),
       });
       break;
     case "Notification": {

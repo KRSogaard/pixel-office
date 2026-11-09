@@ -3,7 +3,7 @@
 A self-hosted pixel-art office where your coding agents show up as little people.
 Claude Code and OpenCode sessions walk in the front door, sit at their project's desks
 to write and read code, sit at a laptop in the internet room when they browse the web, stand at the server racks when they
-run commands, raise a hand at reception when they need you, and walk over to each other
+run commands, wait in the meeting room when they need you, and walk over to each other
 when one hands work to another.
 
 It costs your agents **zero tokens**: the connectors are plain hooks/plugins running
@@ -32,6 +32,12 @@ What's in the office:
 - **Job robots** for commands left running in the background (a build, a test run): each
   rolls to the test lab or the server room and works there with a timer, while its agent
   waits at its desk (⏳) instead of looking idle; then it rolls back with ✓ or ✗.
+- **The statue of the Almighty Prompter** (you) in the meeting room. Agents left waiting
+  over a minute kneel before it and pray ("Please press Y"), all bowing together. Its plaque
+  changes ("Thou Shalt Not --force Push"), a spotlight shines on it at night, and today's
+  coffee cups, crashed rockets and failed tests pile up at its feet as offerings. Approve a
+  prompt and its eyes glow, a choir sings and a beam of light falls on the agent ("It has
+  spoken."); deny one and a storm cloud rains on it.
 - **A production sidebar (📊)** with today's numbers, **achievements** with a fanfare, café
   **gossip** about what just happened, and **seasonal** decorations.
 - **Visitors** dropping by now and then — Elon Musk, Donald Trump, the Consultant, the Lost Intern,
@@ -260,7 +266,7 @@ pnpm install
 pnpm --filter @pixel-office/server dev       # server on :8790 (data in ./data)
 pnpm --filter @pixel-office/web dev          # web on :5173, proxies to the server
 pnpm simulate busy-day --token <token>       # fake agents: busy-day, delegation-tree,
-                                             # permission-storm, two-tools, team
+                                             # permission-storm, prompter, two-tools, team
 pnpm test && pnpm typecheck
 ```
 
@@ -270,19 +276,16 @@ with a manager's desk, and rooms grow when they get crowded. Room templates live
 
 ### Art styles
 
-The office comes in three looks, picked per browser with the dropdown in the top bar (or
-`?style=toon` / `?style=lowpoly` in the address):
+The office comes in two looks, picked per browser with the dropdown in the top bar (or
+`?style=lowpoly` / `?style=pixel` in the address). 3D is the default:
 
-- **Pixel**: everything drawn in code at 16 pixels per tile
-  ([`packages/web/src/art/pixel.ts`](packages/web/src/art/pixel.ts) and the files it uses).
-- **Toon**: a 1940s-cartoon look. Furniture, people, visitors, the cat and props are images in
-  [`packages/web/public/art/toon/`](packages/web/public/art/toon), generated with Nano Banana;
-  floors, walls and rugs are painted in [`packages/web/src/art/toon.ts`](packages/web/src/art/toon.ts).
 - **3D**: a low-poly office in Three.js, seen from a tilted camera that doesn't shrink things
   with distance (so it reads like an isometric game). Drag to pan, scroll to zoom. People are
   rigged 3D characters that walk, run and cheer, and sit properly at desks and on sofas; the
   furniture is built in code from the same layout
   ([`packages/web/src/render/three/`](packages/web/src/render/three)).
+- **Pixel**: everything drawn in code at 16 pixels per tile
+  ([`packages/web/src/art/pixel.ts`](packages/web/src/art/pixel.ts) and the files it uses).
 
 Each style has its own visitors.
 
@@ -291,33 +294,17 @@ What happens in the office and how it's drawn are kept apart:
 - [`packages/web/src/world/`](packages/web/src/world) is the office's brain, with no drawing
   in it: who sits where, who walks where, the scenes, visitors, bugs, rockets and the cat.
 - A **renderer** draws the world and owns the camera and clicks (the `Renderer` interface in
-  [`packages/web/src/render/renderer.ts`](packages/web/src/render/renderer.ts)). Pixel and
-  Toon both use the flat Phaser renderer in
-  [`packages/web/src/render/phaser/`](packages/web/src/render/phaser), each with its own art
-  pack (the `ArtPack` interface in [`packages/web/src/art/pack.ts`](packages/web/src/art/pack.ts)).
+  [`packages/web/src/render/renderer.ts`](packages/web/src/render/renderer.ts)). 3D has its
+  own in [`packages/web/src/render/three/`](packages/web/src/render/three); Pixel uses the flat
+  Phaser renderer in [`packages/web/src/render/phaser/`](packages/web/src/render/phaser) with
+  an art pack (the `ArtPack` interface in [`packages/web/src/art/pack.ts`](packages/web/src/art/pack.ts)).
 - [`packages/web/src/office-view.ts`](packages/web/src/office-view.ts) runs the two together
   and keeps the HTML name tags, bubbles and labels on top.
-
-Pixel and Toon both use the flat Phaser renderer; 3D has its own, in
-[`packages/web/src/render/three/`](packages/web/src/render/three).
 
 Adding a style means listing it in `STYLES` in
 [`packages/web/src/art/style.ts`](packages/web/src/art/style.ts) and giving
 [`packages/web/src/render/index.ts`](packages/web/src/render/index.ts) a case for it: either a
 new art pack for the Phaser renderer, or a renderer of its own.
-
-The toon images are made by [`packages/web/scripts/toon-art.py`](packages/web/scripts/toon-art.py)
-(needs Python with Pillow, and an OpenRouter key). It cuts out the white background,
-crops, splits people into poses and scales everything to size. Raw generations are cached
-in `packages/web/.toon-raw/` (not committed), so changing the clean-up never costs a new
-generation:
-
-```sh
-cd packages/web
-OPENROUTER_API_KEY=… python3 scripts/toon-art.py          # generate what's missing, then process
-python3 scripts/toon-art.py --process                      # re-process the cached images only
-OPENROUTER_API_KEY=… python3 scripts/toon-art.py --redo desk char-03--side   # regenerate these
-```
 
 The 3D characters are in [`packages/web/public/art/lowpoly/`](packages/web/public/art/lowpoly):
 `agent-00` … `agent-08` (an agent gets one picked from its id) and one per visitor and extra

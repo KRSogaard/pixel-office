@@ -3,7 +3,8 @@ import { audioFor } from "./audio.js";
 /**
  * Sound effects, synthesized on the fly (no audio files): a rocket rumble, the
  * lab's fire alarm, Byte's meow, bug squashes, a courier's ding, an achievement
- * fanfare, and soft keyboard clicks from busy desks. Off until you turn on 🔊.
+ * fanfare, a heavenly choir and thunder from the statue in the meeting room, and
+ * soft keyboard clicks from busy desks. Off until you turn on 🔊.
  */
 export class Sfx {
   enabled = localStorage.getItem("po.sfx") === "1";
@@ -56,6 +57,44 @@ export class Sfx {
 
   fanfare(): void {
     [523.3, 659.3, 784, 1046.5].forEach((f, i) => this.tone(f, i * 0.11, i === 3 ? 0.6 : 0.16, "square", 0.04));
+  }
+
+  /** "Aaah": a heavenly choir chord swelling up, for when the Almighty Prompter approves. */
+  choir(): void {
+    const a = this.audio(2.4);
+    if (!a) return;
+    const t = a.currentTime;
+    // A major chord, each voice a vowel-ish buzz (sawtooth through a soft filter) with a slow vibrato.
+    for (const [i, f] of [261.6, 329.6, 392, 523.3].entries()) {
+      const osc = a.createOscillator();
+      const vib = a.createOscillator();
+      const vibGain = a.createGain();
+      const filter = a.createBiquadFilter();
+      const gain = a.createGain();
+      osc.type = "sawtooth";
+      osc.frequency.value = f;
+      vib.frequency.value = 5 + i * 0.3;
+      vibGain.gain.value = f * 0.008;
+      vib.connect(vibGain).connect(osc.frequency);
+      filter.type = "lowpass";
+      filter.frequency.value = 900;
+      filter.Q.value = 4;
+      gain.gain.setValueAtTime(0.0001, t);
+      gain.gain.exponentialRampToValueAtTime(0.022, t + 0.6);
+      gain.gain.setValueAtTime(0.022, t + 1.4);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + 2.3);
+      osc.connect(filter).connect(gain).connect(a.destination);
+      osc.start(t);
+      vib.start(t);
+      osc.stop(t + 2.35);
+      vib.stop(t + 2.35);
+    }
+  }
+
+  /** A distant thunder rumble, for when the Almighty Prompter denies. */
+  thunder(): void {
+    this.noise(0.25, 2500, 0.08, 0, 0.2);
+    this.noise(2.2, 160, 0.25, 0.15, 2);
   }
 
   /** A soft key click; rate-limited so a busy office purrs instead of clatters. */

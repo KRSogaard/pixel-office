@@ -94,6 +94,36 @@ describe("reduce", () => {
     expect(s2.agents.c!.lastSaid).toMatchObject({ kind: "report", text: "found 3", withAgentId: "p" });
   });
 
+  it("an approved permission: the tool it was about runs", () => {
+    const s = reduceAll(emptyState(), [
+      ev({ kind: "tool.start", agentId: "a", callId: "c1", tool: "Bash", category: "shell", summary: "Bash: rm -rf dist" }),
+      ev({ kind: "waiting", agentId: "a", reason: "permission", text: "Bash: rm -rf dist" }),
+    ]);
+    const since = s.agents.a!.waiting!.since;
+    // Claude Code repeats the prompt as a notification a few seconds later: still the same wait.
+    const again = reduceAll(s, [ev({ kind: "waiting", agentId: "a", reason: "permission" })]);
+    expect(again.agents.a!.waiting).toMatchObject({ callId: "c1", since });
+    const end = ev({ kind: "tool.end", agentId: "a", callId: "c1", ok: true });
+    expect(reduceAll(again, [end]).agents.a!.lastAnswer).toEqual({ outcome: "approved", at: end.ts });
+  });
+
+  it("a denied permission: the wait ends without the tool running", () => {
+    const s = reduceAll(emptyState(), [
+      ev({ kind: "tool.start", agentId: "a", callId: "c1", tool: "Bash", category: "shell", summary: "Bash: git push --force" }),
+      ev({ kind: "waiting", agentId: "a", reason: "permission" }),
+    ]);
+    const prompt = ev({ kind: "prompt", agentId: "a", text: "no, don't force push" });
+    expect(reduceAll(s, [prompt]).agents.a!.lastAnswer).toEqual({ outcome: "denied", at: prompt.ts });
+    // Another call finishing while it waits is no answer at all.
+    const other = reduceAll(emptyState(), [
+      ev({ kind: "tool.start", agentId: "b", callId: "x", tool: "Read", category: "read" }),
+      ev({ kind: "tool.start", agentId: "b", callId: "y", tool: "Bash", category: "shell" }),
+      ev({ kind: "waiting", agentId: "b", reason: "permission" }),
+      ev({ kind: "tool.end", agentId: "b", callId: "x", ok: true }),
+    ]);
+    expect(other.agents.b!.lastAnswer).toBeUndefined();
+  });
+
   it("waiting is cleared by the next tool event", () => {
     const s = reduceAll(emptyState(), [
       ev({ kind: "waiting", agentId: "a", reason: "permission", text: "Bash: rm -rf dist" }),

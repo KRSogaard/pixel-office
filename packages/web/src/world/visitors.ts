@@ -207,13 +207,16 @@ export class Visitors {
         return [toAgent(), line(), hold(2800), toAgent(), line(), hold(2800), say("📄 I'll leave my invoice here."), hold(2000)];
       case "intern":
         return [
-          toSpot(pick(["lab", "server", "web", "mail"] as const)), line(), hold(2600),
+          toSpot(pick(["lab", "server", "web"] as const)), line(), hold(2600),
           toSpot("git"), say(pick(LINES.intern.slice(0, 5))), hold(2600),
-          toSpot(pick(["lounge", "reception"] as const)), line(), hold(2400),
+          toSpot(pick(["lounge", "meeting"] as const)), line(), hold(2400),
         ];
       case "auditor": {
         const who = target ?? this.randomAgent()?.id;
-        return [toAgent(who), say(target ? LINES.auditor[0]! : pick(LINES.auditor)), hold(3000), say("📋 *writes something down*"), hold(2200)];
+        const audit = [toAgent(who), say(target ? LINES.auditor[0]! : pick(LINES.auditor)), hold(3000), say("📋 *writes something down*"), hold(2200)];
+        // Now and then the gold statue in the meeting room catches the Auditor's eye.
+        if (!this.host.office().statue || Math.random() > 0.4) return audit;
+        return [...audit, toSpot("shrine"), say("I'll need to see a receipt for this gold."), hold(3200)];
       }
       case "investor":
         return [toSpot("git"), say(this.investorLine("launches")), hold(3000), toSpot("lab"), say(this.investorLine("tests")), hold(3000), toAgent(), line(), hold(2600)];

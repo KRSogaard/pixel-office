@@ -4,8 +4,8 @@ import { analyze, type Office, type RoomArea, type Spot, type TeamArea } from ".
 /**
  * Builds the office from room templates sized to what's needed right now.
  *
- *   ┌ internet room ┬ server room ┬ café ┬ test lab ┬ git room ┬ mailroom ┐   ← top band: rooms sized by capacity
- *   D reception · lounge · globe desks · filing       │   ← service strip, sized by capacity
+ *   ┌ internet room ┬ server room ┬ café ┬ test lab ┬ git room ┬ meeting room ┐   ← top band: rooms sized by capacity
+ *   D corridor, with the front door on the left     │
  *   │ [team A] [team B] [team C]                      │   ← one area per session: manager's
  *   │ [team D] …                                      │     desk + worker desks for sub-agents
  *   └─────────────────────────────────────────────────┘
@@ -18,10 +18,8 @@ export interface RoomCapacities {
   server: number;
   lab: number;
   git: number;
-  mail: number;
+  meeting: number;
   lounge: number;
-  reception: number;
-  filing: number;
 }
 
 export interface TeamPlan {
@@ -141,15 +139,27 @@ const cafe: Room = (w) => {
   ];
 };
 
-const mailroom: Room = (w) => [
-  "M".repeat(w),
-  row(w, (x) => (x % 2 ? "." : "m")),
-  ".".repeat(w),
-  ".".repeat(w),
-  ".".repeat(w),
-  ".".repeat(w),
-  row(w, (x) => (x === 0 || x === w - 1 ? "P" : ".")),
-];
+/**
+ * Meeting room: where an agent that needs you (a permission prompt, a
+ * question) sits and waits for you to join. Against the back wall stands a
+ * golden statue of the Almighty Prompter (you), with room to kneel in front of
+ * it; two long tables face it, chairs in front of each, and an aisle runs
+ * from the door.
+ */
+const meetingRoom: Room = (w) => {
+  const mid = Math.floor(w / 2) - 1; // the aisle (and the door below it): mid, mid + 1
+  const table = (x: number) => x >= 1 && x <= w - 2 && x !== mid && x !== mid + 1;
+  const chair = table;
+  return [
+    row(w, (x) => (x === 0 || x === w - 1 ? "P" : x === mid || x === mid + 1 ? "V" : ".")),
+    row(w, (x) => (x >= mid - 1 && x <= mid + 2 ? "s" : ".")),
+    row(w, (x) => (table(x) ? "T" : ".")),
+    row(w, (x) => (chair(x) ? "n" : ".")),
+    ".".repeat(w),
+    row(w, (x) => (table(x) ? "T" : ".")),
+    row(w, (x) => (chair(x) ? "n" : ".")),
+  ];
+};
 
 function capacityOf(room: string[], spot: string): number {
   return room.reduce((n, r) => n + [...r].filter((c) => c === spot).length, 0);
@@ -193,19 +203,14 @@ export function generateOffice(plan: OfficePlan): Office {
   const sw = widthFor(serverRoom, "r", cap.server, 7);
   let tw = widthFor(testLab, "j", cap.lab, 6);
   const gw = widthFor(gitRoom, "z", cap.git, 7);
-  const aw = widthFor(mailroom, "m", cap.mail, 5);
+  const mw = widthFor(meetingRoom, "n", cap.meeting, 8);
   const cw = widthFor(cafe, "k", cap.lounge, 8);
 
-  // Service strip widths (the lounge is the café now, and web browsing has its own room).
-  const rw = Math.max(5, Math.ceil((cap.reception * 2) / 3));
-  const fc = Math.max(3, cap.filing);
-  const stripW = 1 + 2 + rw + 3 + fc * 2 + 1 + 1;
-
-  const topW = 1 + lw + 1 + sw + 1 + cw + 1 + tw + 1 + gw + 1 + aw + 1;
+  const topW = 1 + lw + 1 + sw + 1 + cw + 1 + tw + 1 + gw + 1 + mw + 1;
   // Wide enough for the rooms, the strip, and the configured number of teams side by side.
   const perRow = Math.min(4, Math.max(1, settings.teamsPerRow));
   // Offices side by side, with an aisle before, between and after them.
-  const W = Math.max(MIN_WIDTH, topW, stripW, 2 + perRow * OFFICE_STEP + AISLE);
+  const W = Math.max(MIN_WIDTH, topW, 2 + perRow * OFFICE_STEP + AISLE);
   tw += W - topW; // the test lab takes up any slack in the top band
 
   const teamRows: (TeamPlan | null)[][] = [];
@@ -218,7 +223,8 @@ export function generateOffice(plan: OfficePlan): Office {
   const teamBandH = Math.max(7, bandHeights.reduce((a, b) => a + b, 0)) + 1;
 
   const TOP = 1 + ROOM_H + 1;
-  const STRIP = 6;
+  // The corridor between the rooms and the team offices, with the front door.
+  const STRIP = 3;
   const H = TOP + STRIP + teamBandH + 1;
   const g = new Grid(W, H, ".");
 
@@ -237,19 +243,21 @@ export function generateOffice(plan: OfficePlan): Office {
     cafe: [cafe, cw],
     lab: [testLab, tw],
     git: [gitRoom, gw],
-    mail: [mailroom, aw],
+    meeting: [meetingRoom, mw],
   };
   const valid = settings.roomOrder.length === Object.keys(byName).length && settings.roomOrder.every((r) => r in byName);
   const order = valid ? settings.roomOrder : DEFAULT_SETTINGS.roomOrder;
   const rooms = order.map((r) => [r, ...byName[r]] as const);
   const roomAreas: RoomArea[] = [];
   let silo: { x: number; y: number } | undefined;
+  let statue: { x: number; y: number } | undefined;
   let x = 1;
   g.put(0, TOP - 1, "#".repeat(W));
   for (const [kind, room, w] of rooms) {
     g.block(x, 1, room(w));
     roomAreas.push({ kind, x, y: 1, w, h: ROOM_H, door: { x: x + Math.floor(w / 2) - 1, y: TOP - 1 } });
     if (kind === "git") silo = { x: x + Math.floor(w / 2) - 1, y: 4 };
+    if (kind === "meeting") statue = { x: x + Math.floor(w / 2) - 1, y: 1 };
     const door = x + Math.floor(w / 2) - 1;
     g.put(door, TOP - 1, w >= 6 ? ".." : ".");
     x += w;
@@ -257,19 +265,9 @@ export function generateOffice(plan: OfficePlan): Office {
     x += 1;
   }
 
-  // Service strip: entrance, reception, filing cabinets.
-  const sy = TOP;
-  g.put(0, sy + 2, "D");
-  g.put(0, sy + 3, "D");
-  let sx = 3;
-  g.put(sx, sy + 1, "X".repeat(rw));
-  g.put(sx, sy + 2, "x".repeat(rw));
-  g.put(sx, sy + 3, row(rw, (i) => (i % 2 ? "." : "x")));
-  sx += rw + 3;
-  g.put(sx, sy + 1, "F".repeat(fc * 2 - 1));
-  g.put(sx, sy + 2, row(fc * 2 - 1, (i) => (i % 2 ? "." : "f")));
-  g.put(1, sy + 5, "P");
-  g.put(W - 2, sy + 5, "P");
+  // The front door, on the left of the corridor.
+  g.put(0, TOP + 1, "D");
+  g.put(0, TOP + 2, "D");
 
   // Team band.
   const teams: TeamArea[] = [];
@@ -303,6 +301,7 @@ export function generateOffice(plan: OfficePlan): Office {
     height: H,
     rooms: roomAreas,
     ...(silo ? { silo } : {}),
+    ...(statue ? { statue } : {}),
     tiles: g.cells,
     walkable,
     passable,

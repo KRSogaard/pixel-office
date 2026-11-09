@@ -82,7 +82,16 @@ export interface AgentState {
   task?: string;
   /** Sub-agents: the full brief their parent wrote. */
   taskBrief?: string;
-  waiting?: { reason: "permission" | "question"; text?: string; since: number };
+  /**
+   * Waiting on the human. `callId`: the tool call the permission prompt or
+   * question is about (it runs if approved), when known.
+   */
+  waiting?: { reason: "permission" | "question"; text?: string; since: number; callId?: string };
+  /**
+   * How the last wait ended. No hook fires when you deny a permission prompt,
+   * so a wait counts as denied when it ends without its tool call having run.
+   */
+  lastAnswer?: { outcome: "approved" | "denied"; at: number };
   lastSaid?: Utterance;
   lastErrorAt?: number;
   /** The last turn-level error (rate limit, overloaded, …). */

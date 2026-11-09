@@ -1,4 +1,4 @@
-import { emptyState, type AgentState, type OfficeState, type Utterance } from "@pixel-office/protocol";
+import { isRateLimit, emptyState, type AgentState, type OfficeState, type Utterance } from "@pixel-office/protocol";
 import { Allocator } from "../office/allocator.js";
 import { PlaceDebouncer, placeFor } from "../office/director.js";
 import { generateOffice } from "../office/generate.js";
@@ -18,6 +18,7 @@ import type { WorldEvent, WorldListener } from "./events.js";
 import { Extras } from "./extras.js";
 import { Person, type Destination } from "./person.js";
 import { Pet } from "./pet.js";
+import { Shrine } from "./shrine.js";
 import { Seasonal } from "./seasonal.js";
 import { RocketSilo } from "./silo.js";
 import { Visitors, type VisitorKind } from "./visitors.js";
@@ -30,6 +31,8 @@ export interface Actor {
   lastErrorAt?: number;
   lastWinAt?: number;
   lastErrorText?: number;
+  /** When you last answered it (approved or denied a prompt). */
+  lastAnswerAt?: number;
   /** Tool calls already looked at (for commit crates). */
   seenCalls?: Set<string>;
   /** Being carried out by medics: the world leaves it alone. */
@@ -85,6 +88,8 @@ export class World {
   readonly extras: Extras;
   readonly visitors: Visitors;
   readonly seasonal: Seasonal;
+  /** The statue of the Almighty Prompter, and its plaque, prayers and offerings. */
+  readonly shrine: Shrine;
   readonly antics: Antics;
   /** A robot per background job. */
   readonly bots: Bots;
@@ -126,6 +131,13 @@ export class World {
       },
     );
     this.extras = new Extras(() => this.office, () => this.doorSpot());
+    this.shrine = new Shrine({
+      office: () => this.office,
+      stats: () => deps.store.stats,
+      say: (id, text) => this.say(id, text),
+      emit,
+      sfx: deps.sfx,
+    });
     this.drones = new Drones(this.clock, () => this.office, () => this.silo.addCargo());
     this.bugs = new Bugs(this.clock, () => this.office, emit);
     this.seasonal = new Seasonal(() => this.office, () => deps.store.stats?.allTime.since, emit);
@@ -146,7 +158,7 @@ export class World {
       say: (id, text) => this.say(id, text),
       office: () => this.office,
       team: (sessionId) => this.office.teams.find((t) => t.sessionId === sessionId),
-      mailroom: () => this.office.spots.find((s) => s.kind === "mail"),
+      entrance: () => this.doorSpot(),
       lounge: () => this.coffeeMachine(),
       onFire: () => deps.sfx.alarm(),
       onScary: (agentId) => this.visitors.audit(agentId),
@@ -234,6 +246,10 @@ export class World {
     this.antics.tick(now);
     this.bugs.update(dt, now);
     this.seasonal.update(now);
+    this.shrine.pray(
+      [...this.actors.values()].filter((a) => a.person.arrived && a.person.destination?.pose === "kneel").map((a) => ({ id: a.agent.id })),
+      now,
+    );
     // Shrinking happens on a timer, not on an event, so re-plan now and then.
     if (Math.floor(now / 1000) !== Math.floor((now - dtMs) / 1000)) this.replan(this.deps.store.state);
   }
@@ -283,6 +299,9 @@ export class World {
   lightSpots(): { x: number; y: number }[] {
     const out: { x: number; y: number }[] = [];
     for (const t of this.office.teams) out.push({ x: (t.managerSeat.x - 1) * TILE + 4, y: (t.managerSeat.y - 1) * TILE + 6 });
+    // A spotlight on the statue of the Almighty Prompter.
+    const s = this.office.statue;
+    if (s) out.push({ x: (s.x + 1) * TILE, y: s.y * TILE + 4 });
     for (const a of this.actors.values()) {
       const pose = a.person.destination?.pose;
       if (a.person.arrived && (pose === "type" || pose === "think")) out.push({ x: a.person.tile.x * TILE + 16, y: (a.person.tile.y - 1) * TILE + 6 });
@@ -385,7 +404,11 @@ export class World {
       }
       if (agent.lastError && agent.lastError.at !== actor.lastErrorText) {
         actor.lastErrorText = agent.lastError.at;
-        if (!initial && /rate|limit|overload|quota|429/i.test(agent.lastError.text)) this.coffeeBreak(actor, agent.lastError.text);
+        if (!initial && isRateLimit(agent.lastError.text)) this.coffeeBreak(actor, agent.lastError.text);
+      }
+      if (agent.lastAnswer && agent.lastAnswer.at !== actor.lastAnswerAt) {
+        actor.lastAnswerAt = agent.lastAnswer.at;
+        if (!initial) this.shrine.answered(agent.id, p, agent.lastAnswer.outcome);
       }
     }
   }
@@ -514,6 +537,8 @@ export class World {
     let wanted = placeFor(agent.activity);
     // A manager whose sub-agents are still busy waits at its desk instead of going to the lounge.
     if (wanted.kind === "lounge" && !agent.parentId && this.hasBusyTeam(agent.id)) wanted = { kind: "seat", pose: "think" };
+    // Waited on you too long: off to kneel before the statue of the Almighty Prompter.
+    if (wanted.kind === "meeting" && this.shrine.shouldKneel(agent.waiting?.since)) wanted = { kind: "shrine", pose: "kneel" };
     const place = actor.debounce.decide(wanted, now);
     let spot: Spot | undefined;
     if (place.kind === "seat") {
@@ -530,7 +555,7 @@ export class World {
       tile: { x: spot.x, y: spot.y },
       facing: spot.facing,
       pose: place.pose,
-      run: place.kind === "reception" || (wasLounging && place.kind !== "lounge"),
+      run: (place.kind === "meeting" && wanted.kind === "meeting") || (wasLounging && place.kind !== "lounge"),
     };
   }
 

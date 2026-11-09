@@ -5,7 +5,7 @@ import { propImage } from "./textures.js";
 
 /**
  * Draws the date's decorations where the world put them: pumpkins, a
- * Christmas tree with twinkling lights, balloons at reception.
+ * Christmas tree with twinkling lights, balloons on the meeting table.
  */
 export class SeasonalView {
   private static_: Phaser.GameObjects.Graphics;

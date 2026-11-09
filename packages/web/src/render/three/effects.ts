@@ -126,6 +126,95 @@ export class Effects {
     this.bit("ball", color, new THREE.Vector3(x + rand(-0.8, 0.8), 0.2, z + rand(-0.8, 0.8)), new THREE.Vector3(rand(-1.2, 1.2), rand(0.3, 1), rand(-1.2, 1.2)), 0.25, ms, { grow: size * 0.6 });
   }
 
+  /**
+   * The Almighty Prompter approves: the statue's eyes glow and a beam of light
+   * falls on the agent at (x, z), with motes drifting down it.
+   * `statue`: the middle of the statue's base; `eyes` how high and how far forward its eyes are.
+   */
+  blessed(x: number, z: number, statue?: { x: number; z: number; eyes: { y: number; front: number } }): void {
+    const fading: { mesh: THREE.Mesh; mat: THREE.MeshBasicMaterial; peak: number }[] = [];
+    const add = (mesh: THREE.Mesh, peak: number) => {
+      const mat = mesh.material as THREE.MeshBasicMaterial;
+      mat.opacity = 0;
+      this.scene.add(mesh);
+      fading.push({ mesh, mat, peak });
+      return mesh;
+    };
+    const glow = (color: number) => new THREE.MeshBasicMaterial({ color, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
+    const beam = add(new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.42, 4, 12, 1, true), glow(0xfff2a8)), 0.4);
+    beam.position.set(x, 2, z);
+    const core = add(new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.16, 4, 8, 1, true), glow(0xffffff)), 0.35);
+    core.position.set(x, 2, z);
+    if (statue) {
+      for (const dx of [-0.07, 0.07]) {
+        const eye = add(new THREE.Mesh(this.geom.ball, glow(0xfff7c0)), 1);
+        eye.scale.setScalar(0.06);
+        eye.position.set(statue.x + dx, statue.eyes.y + 0.03, statue.z + statue.eyes.front);
+        const halo = add(new THREE.Mesh(this.geom.ball, glow(0xffe27a)), 0.5);
+        halo.scale.setScalar(0.22);
+        halo.position.copy(eye.position);
+      }
+    }
+    for (let i = 0; i < 10; i++) {
+      this.bit("cube", 0xfff7c0, new THREE.Vector3(x + rand(-0.25, 0.25), rand(2.2, 3.2), z + rand(-0.25, 0.25)), new THREE.Vector3(0, -1.4, 0), 0.04, 1300, { gravity: 0, delay: i * 90 });
+    }
+    const born = this.now;
+    const tick = () => {
+      const t = (this.now - born) / 1700;
+      // Fade in, hold, fade out.
+      const k = t < 0.2 ? t / 0.2 : t < 0.75 ? 1 : Math.max(0, 1 - (t - 0.75) / 0.25);
+      for (const f of fading) f.mat.opacity = f.peak * k;
+      if (t >= 1) {
+        for (const m of [beam, core]) m.geometry.dispose();
+        for (const f of fading) {
+          f.mesh.removeFromParent();
+          f.mat.dispose();
+        }
+        return;
+      }
+      requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  }
+
+  /**
+   * The Almighty Prompter denies: a little storm cloud rains on the agent for a
+   * few seconds, following it as it walks off. `follow`: where the agent is now.
+   */
+  storm(x: number, z: number, follow: () => { x: number; z: number } | undefined): void {
+    const cloud = new THREE.Group();
+    const mat = new THREE.MeshLambertMaterial({ color: 0x5c6170, transparent: true, flatShading: true });
+    for (const [cx, cy, r] of [[-0.25, 0, 0.22], [0, 0.08, 0.28], [0.25, 0, 0.22], [0, -0.05, 0.22]] as const) {
+      const puff = new THREE.Mesh(this.geom.ball, mat);
+      puff.scale.setScalar(r * 2);
+      puff.position.set(cx, cy, 0);
+      cloud.add(puff);
+    }
+    cloud.position.set(x, 2.4, z);
+    this.scene.add(cloud);
+    const born = this.now;
+    let lastDrop = 0;
+    const tick = () => {
+      const at = follow() ?? { x: cloud.position.x, z: cloud.position.z };
+      cloud.position.set(at.x, 2.4 + Math.sin(this.now / 300) * 0.04, at.z);
+      const age = this.now - born;
+      if (age > 4500) {
+        mat.opacity = Math.max(0, 1 - (age - 4500) / 400);
+        if (age > 4900) {
+          cloud.removeFromParent();
+          mat.dispose();
+          return;
+        }
+      } else if (this.now - lastDrop > 60) {
+        lastDrop = this.now;
+        this.bit("cube", 0x8fd0f0, new THREE.Vector3(at.x + rand(-0.3, 0.3), 2.2, at.z + rand(-0.15, 0.15)), new THREE.Vector3(0, -4, 0), 0.03, 450, { gravity: 0 }).scale.y = 0.12;
+        if (Math.random() < 0.03) this.bit("cube", 0xfff27a, new THREE.Vector3(at.x + 0.1, 1.9, at.z), new THREE.Vector3(0, 0, 0), 0.05, 120, { gravity: 0 }).scale.set(0.03, 0.35, 0.03);
+      }
+      requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  }
+
   /** Floating text (the cat's purr, the countdown) that drifts up and fades. */
   text(x: number, y: number, z: number, text: string, color: string, size = 0.5): void {
     const c = document.createElement("canvas");

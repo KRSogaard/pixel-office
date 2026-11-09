@@ -13,10 +13,8 @@ const SPOT_TO_ROOM: Partial<Record<string, RoomKind>> = {
   server: "server",
   lab: "lab",
   git: "git",
-  mail: "mail",
+  meeting: "meeting",
   lounge: "lounge",
-  reception: "reception",
-  filing: "filing",
 };
 
 interface Sized {

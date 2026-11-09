@@ -9,9 +9,8 @@ export async function createRenderer(style: StyleId): Promise<Renderer> {
       const { ThreeRenderer } = await import("./three/index.js");
       return ThreeRenderer.load();
     }
-    case "pixel":
-    case "toon": {
-      const [{ PhaserRenderer }, art] = await Promise.all([import("./phaser/index.js"), loadPack(style)]);
+    case "pixel": {
+      const [{ PhaserRenderer }, art] = await Promise.all([import("./phaser/index.js"), loadPack()]);
       return new PhaserRenderer(art);
     }
   }

@@ -7,7 +7,7 @@ const ROOM_NAMES: Record<TopRoom, string> = {
   cafe: "Café",
   lab: "Test lab",
   git: "Git room",
-  mail: "Mailroom",
+  meeting: "Meeting room",
 };
 
 const MIN_LABELS: [keyof OfficeSettings["minRooms"], string][] = [
@@ -15,10 +15,8 @@ const MIN_LABELS: [keyof OfficeSettings["minRooms"], string][] = [
   ["server", "Server room"],
   ["lab", "Test lab"],
   ["git", "Git room"],
-  ["mail", "Mailroom"],
+  ["meeting", "Meeting room chairs"],
   ["lounge", "Café sofas"],
-  ["reception", "Reception"],
-  ["filing", "Filing cabinets"],
 ];
 
 /**

@@ -4,7 +4,7 @@ import { DEFAULT_SETTINGS, type OfficeSettings } from "@pixel-office/protocol";
 import { z } from "zod";
 
 const size = z.number().int().min(1).max(30);
-const TOP_ROOMS = ["web", "server", "cafe", "lab", "git", "mail"] as const;
+const TOP_ROOMS = ["web", "server", "cafe", "lab", "git", "meeting"] as const;
 
 export const settingsSchema = z.object({
   roomOrder: z
@@ -16,10 +16,8 @@ export const settingsSchema = z.object({
     server: size,
     lab: size,
     git: size,
-    mail: size,
+    meeting: size,
     lounge: size,
-    reception: size,
-    filing: size,
   }),
   teamsPerRow: z.number().int().min(1).max(4),
   rugs: z.boolean(),
@@ -77,13 +75,19 @@ export class SettingsStore {
 /**
  * Carry old settings files over: the meeting room became the test lab, the
  * git room was added (placed just before the mailroom, or at the end), the
- * café (placed just before the test lab, or at the end), and the library became
- * the internet room (its size: the old web desks' or library's, whichever was bigger).
+ * café (placed just before the test lab, or at the end), the library became
+ * the internet room (its size: the old web desks' or library's, whichever was
+ * bigger), and the mailroom made way for the meeting room (sized like the old
+ * reception counter), with the filing cabinets gone.
+ *
+ * "meeting" means two things here: in the oldest files it is the room that
+ * became the test lab (they have no "lab" yet); since then it is the meeting room.
  */
 export function migrate(raw: Record<string, unknown>): Record<string, unknown> {
   const out = { ...raw };
   if (Array.isArray(out.roomOrder)) {
-    const order = out.roomOrder.map((r) => (r === "meeting" ? "lab" : r === "library" ? "web" : r));
+    const legacy = !out.roomOrder.includes("lab");
+    const order = out.roomOrder.map((r) => (r === "meeting" && legacy ? "lab" : r === "library" ? "web" : r));
     if (!order.includes("git")) {
       const mail = order.indexOf("mail");
       order.splice(mail >= 0 ? mail : order.length, 0, "git");
@@ -92,10 +96,16 @@ export function migrate(raw: Record<string, unknown>): Record<string, unknown> {
       const lab = order.indexOf("lab");
       order.splice(lab >= 0 ? lab : order.length, 0, "cafe");
     }
+    const mail = order.indexOf("mail");
+    if (mail >= 0) order.splice(mail, 1, ...(order.includes("meeting") ? [] : ["meeting"]));
+    else if (!order.includes("meeting")) order.push("meeting");
     out.roomOrder = order;
   }
   if (out.minRooms && typeof out.minRooms === "object") {
-    const { meeting: _meeting, library, globe, ...rest } = out.minRooms as Record<string, unknown>;
+    const { meeting, library, globe, mail: _mail, filing: _filing, reception, ...rest } = out.minRooms as Record<string, unknown>;
+    // Without a "lab" size, "meeting" is the old test lab's size: drop it.
+    if (rest.lab !== undefined && meeting !== undefined) rest.meeting = meeting;
+    else if (typeof reception === "number") rest.meeting = reception;
     if (rest.web === undefined && (typeof library === "number" || typeof globe === "number")) {
       rest.web = Math.max(typeof library === "number" ? library : 0, typeof globe === "number" ? globe : 0);
     }

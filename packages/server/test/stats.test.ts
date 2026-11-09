@@ -70,6 +70,17 @@ describe("stats tracker", () => {
     expect(ids).toContain("pyromaniac");
   });
 
+  it("counts coffee breaks and failed pushes (offerings for the statue)", () => {
+    const { stats, hub } = setup();
+    hub.apply([
+      ev({ kind: "error", agentId: "a", text: "rate limit exceeded (429)" }),
+      ev({ kind: "error", agentId: "a", text: "something else broke" }),
+      ...call("a", "Bash: git push origin main", false),
+      ...call("a", "Bash: git push origin main", true),
+    ]);
+    expect(stats.get().today).toMatchObject({ coffeeBreaks: 1, failedPushes: 1, launches: 2 });
+  });
+
   it("resets today (but not all time) when the day changes", () => {
     const { stats, hub } = setup();
     hub.apply(call("a", "Bash: git push"));

@@ -82,6 +82,47 @@ export function paintOffice(office: Office, colorOf: (sessionId: string) => numb
   return canvas;
 }
 
+/**
+ * The Almighty Prompter in gold, on a stone plinth: one finger raised high over
+ * the Enter key of a keyboard on a lectern. `mx`, `py`: the statue's left tile.
+ * (The eyes are at mx + 14 and mx + 17, py - 11: the renderer makes them glow.)
+ */
+function paintStatue(ctx: Ctx, mx: number, py: number) {
+  const gold = "#e0b84a";
+  const shade = "#a8862a";
+  const light = "#f6dc8a";
+  // Plinth, with a brass plate on the front.
+  rect(ctx, "#6d6a63", mx + 5, py + 9, 22, 7);
+  rect(ctx, "#a8a49a", mx + 4, py + 8, 24, 2);
+  rect(ctx, "#57544e", mx + 5, py + 15, 22, 1);
+  rect(ctx, "#c9a23a", mx + 11, py + 11, 10, 3);
+  // Lectern and keyboard on the left.
+  rect(ctx, shade, mx + 7, py - 1, 2, 9);
+  rect(ctx, gold, mx + 4, py - 3, 8, 2);
+  for (const k of [5, 7, 9]) rect(ctx, shade, mx + k, py - 3, 1, 1);
+  rect(ctx, light, mx + 10, py - 3, 2, 1); // the Enter key, worn shiny
+  // Legs.
+  rect(ctx, shade, mx + 13, py + 2, 2, 6);
+  rect(ctx, gold, mx + 17, py + 2, 2, 6);
+  // Body (lit from the left).
+  rect(ctx, gold, mx + 12, py - 7, 8, 9);
+  rect(ctx, shade, mx + 18, py - 7, 2, 9);
+  rect(ctx, light, mx + 12, py - 7, 1, 9);
+  // Left arm reaching down towards the keyboard.
+  rect(ctx, gold, mx + 10, py - 6, 2, 4);
+  rect(ctx, gold, mx + 11, py - 3, 1, 1);
+  // Right arm raised, one finger pointing at the sky.
+  rect(ctx, gold, mx + 20, py - 14, 2, 8);
+  rect(ctx, shade, mx + 21, py - 14, 1, 8);
+  rect(ctx, light, mx + 20, py - 17, 1, 3);
+  // Head.
+  rect(ctx, gold, mx + 13, py - 13, 6, 6);
+  rect(ctx, light, mx + 13, py - 13, 2, 2);
+  rect(ctx, shade, mx + 13, py - 8, 6, 1);
+  rect(ctx, shade, mx + 14, py - 11, 1, 1);
+  rect(ctx, shade, mx + 17, py - 11, 1, 1);
+}
+
 function rect(ctx: Ctx, color: string, x: number, y: number, w: number, h: number) {
   ctx.fillStyle = color;
   ctx.fillRect(x, y, w, h);
@@ -210,16 +251,6 @@ function paintThing(ctx: Ctx, office: Office, c: string, x: number, y: number, p
       }
       break;
     }
-    case "M": {
-      rect(ctx, C.shelfDark, px, py + 1, TILE, 15);
-      for (let r = 0; r < 3; r++) {
-        for (let k = 0; k < 3; k++) {
-          rect(ctx, C.shelf, px + 1 + k * 5, py + 2 + r * 5, 4, 4);
-          if (noise(x * 3 + k, y * 3 + r) > 0.4) rect(ctx, C.paper, px + 2 + k * 5, py + 3 + r * 5, 3, 2);
-        }
-      }
-      break;
-    }
     case "K": {
       rect(ctx, C.metalDark, px + 3, py + 2, 10, 13);
       rect(ctx, C.metal, px + 4, py + 3, 8, 5);
@@ -252,14 +283,6 @@ function paintThing(ctx: Ctx, office: Office, c: string, x: number, y: number, p
       rect(ctx, "#7cc47c", px + 6, py + 3, 2, 2);
       break;
     }
-    case "F": {
-      rect(ctx, C.metalDark, px + 2, py + 1, 12, 15);
-      for (let i = 0; i < 3; i++) {
-        rect(ctx, C.metal, px + 3, py + 2 + i * 5, 10, 4);
-        rect(ctx, C.metalDark, px + 6, py + 3 + i * 5, 4, 1);
-      }
-      break;
-    }
     case "L": {
       // The café's laptop bar: a wooden counter along the wall, with a laptop
       // over each stool (its screen is where the code scrolls while browsing).
@@ -289,16 +312,20 @@ function paintThing(ctx: Ctx, office: Office, c: string, x: number, y: number, p
       rect(ctx, "#e07b7b", px + 4, py + 5, 8, 1);
       break;
     }
-    case "X": {
-      rect(ctx, C.counter, px, py + 4, TILE, 12);
-      rect(ctx, C.counterTop, px, py + 3, TILE, 3);
-      if (t[y]?.[x - 1] !== "X") rect(ctx, C.counter, px, py + 3, 1, 13);
-      if (t[y]?.[x + 1] !== "X") rect(ctx, C.counter, px + 15, py + 3, 1, 13);
-      if (t[y]?.[x - 1] === "X" && t[y]?.[x + 1] === "X" && t[y]?.[x - 2] !== "X") {
-        // A bell on the counter.
-        rect(ctx, C.ledA, px + 6, py + 1, 4, 2);
-        rect(ctx, "#b8902f", px + 5, py + 3, 6, 1);
-      }
+    case "V": {
+      // The statue of the Almighty Prompter, two tiles wide: drawn once from the
+      // right tile, reaching back over the left one and up the wall behind it.
+      if (t[y]?.[x - 1] !== "V") break;
+      paintStatue(ctx, px - TILE, py);
+      break;
+    }
+    case "n": {
+      // A meeting chair, seen from behind: seat, back and a post.
+      rect(ctx, "#2b2f38", px + 7, py + 11, 2, 4);
+      rect(ctx, "#2b2f38", px + 4, py + 14, 8, 1);
+      rect(ctx, "#4a5468", px + 3, py + 8, 10, 3);
+      rect(ctx, "#5c6a82", px + 4, py + 2, 8, 6);
+      rect(ctx, "#6f7f9a", px + 4, py + 2, 8, 1);
       break;
     }
     case "d": {

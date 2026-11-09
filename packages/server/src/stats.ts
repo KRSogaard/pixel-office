@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import {
-  isShipCommand,
+  isRateLimit, isShipCommand,
   isTestRun,
   type AchievementId,
   type AgentEvent,
@@ -32,7 +32,7 @@ export const localParts: LocalParts = (ts) => {
 };
 
 function zeroCounters(): StatCounters {
-  return { launches: 0, commits: 0, testRuns: 0, testPasses: 0, edits: 0, failures: 0, prompts: 0, toolCalls: 0, fires: 0, scary: 0 };
+  return { launches: 0, commits: 0, testRuns: 0, testPasses: 0, edits: 0, failures: 0, prompts: 0, toolCalls: 0, fires: 0, scary: 0, coffeeBreaks: 0, failedPushes: 0 };
 }
 
 export function emptyStats(day = ""): OfficeStats {
@@ -118,6 +118,7 @@ export class StatsTracker {
         const call = this.calls.get(e.callId);
         this.calls.delete(e.callId);
         if (!e.ok) bump("failures");
+        if (!e.ok && call && isShipCommand(call.tool, call.summary)) bump("failedPushes");
         if (call && isTestRun(call.tool, call.summary)) {
           bump("testRuns");
           const streak = this.failStreak.get(e.agentId) ?? 0;
@@ -134,6 +135,7 @@ export class StatsTracker {
       }
       case "error":
         bump("failures");
+        if (e.text && isRateLimit(e.text)) bump("coffeeBreaks");
         break;
       case "prompt":
         bump("prompts");

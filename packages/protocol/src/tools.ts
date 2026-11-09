@@ -79,6 +79,11 @@ export function isGitCommand(tool: string, summary: string): boolean {
   return /\b(git (commit|push|pull|merge|rebase|tag|checkout|switch|cherry-pick|stash|fetch|reset|revert)|gh (pr|release|repo))\b/i.test(summary);
 }
 
+/** Did a turn end on a rate limit or an overloaded API? (the agent takes a coffee break) */
+export function isRateLimit(error: string): boolean {
+  return /rate|limit|overload|quota|429/i.test(error);
+}
+
 /** Does this shell call ship something? (push, PR, release) — a rocket launches. */
 export function isShipCommand(tool: string, summary: string): boolean {
   if (categorizeTool(tool) !== "shell") return false;

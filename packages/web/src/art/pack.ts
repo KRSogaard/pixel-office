@@ -4,8 +4,7 @@ import type { Look } from "../world/person.js";
 /**
  * An art pack for the flat (Phaser) renderer: everything in the office that
  * has a look — the office itself, the people, the cat and the small props —
- * as canvases and images. The pixel pack draws them in code; the toon pack
- * loads pictures.
+ * as canvases and images. The pixel pack draws them in code.
  */
 
 /** A sprite sheet: one row of equally sized frames, drawn at `scale` texture pixels per world pixel. */
@@ -39,9 +38,7 @@ export interface Prop {
 }
 
 export interface ArtPack {
-  id: "pixel" | "toon";
-  /** Smooth (linear) texture filtering instead of crisp pixels. */
-  smooth: boolean;
+  id: "pixel";
   /** The whole static office: floors, walls, rugs and furniture. */
   paintOffice(office: Office, colorOf: (sessionId: string) => number, rugs: boolean): Sheet;
   /** A character's sheet in the `FRAMES` layout of characters.ts. */
@@ -61,16 +58,8 @@ export interface ArtPack {
   screen: { dx: number; dy: number; w: number; h: number } | undefined;
 }
 
-/** Load a pack (images included). Falls back to pixel art if the toon images can't be loaded. */
-export async function loadPack(id: "pixel" | "toon"): Promise<ArtPack> {
+/** Load the pixel pack. */
+export async function loadPack(): Promise<ArtPack> {
   const { pixelPack } = await import("./pixel.js");
-  if (id === "toon") {
-    try {
-      const { loadToonPack } = await import("./toon.js");
-      return await loadToonPack();
-    } catch (e) {
-      console.error("Toon art failed to load; using pixel art.", e);
-    }
-  }
   return pixelPack;
 }

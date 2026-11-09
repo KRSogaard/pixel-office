@@ -18,6 +18,8 @@ const FACING: Record<Facing, number> = { down: 0, right: Math.PI / 2, up: Math.P
 const MODEL_YAW = -Math.PI / 2;
 /** Before fitting, the hip joint goes this far above the seat; each model is then raised until nothing of it is in the cushion. */
 const HIP_ABOVE_SEAT = 0.08;
+/** Kneeling: the knee joints sit this high (the knee's own roundness rests on the floor). */
+const KNEE_ABOVE_FLOOR = 0.06;
 /** Bones the seated pose bends. */
 const POSED = ["L_Thigh", "R_Thigh", "L_Calf", "R_Calf", "L_Upperarm", "R_Upperarm", "L_Forearm", "R_Forearm", "Spine01", "Head"] as const;
 type PosedBone = (typeof POSED)[number];
@@ -221,9 +223,11 @@ export class PersonView {
     for (const { bone, rest } of this.bones.values()) bone.quaternion.copy(rest);
     this.mixer.update(dtMs / 1000);
     if (seated && !p.cheering(now)) this.sit(p.pose === "lounge" ? "lounge" : p.pose === "think" ? "think" : "type", now);
+    const kneeling = p.arrived && !p.lying && p.pose === "kneel";
+    if (kneeling) this.kneel(now);
 
     this.updateRing();
-    const head = seated ? HEIGHT * 0.8 : HEIGHT;
+    const head = kneeling ? HEIGHT * 0.65 : seated ? HEIGHT * 0.8 : HEIGHT;
     const t = (now - p.activitySince) / 1000;
     const showIcon = this.icon.show(p.activity, t);
     this.icon.sprite.visible = showIcon && !p.lying;
@@ -374,6 +378,40 @@ export class PersonView {
   }
 
   /** Rotate a bone by `angle` around a world axis, on top of its animated pose. */
+  /**
+   * Kneel before the statue: thighs upright, shins flat on the floor behind,
+   * knees put on the floor (measured on this model's own skeleton), and a slow
+   * bow in time with everyone else kneeling (the office's clock, not ours).
+   */
+  private kneel(now: number): void {
+    this.root.updateMatrixWorld(true);
+    const across = new THREE.Vector3(0, 0, 1).applyQuaternion(this.root.getWorldQuaternion(new THREE.Quaternion())).normalize();
+    const deg = Math.PI / 180;
+    for (const name of ["L_Thigh", "R_Thigh", "L_Calf", "R_Calf"] as const) {
+      const b = this.bones.get(name);
+      if (b) b.bone.quaternion.copy(b.rest);
+    }
+    this.root.updateMatrixWorld(true);
+    for (const side of ["L", "R"] as const) {
+      this.bend(`${side}_Thigh`, across, 5 * deg);
+      this.bend(`${side}_Calf`, across, -90 * deg);
+    }
+    // 0 upright with the hands together, 1 bowed low with the arms stretched out ahead.
+    // (A turn that swings a hanging bone forward tips an upright one back: the spine and head bend the other way.)
+    const bow = 0.5 - 0.5 * Math.cos((2 * Math.PI * now) / 2800);
+    this.bend("Spine01", across, -(8 + 50 * bow) * deg);
+    this.bend("Head", across, -12 * bow * deg);
+    for (const side of ["L", "R"] as const) {
+      this.bend(`${side}_Upperarm`, across, (55 + 45 * bow) * deg);
+      this.bend(`${side}_Forearm`, across, 70 * (1 - bow) * deg);
+    }
+    // Down onto the knees: the knee joints (where the shins hang from) just above the floor.
+    this.root.updateMatrixWorld(true);
+    const knees = ["L_Calf", "R_Calf"].map((n) => this.bones.get(n as PosedBone)?.bone.getWorldPosition(new THREE.Vector3()).y ?? Infinity);
+    const lowest = Math.min(...knees);
+    if (Number.isFinite(lowest)) this.root.position.y -= lowest - KNEE_ABOVE_FLOOR;
+  }
+
   private bend(name: PosedBone, axis: THREE.Vector3, angle: number): void {
     const b = this.bones.get(name)?.bone;
     if (!b?.parent) return;

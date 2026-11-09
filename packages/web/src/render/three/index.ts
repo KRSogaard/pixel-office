@@ -7,7 +7,8 @@ import type { World } from "../../world/world.js";
 import { tintAt } from "../daylight.js";
 import type { Renderer, RendererInput, Sign } from "../renderer.js";
 import { Effects } from "./effects.js";
-import { WALL_H, buildOffice, type BuiltOffice } from "./office.js";
+import { OfferingsView } from "./offerings.js";
+import { STATUE_HEAD, WALL_H, buildOffice, type BuiltOffice } from "./office.js";
 import { Cast, Icons, PersonView } from "./people.js";
 import { Signs } from "./signs.js";
 import { toFloor, toHeight } from "./space.js";
@@ -46,6 +47,7 @@ export class ThreeRenderer implements Renderer {
   private office: BuiltOffice | undefined;
   private people = new Map<string, PersonView>();
   private effects = new Effects(this.scene);
+  private offerings = new OfferingsView(this.scene);
   private dynamic = new THREE.Group();
   private bins = binView(this.dynamic, () => this.now);
   private bugs = bugView(this.dynamic, () => this.now);
@@ -197,6 +199,7 @@ export class ThreeRenderer implements Renderer {
     this.season?.update();
     this.drawLinks(now);
     this.effects.update(dt, now);
+    this.offerings.update(w.shrine.offerings());
     if (Math.floor(now / 500) !== Math.floor((now - dt) / 500)) this.light();
 
     // Screen shake (rocket lift-off).
@@ -336,6 +339,15 @@ export class ThreeRenderer implements Renderer {
         this.shakeUntil = this.now + e.ms;
         this.shakeAmount = e.intensity * 60;
         return;
+      case "blessed": {
+        const s = this.world.office.statue;
+        return this.effects.blessed(at.x, at.z, s ? { x: s.x + 1, z: s.y + 0.5, eyes: STATUE_HEAD } : undefined);
+      }
+      case "storm":
+        return this.effects.storm(at.x, at.z, () => {
+          const p = this.world.people().find((q) => q.id === e.id);
+          return p ? toFloor(p.x, p.y) : undefined;
+        });
     }
   }
 

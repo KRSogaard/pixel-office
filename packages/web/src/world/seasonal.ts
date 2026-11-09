@@ -22,7 +22,7 @@ export interface Decorations {
   pumpkins: Point[];
   /** The lounge tile with the Christmas tree. */
   tree: Point | undefined;
-  /** Both ends of the reception counter (tiles), each with a bunch of balloons. */
+  /** Both ends of the meeting room's front table (tiles), each with a bunch of balloons. */
   balloons: { left: Point; right: Point } | undefined;
 }
 
@@ -57,10 +57,10 @@ export class Seasonal {
       }
     }
     if (s.birthday) {
-      const y = o.tiles.findIndex((row) => row.includes("X"));
+      const y = o.tiles.findIndex((row) => row.includes("T"));
       if (y >= 0) {
         const row = o.tiles[y]!;
-        d.balloons = { left: { x: row.indexOf("X"), y }, right: { x: row.lastIndexOf("X"), y } };
+        d.balloons = { left: { x: row.indexOf("T"), y }, right: { x: row.lastIndexOf("T"), y } };
       }
     }
     this.decorations = d;

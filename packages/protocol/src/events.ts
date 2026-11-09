@@ -72,6 +72,8 @@ export const agentEventSchema = z.discriminatedUnion("kind", [
     kind: z.literal("waiting"),
     reason: z.enum(["permission", "question"]),
     text: text.optional(),
+    /** The tool call this is about, when the source knows it. */
+    callId: id.optional(),
   }),
   z.object({ ...base, kind: z.literal("idle") }),
   z.object({ ...base, kind: z.literal("compact") }),
@@ -131,20 +133,18 @@ export function projectFromPath(path: string | undefined): { path: string; name:
 }
 
 /** Shared office settings, edited in the browser and stored on the server. */
-export type TopRoom = "web" | "server" | "cafe" | "lab" | "git" | "mail";
+export type TopRoom = "web" | "server" | "cafe" | "lab" | "git" | "meeting";
 export interface OfficeSettings {
   /** Left-to-right order of the rooms along the top. */
   roomOrder: TopRoom[];
-  /** Smallest size of each room, in agents it fits (`web`: the internet room's laptops; `lounge`: the café's sofas). */
+  /** Smallest size of each room, in agents it fits (`web`: the internet room's laptops; `lounge`: the café's sofas; `meeting`: chairs for agents waiting on you). */
   minRooms: {
     web: number;
     server: number;
     lab: number;
     git: number;
-    mail: number;
+    meeting: number;
     lounge: number;
-    reception: number;
-    filing: number;
   };
   /** Team areas side by side (1–4). */
   teamsPerRow: number;
@@ -153,8 +153,8 @@ export interface OfficeSettings {
 }
 
 export const DEFAULT_SETTINGS: OfficeSettings = {
-  roomOrder: ["web", "server", "cafe", "lab", "git", "mail"],
-  minRooms: { web: 4, server: 4, lab: 3, git: 3, mail: 3, lounge: 6, reception: 4, filing: 3 },
+  roomOrder: ["web", "server", "cafe", "lab", "git", "meeting"],
+  minRooms: { web: 4, server: 4, lab: 3, git: 3, meeting: 4, lounge: 6 },
   teamsPerRow: 3,
   rugs: true,
   plants: true,
@@ -174,6 +174,10 @@ export interface StatCounters {
   fires: number;
   /** Scary commands (rm -rf, --force, …). */
   scary: number;
+  /** Coffee breaks: turns that ended on a rate limit or an overloaded API. */
+  coffeeBreaks: number;
+  /** Pushes (or other ship commands) that failed. */
+  failedPushes: number;
 }
 
 export interface OfficeStats {

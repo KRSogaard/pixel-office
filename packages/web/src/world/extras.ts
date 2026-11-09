@@ -3,8 +3,8 @@ import type { Point } from "../office/pathfind.js";
 import { Person, type Destination, type Item } from "./person.js";
 
 /**
- * Extras: people who aren't agents. A courier runs envelopes from the mailroom
- * when an agent uses a connected service, medics carry out a sub-agent that
+ * Extras: people who aren't agents. A courier brings an envelope in from the
+ * front door when an agent uses a connected service, medics carry out a sub-agent that
  * failed, and a pizza arrives when the office is in crunch mode.
  */
 
@@ -42,7 +42,7 @@ export class Extras {
     return this.extras.map((e) => e.person);
   }
 
-  /** A courier brings an envelope from the mailroom to an agent, and goes back. */
+  /** A courier brings an envelope from `from` (the front door) to an agent, and leaves the same way. */
   courier(from: Point, to: () => Point | undefined, onArrive: () => void): void {
     const e = this.spawn("courier", from, "envelope");
     e.person.play([

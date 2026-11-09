@@ -19,17 +19,17 @@ const ROOMS_TOP: Row[] = [
   { name: "Server room", what: "Running other shell commands — builds, git, scripts (Bash)." },
   { name: "Test lab", what: "Running tests — npm test, vitest, pytest, dotnet test and the like. The sign shows the latest result in the office: ⏳ running, ✓ pass, ✗ fail." },
   { name: "Git room", what: "Git work — commit, push, pull, rebase, gh pr. Every push or new PR launches a rocket from the silo. The gauge beside the silo shows how many commits are loaded (not pushed yet)." },
-  { name: "Mailroom", what: "Calling MCP tools — Slack, GitHub, Google Drive, databases and other connected services." },
+  { name: "Meeting room", what: "The agent needs you: a permission prompt or a question. It sits at the table with a red ! and waits for you to join — go to your terminal. The sign turns red and counts who's waiting." },
+  { name: "Statue of the Almighty Prompter", what: "You, in gold. Agents waiting on you over a minute kneel and pray to it. Approve them and a beam of light falls on them; deny them and a storm cloud rains on them. Today's coffee breaks, failed pushes and failed tests pile up at its feet as offerings." },
 ];
 
 const ROOMS_MIDDLE: Row[] = [
   { name: "Front door (left wall)", what: "Agents walk in when a session starts and out when it ends." },
-  { name: "Reception counter", what: "The agent needs you: a permission prompt or a question. It waves, with a red ! — go to your terminal." },
   { name: "Flying robots", what: "Every git commit sends a little robot from the agent's desk to the silo with a crate. The crate loads into the rocket." },
   { name: "Café sofas", what: "Idle: the agent finished its turn and is waiting for your next prompt." },
   { name: "Coffee machine", what: "A coffee break (in the café): the agent hit a rate limit or the API is overloaded." },
   { name: "At the desk with 📖", what: "Reading or searching code — Read, Grep, Glob, LSP." },
-  { name: "Filing cabinets", what: "Decoration." },
+  { name: "At the desk with ✉", what: "Using a connected service (MCP) — Slack, GitHub, Google Drive, databases." },
 ];
 
 const TEAM: Row[] = [
@@ -75,7 +75,7 @@ const EVENTS: Row[] = [
   { name: "Little robot", what: "A command running in the background (a build, a test run). It works in the test lab or the server room while its agent waits at its desk (⏳), then rolls back with ✓ or ✗." },
   { name: "Lab bench on fire", what: "Two failed test runs in a row. “This is fine.”" },
   { name: "Sweat + 😱", what: "Someone ran a scary command (rm -rf, --force, reset --hard, DROP TABLE, sudo…). Coworkers gasp." },
-  { name: "Courier", what: "An agent used a connected service (MCP): an envelope arrives from the mailroom." },
+  { name: "Courier", what: "An agent used a connected service (MCP): a courier brings an envelope in through the front door." },
   { name: "Printer", what: "Someone wrote a document (README, .md, …): the team's printer prints." },
   { name: "Medics", what: "A sub-agent failed: it collapses and is carried out on a stretcher." },
   { name: "High five", what: "A sub-agent reported back successfully." },

@@ -9,16 +9,17 @@ import { BinsView } from "./bins.js";
 import { BotsView } from "./bots.js";
 import { BugsView, DronesView, PetView } from "./critters.js";
 import { WallDecor } from "./decor.js";
-import { confetti, fire, poof, printPages, puff, sweat } from "./effects.js";
+import { blessed, storm, confetti, fire, poof, printPages, puff, sweat } from "./effects.js";
 import { Lighting } from "./lighting.js";
 import { PersonView } from "./person.js";
 import { Ducks, HeldItem, PizzaBoxes, VisitorProp } from "./props.js";
+import { Offerings } from "./offerings.js";
 import { SeasonalView } from "./seasonal.js";
 import { SignsView } from "./signs.js";
 import { SiloView } from "./silo.js";
 import { addSheet, pack, usePack } from "./textures.js";
 
-/** The flat office (pixel and toon art), drawn with Phaser. */
+/** The flat pixel-art office, drawn with Phaser. */
 export class PhaserRenderer implements Renderer {
   private game: Phaser.Game | undefined;
   private scene: FlatOffice;
@@ -106,6 +107,7 @@ class FlatOffice extends Phaser.Scene {
   private boxes!: PizzaBoxes;
   private ducks!: Ducks;
   private seasonal!: SeasonalView;
+  private offerings!: Offerings;
   private plates: SignsView | undefined;
   private decor!: WallDecor;
   private lighting!: Lighting;
@@ -139,6 +141,7 @@ class FlatOffice extends Phaser.Scene {
     this.boxes = new PizzaBoxes(this);
     this.ducks = new Ducks(this);
     this.seasonal = new SeasonalView(this);
+    this.offerings = new Offerings(this);
     this.seasonal.relocate(w.seasonal.decorations);
     this.decor = new WallDecor(this, () => this.world.office, () => this.world.seasonal.season.snow);
     this.decor.relocate();
@@ -162,6 +165,7 @@ class FlatOffice extends Phaser.Scene {
     this.drones.update(w.drones.list, time);
     this.silo.update(time);
     this.seasonal.update(time);
+    this.offerings.update(this.world.shrine.offerings());
     if (Math.floor(time / 500) !== Math.floor((time - delta) / 500)) this.lighting.update(w.lightSpots());
   }
 
@@ -262,6 +266,10 @@ class FlatOffice extends Phaser.Scene {
       case "shake":
         this.cameras.main.shake(e.ms, e.intensity);
         return;
+      case "blessed":
+        return blessed(this, e.x, e.y, e.statue);
+      case "storm":
+        return storm(this, e.x, e.y, () => this.world.people().find((p) => p.id === e.id));
     }
   }
 

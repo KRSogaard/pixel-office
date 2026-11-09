@@ -6,19 +6,20 @@
  *   #  wall              =  wall with window     D  entrance door (walkable, agents spawn here)
  *   .  wood floor        ,  carpet               :  server-room tiles
  *   R  server rack       J  lab bench
- *   M  mail shelves      K  coffee machine       P  plant
+ *   T  meeting table     K  coffee machine       P  plant
+ *   V  statue of the Almighty Prompter (2 wide)
  *   Q  shelf of flasks   ;  test-lab floor (walkable)
  *   U  mission console   O  rocket silo (3×3)    Y  printer
- *   F  filing cabinet    X  reception counter
  *   d  work desk         E  manager's desk       w  water cooler
  *   L  laptop bar (internet room)
  *   W  whiteboard        H  glass partition (a team's office walls)
  *
  * Tile legend — spots (walkable, agents stand or sit there):
- *   r  server rack terminal  m  mailroom
- *   g  laptop stool (internet room)  f  filing cabinet  j  lab bench spot
+ *   r  server rack terminal  n  meeting room chair (waiting on you)
+ *   s  kneeling spot before the statue (waited too long)
+ *   g  laptop stool (internet room)  j  lab bench spot
  *   z  git console spot
- *   k  lounge sofa seat  x  reception (waiting on you)
+ *   k  lounge sofa seat
  *   a  worker desk seat  q  manager's chair
  */
 
@@ -27,12 +28,11 @@ export const TILE = 16;
 export type SpotKind =
   | "web"
   | "server"
-  | "mail"
-  | "filing"
+  | "meeting"
+  | "shrine"
   | "lab"
   | "git"
   | "lounge"
-  | "reception"
   | "seat"
   | "manager"
   | "door";
@@ -75,7 +75,7 @@ export interface TeamArea {
 
 /** A room along the top, for signs and labels. */
 export interface RoomArea {
-  kind: "web" | "server" | "cafe" | "lab" | "git" | "mail";
+  kind: "web" | "server" | "cafe" | "lab" | "git" | "meeting";
   x: number;
   y: number;
   w: number;
@@ -90,6 +90,8 @@ export interface Office {
   rooms: RoomArea[];
   /** Top-left tile of the rocket silo in the git room. */
   silo?: { x: number; y: number };
+  /** Left tile of the statue of the Almighty Prompter in the meeting room (it is 2 wide). */
+  statue?: { x: number; y: number };
 
   /** Layout chars, [y][x]. */
   tiles: string[][];
@@ -105,24 +107,23 @@ export interface Office {
   teams: TeamArea[];
 }
 
-export const BLOCKING = new Set("#=RJQUOYMKPFXdEwWHL");
+export const BLOCKING = new Set("#=RJQUOYTKPdEwWHLV");
 
 export const SPOT_KIND: Record<string, SpotKind> = {
   r: "server",
-  m: "mail",
   g: "web",
-  f: "filing",
   j: "lab",
   z: "git",
   k: "lounge",
-  x: "reception",
+  n: "meeting",
+  s: "shrine",
   a: "seat",
   q: "manager",
   D: "door",
 };
 
 /** Seats: you sit on them, you don't walk through them. */
-export const SEATS = new Set("aqkg");
+export const SEATS = new Set("aqkgn");
 
 /** Walkability and spots for a grid of layout chars. */
 export function analyze(tiles: string[][]): { walkable: boolean[][]; passable: boolean[][]; spots: Spot[] } {
@@ -160,6 +161,7 @@ export function floorAt(tiles: string[][], x: number, y: number): Floor {
 function facingFor(tiles: string[][], x: number, y: number, kind: SpotKind): Facing {
   if (kind === "door") return "right";
   if (kind === "lounge") return "down";
+  if (kind === "shrine") return "up";
   if (BLOCKING.has(tiles[y - 1]?.[x] ?? "#")) return "up";
   if (BLOCKING.has(tiles[y + 1]?.[x] ?? "#")) return "down";
   return "up";

@@ -22,8 +22,10 @@ export const FRAMES = {
   think: [20, 20, 20, 21, 22, 21],
   /** Both arms up — tests passed! */
   cheer: [23, 24],
+  /** Kneeling before the statue, seen from behind: upright, then bowed low. */
+  kneel: [25, 26],
 } as const;
-const FRAME_COUNT = 25;
+const FRAME_COUNT = 27;
 
 export interface Appearance {
   skin: string;
@@ -87,6 +89,8 @@ interface PoseOpts {
   scratch?: number;
   /** Both arms in the air, seen from the front. 0/1 = wave phase. */
   cheer?: number;
+  /** Kneeling, seen from behind: 0 upright with hands raised, 1 bowed low. */
+  kneel?: number;
   bob?: number;
 }
 
@@ -112,6 +116,8 @@ export function buildSheet(a: Appearance): HTMLCanvasElement {
     { view: "up", seated: true, scratch: 1 },
     { view: "down", cheer: 0 },
     { view: "down", cheer: 1 },
+    { view: "up", kneel: 0 },
+    { view: "up", kneel: 1 },
   ];
   frames.forEach((opts, i) => drawCharacter(ctx, i * FRAME_W, a, opts));
   return canvas;
@@ -122,6 +128,10 @@ function drawCharacter(ctx: CanvasRenderingContext2D, ox: number, a: Appearance,
     ctx.fillStyle = color;
     ctx.fillRect(ox + x, y, w, h);
   };
+  if (o.kneel !== undefined) {
+    drawKneeling(px, a, o.kneel === 1);
+    return;
+  }
   const bob = o.bob ?? 0;
   const walking = o.step === 1 || o.step === 3;
   const lift = walking ? 1 : 0; // body rises on steps
@@ -209,6 +219,35 @@ function drawCharacter(ctx: CanvasRenderingContext2D, ox: number, a: Appearance,
     px("#3b3f4a", 3, top + 13, 10, 6);
     px("#4c5160", 4, top + 14, 8, 4);
   }
+}
+
+/** Kneeling, seen from behind: the soles of the shoes at the bottom, the body upright or bowed forward (head down out of sight). */
+function drawKneeling(px: (c: string, x: number, y: number, w?: number, h?: number) => void, a: Appearance, bowed: boolean) {
+  px("rgba(0,0,0,0.25)", 3, 22, 10, 2);
+  if (bowed) {
+    // Back rounded over, arms stretched out ahead; just the top of the head shows.
+    px(a.shirt, 3, 13, 10, 8);
+    px(a.shirtShade, 3, 19, 10, 2);
+    px(a.shirtShade, 7, 13, 2, 6); // the spine's crease
+    px(a.hair, 5, 11, 6, 3);
+    px(a.shirt, 2, 14, 1, 4);
+    px(a.shirt, 13, 14, 1, 4);
+  } else {
+    px(a.shirt, 4, 13, 8, 8);
+    px(a.shirtShade, 4, 19, 8, 2);
+    // Hands together in front, elbows out.
+    px(a.shirt, 3, 13, 1, 4);
+    px(a.shirt, 12, 13, 1, 4);
+    px(a.skin, 4, 12, 1, 1);
+    px(a.skin, 11, 12, 1, 1);
+    px(a.skin, 5, 6, 6, 7);
+    px(a.skinShade, 5, 12, 6, 1);
+    drawHair(px, a, 5, true);
+  }
+  // Folded legs and the soles of the shoes.
+  px(a.pants, 4, 20, 8, 2);
+  px(a.shoes, 4, 22, 3, 1);
+  px(a.shoes, 9, 22, 3, 1);
 }
 
 function drawHair(px: (c: string, x: number, y: number, w?: number, h?: number) => void, a: Appearance, top: number, back: boolean) {

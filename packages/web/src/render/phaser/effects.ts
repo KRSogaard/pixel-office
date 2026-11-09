@@ -184,3 +184,80 @@ export function printPages(scene: Phaser.Scene, x: number, y: number): void {
     });
   }
 }
+
+/**
+ * The Almighty Prompter approves: the statue's eyes glow and a beam of light
+ * falls from above onto the agent at (x, y), with a few motes drifting down.
+ * `statue`: the middle of the statue's top tile (its eyes are just above it).
+ */
+export function blessed(scene: Phaser.Scene, x: number, y: number, statue?: { x: number; y: number }): void {
+  if (statue) {
+    for (const dx of [-1.5, 1.5]) {
+      const eye = scene.add.circle(statue.x + dx, statue.y - 10.5, 1.2, 0xfff7c0).setDepth(TOP).setBlendMode(Phaser.BlendModes.ADD);
+      const halo = scene.add.circle(statue.x + dx, statue.y - 10.5, 4, 0xffe27a, 0.5).setDepth(TOP).setBlendMode(Phaser.BlendModes.ADD);
+      scene.tweens.add({ targets: [eye, halo], alpha: 0, delay: 1300, duration: 500, onComplete: () => (eye.destroy(), halo.destroy()) });
+    }
+  }
+  const beam = scene.add.rectangle(x, y - 40, 14, 80, 0xfff2a8, 0).setDepth(TOP).setBlendMode(Phaser.BlendModes.ADD);
+  const core = scene.add.rectangle(x, y - 40, 6, 80, 0xffffff, 0).setDepth(TOP).setBlendMode(Phaser.BlendModes.ADD);
+  scene.tweens.add({
+    targets: beam,
+    fillAlpha: 0.45,
+    duration: 350,
+    yoyo: true,
+    hold: 900,
+    onComplete: () => beam.destroy(),
+  });
+  scene.tweens.add({
+    targets: core,
+    fillAlpha: 0.35,
+    duration: 350,
+    yoyo: true,
+    hold: 900,
+    onComplete: () => core.destroy(),
+  });
+  for (let i = 0; i < 10; i++) {
+    const mote = scene.add.rectangle(x + Phaser.Math.Between(-6, 6), y - Phaser.Math.Between(50, 75), 1, 1, 0xfff7c0).setDepth(TOP);
+    scene.tweens.add({
+      targets: mote,
+      y: y - Phaser.Math.Between(10, 20),
+      alpha: 0,
+      delay: i * 90,
+      duration: 1100,
+      onComplete: () => mote.destroy(),
+    });
+  }
+}
+
+/**
+ * The Almighty Prompter denies: a little storm cloud rains on the agent for a
+ * few seconds, following it as it walks off. `follow`: where the agent is now.
+ */
+export function storm(scene: Phaser.Scene, x: number, y: number, follow: () => { x: number; y: number } | undefined): void {
+  const cloud = scene.add.container(x, y - 38).setDepth(TOP);
+  for (const [cx, cy, r] of [[-5, 1, 4], [0, -1, 5], [5, 1, 4], [0, 2, 4]] as const) cloud.add(scene.add.circle(cx, cy, r, 0x5c6170));
+  cloud.add(scene.add.circle(-1, -2, 2.5, 0x7a8090));
+  const drops: Phaser.GameObjects.Rectangle[] = [];
+  const until = scene.time.now + 4500;
+  const tick = scene.time.addEvent({
+    delay: 70,
+    loop: true,
+    callback: () => {
+      const at = follow() ?? { x: cloud.x, y: cloud.y + 38 };
+      cloud.setPosition(at.x, at.y - 38 + Math.sin(scene.time.now / 300));
+      if (scene.time.now > until) {
+        tick.remove();
+        scene.tweens.add({ targets: cloud, alpha: 0, duration: 400, onComplete: () => cloud.destroy() });
+        return;
+      }
+      const d = scene.add.rectangle(at.x + Phaser.Math.Between(-7, 7), at.y - 33, 1, 3, 0x8fd0f0).setDepth(TOP);
+      drops.push(d);
+      scene.tweens.add({ targets: d, y: at.y - 6, duration: 380, onComplete: () => d.destroy() });
+      // A flash of lightning now and then.
+      if (Math.random() < 0.04) {
+        const bolt = scene.add.rectangle(at.x + 2, at.y - 28, 1, 8, 0xfff27a).setDepth(TOP).setAngle(15);
+        scene.time.delayedCall(90, () => bolt.destroy());
+      }
+    },
+  });
+}

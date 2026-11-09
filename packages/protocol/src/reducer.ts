@@ -74,13 +74,13 @@ export function reduce(state: OfficeState, e: AgentEvent): OfficeState {
     }
     case "prompt": {
       a.prompt = e.text;
-      delete a.waiting;
+      endWait(a, e.ts);
       setActivity(a, "thinking", e.ts, "working");
       a.lastSaid = { kind: "prompt", text: e.text, at: e.ts };
       break;
     }
     case "busy": {
-      delete a.waiting;
+      endWait(a, e.ts, "approved");
       if (a.status !== "working") setActivity(a, currentActivity(a), e.ts, "working");
       break;
     }
@@ -96,7 +96,7 @@ export function reduce(state: OfficeState, e: AgentEvent): OfficeState {
       a.openCalls = [...a.openCalls.filter((c) => c.callId !== e.callId), call];
       a.recentTools = [...a.recentTools, call].slice(-RECENT_TOOLS);
       if (e.category === "delegate") a.pendingDelegations = [...a.pendingDelegations, e.callId];
-      delete a.waiting;
+      endWait(a, e.ts);
       setActivity(a, activityFor(call), e.ts, "working");
       break;
     }
@@ -111,20 +111,24 @@ export function reduce(state: OfficeState, e: AgentEvent): OfficeState {
       // A background command's call returns as soon as it has started; its result comes with job.end.
       const background = a.jobs?.some((j) => j.callId === e.callId);
       if (e.ok && ended && !background && isTestRun(ended.tool, ended.summary)) a.lastWinAt = e.ts;
-      delete a.waiting;
+      // Its own call ran: approved. Another call finishing says nothing about the answer.
+      endWait(a, e.ts, a.waiting?.callId === e.callId ? "approved" : null);
       setActivity(a, currentActivity(a), e.ts, "working");
       break;
     }
     case "waiting": {
-      a.waiting = { reason: e.reason, ...(e.text ? { text: e.text } : {}), since: e.ts };
+      // A second notice about the same wait (Claude Code repeats a permission prompt as a notification) keeps when it began.
+      const same = existing?.waiting?.reason === e.reason ? existing.waiting : undefined;
+      const callId = e.callId ?? same?.callId ?? a.openCalls[a.openCalls.length - 1]?.callId;
+      a.waiting = { reason: e.reason, ...(e.text ? { text: e.text } : {}), since: same?.since ?? e.ts, ...(callId ? { callId } : {}) };
       setActivity(a, "waiting", e.ts, "waiting");
       a.lastSaid = { kind: e.reason, text: e.text ?? (e.reason === "permission" ? "May I?" : "Question"), at: e.ts };
       break;
     }
     case "idle": {
+      endWait(a, e.ts);
       a.openCalls = [];
       a.pendingDelegations = [];
-      delete a.waiting;
       // Turn over, but background commands still running: it's waiting on them, not on you.
       if (runningJobs(a, e.ts).length) setActivity(a, "background", e.ts, "working");
       else setActivity(a, "idle", e.ts, "idle");
@@ -152,9 +156,9 @@ export function reduce(state: OfficeState, e: AgentEvent): OfficeState {
     case "error": {
       a.lastErrorAt = e.ts;
       a.lastError = { text: e.text ?? "error", at: e.ts };
+      endWait(a, e.ts);
       a.openCalls = [];
       a.pendingDelegations = [];
-      delete a.waiting;
       setActivity(a, "idle", e.ts, "idle");
       break;
     }
@@ -238,6 +242,19 @@ function activityFor(call: Pick<ToolCall, "tool" | "category" | "summary">): Act
 function currentActivity(a: AgentState): Activity {
   const last = a.openCalls[a.openCalls.length - 1];
   return last ? activityFor(last) : "thinking";
+}
+
+/**
+ * The wait is over. `outcome`: how it was answered; by default the wait was
+ * denied (it ended without its tool call running), or unknown when it was
+ * about no particular call. `null`: over, but say nothing about the answer.
+ */
+function endWait(a: AgentState, ts: number, outcome?: "approved" | "denied" | null): void {
+  const w = a.waiting;
+  if (!w) return;
+  delete a.waiting;
+  const result = outcome === undefined ? (w.callId ? "denied" : null) : outcome;
+  if (result) a.lastAnswer = { outcome: result, at: ts };
 }
 
 function setActivity(a: AgentState, activity: Activity, ts: number, status?: AgentState["status"]): void {

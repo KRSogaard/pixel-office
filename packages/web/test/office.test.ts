@@ -14,7 +14,7 @@ describe("office generator", () => {
   it("builds a quiet office with every kind of spot except desks", () => {
     const office = generateOffice(quiet);
     const kinds = new Set(office.spots.map((s) => s.kind));
-    for (const k of ["web", "server", "mail", "filing", "lab", "git", "lounge", "reception", "door"]) {
+    for (const k of ["web", "server", "meeting", "lab", "git", "lounge", "door"]) {
       expect(kinds, k).toContain(k);
     }
     expect(office.teams).toEqual([]);
@@ -232,8 +232,21 @@ describe("allocator", () => {
 });
 
 describe("place debouncer", () => {
-  it("reads and searches code at the desk", () => {
+  it("reads code and uses connected services at the desk", () => {
     expect(placeFor("read")).toEqual({ kind: "seat", pose: "think" });
+    expect(placeFor("mcp").kind).toBe("seat");
+  });
+
+  it("seats agents that need you in the meeting room, facing the board", () => {
+    const office = generateOffice(quiet);
+    const room = office.rooms.find((r) => r.kind === "meeting")!;
+    const chairs = office.spots.filter((s) => s.kind === "meeting");
+    expect(chairs.length).toBeGreaterThanOrEqual(quiet.rooms.meeting);
+    for (const c of chairs) {
+      expect(c.x >= room.x && c.x < room.x + room.w && c.y >= room.y && c.y < room.y + room.h).toBe(true);
+      expect(office.tiles[c.y - 1]![c.x]).toBe("T");
+      expect(c.facing).toBe("up");
+    }
   });
 
   it("holds a short burst at the current place, then moves once settled", () => {
@@ -259,10 +272,10 @@ describe("place debouncer", () => {
     expect(d.decide(placeFor("shell"), 5000).kind).toBe("seat");
   });
 
-  it("never delays going to reception or leaving the lounge", () => {
+  it("never delays going to the meeting room or leaving the lounge", () => {
     const d = new PlaceDebouncer();
     d.decide(placeFor("edit"), 0);
-    expect(d.decide(placeFor("waiting"), 10).kind).toBe("reception");
+    expect(d.decide(placeFor("waiting"), 10).kind).toBe("meeting");
     const d2 = new PlaceDebouncer();
     d2.decide(placeFor("idle"), 0);
     expect(d2.decide(placeFor("thinking"), 10).kind).toBe("seat");

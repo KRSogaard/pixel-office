@@ -4,5 +4,4 @@ data/
 *.log
 .DS_Store
 recordings/
-.toon-raw/
 __pycache__/

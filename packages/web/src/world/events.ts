@@ -27,6 +27,10 @@ export type WorldEvent =
   /** Silo countdown: "3", "2", "1". */
   | { type: "countdown"; text: string }
   /** The ground shakes (rocket lift-off). */
-  | { type: "shake"; ms: number; intensity: number };
+  | { type: "shake"; ms: number; intensity: number }
+  /** You approved an agent: the statue's eyes glow (`statue`: between them) and a beam of light falls on the agent at x, y. */
+  | { type: "blessed"; x: number; y: number; statue?: { x: number; y: number } }
+  /** You denied an agent: a storm cloud rains on it for a few seconds (follow the person `id`). */
+  | { type: "storm"; id: string; x: number; y: number };
 
 export type WorldListener = (e: WorldEvent) => void;

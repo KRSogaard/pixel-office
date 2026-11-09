@@ -19,7 +19,6 @@ export function addSheet(scene: Phaser.Scene, key: string, sheet: Sheet): void {
   const tex = scene.textures.addCanvas(key, sheet.canvas)!;
   const n = Math.floor(sheet.canvas.width / sheet.frameW);
   for (let i = 0; i < n; i++) tex.add(i, 0, i * sheet.frameW, 0, sheet.frameW, sheet.frameH);
-  if (pack().smooth) tex.setFilter(Phaser.Textures.FilterMode.LINEAR);
 }
 
 /**

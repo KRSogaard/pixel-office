@@ -209,6 +209,10 @@ export class PersonView {
       case "hand":
         frame = cycle(FRAMES.hand, 3);
         break;
+      case "kneel":
+        // Bowing on the office's clock, not their own, so everyone kneeling bows together.
+        frame = p.arrived ? FRAMES.kneel[Math.floor(now / 1400) % 2]! : walkFrames[0]!;
+        break;
       case "lounge":
         frame = cycle(FRAMES.lounge, 0.7);
         yOffset = -4;
