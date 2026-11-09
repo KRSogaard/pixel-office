@@ -15,11 +15,13 @@ const PLACE_BY_ACTIVITY: Record<Activity, Place> = {
   other: { kind: "seat", pose: "type" },
   delegate: { kind: "seat", pose: "think" },
   message: { kind: "seat", pose: "think" },
-  read: { kind: "library", pose: "station" },
+  // Reading and searching code: at the desk (the activity icon shows a book).
+  read: { kind: "seat", pose: "think" },
   shell: { kind: "server", pose: "station" },
   test: { kind: "lab", pose: "station" },
   git: { kind: "git", pose: "station" },
-  web: { kind: "globe", pose: "station" },
+  // On the web: at a laptop in the internet room.
+  web: { kind: "web", pose: "type" },
   mcp: { kind: "mail", pose: "station" },
   // Compaction: back at the desk, stomping the overflowing wastepaper bin flat.
   compact: { kind: "seat", pose: "stomp" },
@@ -41,7 +43,7 @@ export const MIN_DWELL_MS = 3000;
 
 /**
  * Agents fire tools in bursts (Grep, Read, Edit, Read inside two seconds).
- * Walking to the library for every 50 ms Grep would be chaos, so a change of
+ * Walking to the server room for every 50 ms command would be chaos, so a change of
  * *location* is held back until it has settled. Pose changes at the same
  * location apply at once.
  */

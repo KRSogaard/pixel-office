@@ -26,14 +26,12 @@ const MAX_TEXTURE = 4096;
 const FURNITURE = [
   "desk",
   "manager-desk",
-  "bookshelf",
   "server-rack",
   "mail-shelf",
   "coffee",
   "armchair",
   "plant",
   "filing",
-  "globe-desk",
   "counter",
   "console",
   "silo",
@@ -52,7 +50,6 @@ type Furniture = (typeof FURNITURE)[number];
 
 /** Which image a layout character becomes, and how many tiles wide it is. */
 const THINGS: Record<string, { img: Furniture; w: number; h?: number }> = {
-  B: { img: "bookshelf", w: 1 },
   R: { img: "server-rack", w: 1 },
   M: { img: "mail-shelf", w: 1 },
   K: { img: "coffee", w: 1 },
@@ -60,7 +57,6 @@ const THINGS: Record<string, { img: Furniture; w: number; h?: number }> = {
   S: { img: "armchair", w: 1 },
   P: { img: "plant", w: 1 },
   F: { img: "filing", w: 1 },
-  G: { img: "globe-desk", w: 1 },
   X: { img: "counter", w: 1 },
   U: { img: "console", w: 1 },
   Y: { img: "printer", w: 1 },
@@ -72,6 +68,8 @@ const THINGS: Record<string, { img: Furniture; w: number; h?: number }> = {
   d: { img: "desk", w: 1 },
   E: { img: "manager-desk", w: 3 },
   W: { img: "whiteboard", w: 2 },
+  L: { img: "counter", w: 1 },
+  g: { img: "chair", w: 1 },
   O: { img: "silo", w: 3, h: 3 },
 };
 

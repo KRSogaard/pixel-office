@@ -177,7 +177,7 @@ export class Visitors {
     if (!door) return;
     this.lastKind = kind;
     const id = `visitor:${kind}:${++this.n}`;
-    const person = new Person(id, { cast: kind }, door, () => this.host.office().walkable);
+    const person = new Person(id, { cast: kind }, door, () => this.host.office().passable);
     const v: Visitor = { id, kind, name: VISITOR_NAMES[kind], person, done: false };
     this.list.push(v);
     person.play([...this.plan(v, target), ...this.exit(v, door)]);
@@ -207,7 +207,7 @@ export class Visitors {
         return [toAgent(), line(), hold(2800), toAgent(), line(), hold(2800), say("📄 I'll leave my invoice here."), hold(2000)];
       case "intern":
         return [
-          toSpot(pick(["lab", "server", "library", "mail"] as const)), line(), hold(2600),
+          toSpot(pick(["lab", "server", "web", "mail"] as const)), line(), hold(2600),
           toSpot("git"), say(pick(LINES.intern.slice(0, 5))), hold(2600),
           toSpot(pick(["lounge", "reception"] as const)), line(), hold(2400),
         ];

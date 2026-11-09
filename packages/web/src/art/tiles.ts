@@ -47,7 +47,6 @@ const C = {
   door: "#8b5e3c",
   mat: "#6b4a3a",
   water: "#7cc7f0",
-  globe: "#3f8fd1",
   land: "#58b06a",
 };
 
@@ -187,22 +186,6 @@ function paintThing(ctx: Ctx, office: Office, c: string, x: number, y: number, p
       if (ends || (across && (up || down))) rect(ctx, frame, px + 6, py + 3, 4, 13);
       break;
     }
-    case "B": {
-      rect(ctx, C.shelfDark, px, py + 1, TILE, 15);
-      rect(ctx, C.shelf, px + 1, py + 2, 14, 13);
-      for (let shelf = 0; shelf < 3; shelf++) {
-        const sy = py + 3 + shelf * 4;
-        let bx = px + 2;
-        while (bx < px + 14) {
-          const w = 1 + Math.floor(noise(bx, sy + y) * 2);
-          const h = 2 + Math.floor(noise(bx + 3, sy) * 2);
-          rect(ctx, BOOK_COLORS[Math.floor(noise(bx * 3, sy * 5 + x) * BOOK_COLORS.length)]!, bx, sy + (3 - h), w, h);
-          bx += w + (noise(bx, sy) > 0.85 ? 1 : 0);
-        }
-        rect(ctx, C.shelfDark, px + 1, sy + 3, 14, 1);
-      }
-      break;
-    }
     case "R": {
       rect(ctx, C.rack, px + 1, py, 14, 16);
       rect(ctx, C.rackLight, px + 2, py + 1, 12, 14);
@@ -277,13 +260,33 @@ function paintThing(ctx: Ctx, office: Office, c: string, x: number, y: number, p
       }
       break;
     }
-    case "G": {
-      paintDeskBase(ctx, px, py, false, false);
-      rect(ctx, C.frame, px + 7, py + 8, 2, 3);
-      rect(ctx, C.globe, px + 4, py + 1, 8, 8);
-      rect(ctx, C.land, px + 5, py + 3, 3, 2);
-      rect(ctx, C.land, px + 8, py + 5, 3, 2);
-      rect(ctx, C.glassShine, px + 5, py + 2, 1, 1);
+    case "L": {
+      // The café's laptop bar: a wooden counter along the wall, with a laptop
+      // over each stool (its screen is where the code scrolls while browsing).
+      rect(ctx, "#6b4a32", px, py + 2, TILE, 13);
+      rect(ctx, "#a8754c", px, py + 2, TILE, 10);
+      rect(ctx, "#c48f62", px, py + 2, TILE, 1);
+      if (t[y]?.[x - 1] !== "L") rect(ctx, "#6b4a32", px, py + 2, 1, 13);
+      if (t[y]?.[x + 1] !== "L") rect(ctx, "#6b4a32", px + 15, py + 2, 1, 13);
+      if (t[y + 1]?.[x] === "g") {
+        rect(ctx, "#3b3f4a", px + 2, py + 1, 12, 9);
+        rect(ctx, C.screen, px + 3, py + 2, 10, 7);
+        rect(ctx, C.screenGlow, px + 4, py + 3, 5, 1);
+        rect(ctx, C.screenGlow, px + 4, py + 5, 3, 1);
+        rect(ctx, "#a9b0ba", px + 1, py + 10, 14, 2);
+      } else if ((x * 3 + y) % 4 === 0) {
+        // A coffee cup now and then.
+        rect(ctx, "#f4f1e8", px + 6, py + 5, 4, 4);
+        rect(ctx, "#6b4226", px + 7, py + 5, 2, 1);
+      }
+      break;
+    }
+    case "g": {
+      // A bar stool.
+      rect(ctx, "#3b3f4a", px + 7, py + 8, 2, 7);
+      rect(ctx, "#3b3f4a", px + 5, py + 14, 6, 1);
+      rect(ctx, "#c0504d", px + 4, py + 5, 8, 3);
+      rect(ctx, "#e07b7b", px + 4, py + 5, 8, 1);
       break;
     }
     case "X": {

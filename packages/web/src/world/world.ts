@@ -396,7 +396,7 @@ export class World {
     // instead of walking in from the street.
     const parent = agent.parentId ? this.actors.get(agent.parentId) : undefined;
     const beside = parent && !atDestination ? this.nearestOpenTile(parent.person.tile, parent.person.tile) : undefined;
-    const p = new Person(agent.id, { agent: agent.id }, beside ?? this.doorSpot(), () => this.office.walkable);
+    const p = new Person(agent.id, { agent: agent.id }, beside ?? this.doorSpot(), () => this.office.passable);
     if (beside) this.emit({ type: "poof", x: p.x, y: p.y, color: this.colorOf(agent.sessionId) });
     p.hat = this.seasonal.season.birthday;
     const actor: Actor = {
@@ -676,7 +676,7 @@ export class World {
   }
 
   private nearestOpenTile(around: Point, from: Point): Point | undefined {
-    const w = this.office.walkable;
+    const w = this.office.passable;
     const seen = new Set<string>([`${around.x},${around.y}`]);
     let frontier: Point[] = [around];
     for (let r = 0; r < 4 && frontier.length; r++) {

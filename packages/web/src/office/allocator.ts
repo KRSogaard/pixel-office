@@ -12,7 +12,7 @@ export interface Seatable {
  *  - a sub-agent gets a worker slot in its session's team area, kept for life
  *    (the slot index survives the office being regenerated; only its
  *    coordinates change);
- *  - shared spots (library, lounge, …) are reserved briefly so agents spread out.
+ *  - shared spots (internet room, lounge, …) are reserved briefly so agents spread out.
  *
  * One agent per desk and per spot. The planner sizes the office from
  * `claimants()`, so when a room runs out of spots it grows instead of agents

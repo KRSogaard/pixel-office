@@ -2,7 +2,7 @@
 
 A self-hosted pixel-art office where your coding agents show up as little people.
 Claude Code and OpenCode sessions walk in the front door, sit at their project's desks
-to write code, browse the library when they read, stand at the server racks when they
+to write and read code, sit at a laptop in the internet room when they browse the web, stand at the server racks when they
 run commands, raise a hand at reception when they need you, and walk over to each other
 when one hands work to another.
 
@@ -15,6 +15,8 @@ What's in the office:
   session's colour and a name plate on the front (project · manager · person · ⎇ branch).
   The main agent sits at the manager's desk, its sub-agents at one-monitor desks in front,
   and a **whiteboard** shows its todo list.
+- **A café** where idle agents wait on the sofas and rate-limited ones take a coffee break,
+  and an **internet room** with laptops where agents browse the web (WebFetch, WebSearch).
 - **Rooms that grow** when they get busy, and shrink back when quiet.
 - **Who's doing what, and why**: name tags with the prompt or task, animated activity icons,
   dotted lines between a selected agent and its team.
@@ -30,7 +32,7 @@ What's in the office:
 - **Job robots** for commands left running in the background (a build, a test run): each
   rolls to the test lab or the server room and works there with a timer, while its agent
   waits at its desk (⏳) instead of looking idle; then it rolls back with ✓ or ✗.
-- **A production sidebar (📊)** with today's numbers, **achievements** with a fanfare, lounge
+- **A production sidebar (📊)** with today's numbers, **achievements** with a fanfare, café
   **gossip** about what just happened, and **seasonal** decorations.
 - **Visitors** dropping by now and then — Elon Musk, Donald Trump, the Consultant, the Lost Intern,
   the Investor, Grandpa Cobol, and the Auditor (after a scary command).
@@ -103,7 +105,7 @@ All optional, via environment variables:
 | `PIXEL_OFFICE_ADMIN_TOKEN` | generated on first start | Setup key: log in with it or open `/admin?token=…`. Stored hashed; `pnpm start token --admin --rotate` makes a new one. |
 | `PIXEL_OFFICE_TRUST_PROXY` | off | Turn on behind a TLS reverse proxy so the real client IP and `https` are honoured. |
 | `PIXEL_OFFICE_COOKIE_SECURE` | auto | Force the login cookie's `Secure` flag on/off. |
-| `PIXEL_OFFICE_IDLE_AFTER_MS` | 10 min | Silent working agents are sent to the lounge after this. |
+| `PIXEL_OFFICE_IDLE_AFTER_MS` | 10 min | Silent working agents are sent to the café after this. |
 | `PIXEL_OFFICE_LEAVE_AFTER_MS` | 30 min | Silent agents walk out after this. |
 | `PIXEL_OFFICE_HISTORY_MS` | 2 h | How far back replay can go (kept in memory, max 50k events). |
 | `PIXEL_OFFICE_RECORD` | off | Path of a JSONL file to record every event to (replay it with `simulate`). |

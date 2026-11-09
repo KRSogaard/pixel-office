@@ -4,7 +4,7 @@ import { DEFAULT_SETTINGS, type OfficeSettings } from "@pixel-office/protocol";
 import { z } from "zod";
 
 const size = z.number().int().min(1).max(30);
-const TOP_ROOMS = ["library", "server", "lab", "git", "mail"] as const;
+const TOP_ROOMS = ["web", "server", "cafe", "lab", "git", "mail"] as const;
 
 export const settingsSchema = z.object({
   roomOrder: z
@@ -12,14 +12,13 @@ export const settingsSchema = z.object({
     .length(TOP_ROOMS.length)
     .refine((order) => new Set(order).size === TOP_ROOMS.length, "roomOrder must list each room once"),
   minRooms: z.object({
-    library: size,
+    web: size,
     server: size,
     lab: size,
     git: size,
     mail: size,
     lounge: size,
     reception: size,
-    globe: size,
     filing: size,
   }),
   teamsPerRow: z.number().int().min(1).max(4),
@@ -76,21 +75,30 @@ export class SettingsStore {
 }
 
 /**
- * Carry old settings files over: the meeting room became the test lab, and the
- * git room was added (placed just before the mailroom, or at the end).
+ * Carry old settings files over: the meeting room became the test lab, the
+ * git room was added (placed just before the mailroom, or at the end), the
+ * café (placed just before the test lab, or at the end), and the library became
+ * the internet room (its size: the old web desks' or library's, whichever was bigger).
  */
 export function migrate(raw: Record<string, unknown>): Record<string, unknown> {
   const out = { ...raw };
   if (Array.isArray(out.roomOrder)) {
-    const order = out.roomOrder.map((r) => (r === "meeting" ? "lab" : r));
+    const order = out.roomOrder.map((r) => (r === "meeting" ? "lab" : r === "library" ? "web" : r));
     if (!order.includes("git")) {
       const mail = order.indexOf("mail");
       order.splice(mail >= 0 ? mail : order.length, 0, "git");
     }
+    if (!order.includes("cafe")) {
+      const lab = order.indexOf("lab");
+      order.splice(lab >= 0 ? lab : order.length, 0, "cafe");
+    }
     out.roomOrder = order;
   }
   if (out.minRooms && typeof out.minRooms === "object") {
-    const { meeting: _meeting, ...rest } = out.minRooms as Record<string, unknown>;
+    const { meeting: _meeting, library, globe, ...rest } = out.minRooms as Record<string, unknown>;
+    if (rest.web === undefined && (typeof library === "number" || typeof globe === "number")) {
+      rest.web = Math.max(typeof library === "number" ? library : 0, typeof globe === "number" ? globe : 0);
+    }
     out.minRooms = rest;
   }
   return out;

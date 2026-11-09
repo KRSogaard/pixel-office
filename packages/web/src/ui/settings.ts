@@ -2,22 +2,22 @@ import { DEFAULT_SETTINGS, type OfficeSettings, type TopRoom } from "@pixel-offi
 import type { OfficeStore } from "../net.js";
 
 const ROOM_NAMES: Record<TopRoom, string> = {
-  library: "Library",
+  web: "Internet room",
   server: "Server room",
+  cafe: "Café",
   lab: "Test lab",
   git: "Git room",
   mail: "Mailroom",
 };
 
 const MIN_LABELS: [keyof OfficeSettings["minRooms"], string][] = [
-  ["library", "Library"],
+  ["web", "Internet room laptops"],
   ["server", "Server room"],
   ["lab", "Test lab"],
   ["git", "Git room"],
   ["mail", "Mailroom"],
-  ["lounge", "Lounge"],
+  ["lounge", "Café sofas"],
   ["reception", "Reception"],
-  ["globe", "Globe desks"],
   ["filing", "Filing cabinets"],
 ];
 

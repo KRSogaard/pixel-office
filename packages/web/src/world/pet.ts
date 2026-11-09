@@ -82,7 +82,7 @@ export class Pet {
     const goal = target ? this.nextTo(target) : this.randomFloor();
     if (!goal) return;
     this.visiting = target;
-    this.path = findPath(this.office().walkable, this.tile, goal).slice(0, 40);
+    this.path = findPath(this.office().passable, this.tile, goal).slice(0, 40);
     this.resting = "sit";
     this.until = now + between(2000, 5000);
   }

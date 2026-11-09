@@ -125,7 +125,7 @@ export class Extras {
   }
 
   private spawn(kind: ExtraKind, at: Point, item: Item | undefined): Extra {
-    const person = new Person(`extra:${kind}:${++this.n}`, { cast: kind }, at, () => this.office().walkable);
+    const person = new Person(`extra:${kind}:${++this.n}`, { cast: kind }, at, () => this.office().passable);
     person.item = item;
     const e: Extra = { person, done: false };
     this.extras.push(e);
@@ -134,7 +134,7 @@ export class Extras {
 
   private stand(p: Point | undefined): Destination | undefined {
     if (!p) return undefined;
-    const w = this.office().walkable;
+    const w = this.office().passable;
     const near = [p, { x: p.x + 1, y: p.y }, { x: p.x - 1, y: p.y }, { x: p.x, y: p.y + 1 }, { x: p.x, y: p.y - 1 }].find(
       (q) => w[q.y]?.[q.x],
     );

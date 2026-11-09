@@ -5,17 +5,18 @@
  * Tile legend — structure (blocks movement unless noted):
  *   #  wall              =  wall with window     D  entrance door (walkable, agents spawn here)
  *   .  wood floor        ,  carpet               :  server-room tiles
- *   B  bookshelf         R  server rack          J  lab bench
+ *   R  server rack       J  lab bench
  *   M  mail shelves      K  coffee machine       P  plant
  *   Q  shelf of flasks   ;  test-lab floor (walkable)
  *   U  mission console   O  rocket silo (3×3)    Y  printer
- *   F  filing cabinet    G  globe desk           X  reception counter
+ *   F  filing cabinet    X  reception counter
  *   d  work desk         E  manager's desk       w  water cooler
+ *   L  laptop bar (internet room)
  *   W  whiteboard        H  glass partition (a team's office walls)
  *
  * Tile legend — spots (walkable, agents stand or sit there):
- *   l  library           r  server rack terminal m  mailroom
- *   g  globe desk        f  filing cabinet       j  lab bench spot
+ *   r  server rack terminal  m  mailroom
+ *   g  laptop stool (internet room)  f  filing cabinet  j  lab bench spot
  *   z  git console spot
  *   k  lounge sofa seat  x  reception (waiting on you)
  *   a  worker desk seat  q  manager's chair
@@ -24,10 +25,9 @@
 export const TILE = 16;
 
 export type SpotKind =
-  | "library"
+  | "web"
   | "server"
   | "mail"
-  | "globe"
   | "filing"
   | "lab"
   | "git"
@@ -75,7 +75,7 @@ export interface TeamArea {
 
 /** A room along the top, for signs and labels. */
 export interface RoomArea {
-  kind: "library" | "server" | "lab" | "git" | "mail";
+  kind: "web" | "server" | "cafe" | "lab" | "git" | "mail";
   x: number;
   y: number;
   w: number;
@@ -93,18 +93,24 @@ export interface Office {
 
   /** Layout chars, [y][x]. */
   tiles: string[][];
+  /** Where someone can be: floor and spots (seats included). */
   walkable: boolean[][];
+  /**
+   * Where someone can walk through: walkable minus seats (chairs, sofas,
+   * stools). Paths go round seats; only the one sitting down steps onto one
+   * (a path may always end on a tile it can't pass).
+   */
+  passable: boolean[][];
   spots: Spot[];
   teams: TeamArea[];
 }
 
-export const BLOCKING = new Set("#=BRJQUOYMKPFGXdEwWH");
+export const BLOCKING = new Set("#=RJQUOYMKPFXdEwWHL");
 
 export const SPOT_KIND: Record<string, SpotKind> = {
-  l: "library",
   r: "server",
   m: "mail",
-  g: "globe",
+  g: "web",
   f: "filing",
   j: "lab",
   z: "git",
@@ -115,9 +121,13 @@ export const SPOT_KIND: Record<string, SpotKind> = {
   D: "door",
 };
 
+/** Seats: you sit on them, you don't walk through them. */
+export const SEATS = new Set("aqkg");
+
 /** Walkability and spots for a grid of layout chars. */
-export function analyze(tiles: string[][]): { walkable: boolean[][]; spots: Spot[] } {
+export function analyze(tiles: string[][]): { walkable: boolean[][]; passable: boolean[][]; spots: Spot[] } {
   const walkable = tiles.map((row) => row.map((c) => !BLOCKING.has(c)));
+  const passable = tiles.map((row) => row.map((c) => !BLOCKING.has(c) && !SEATS.has(c)));
   const spots: Spot[] = [];
   tiles.forEach((row, y) =>
     row.forEach((c, x) => {
@@ -125,7 +135,7 @@ export function analyze(tiles: string[][]): { walkable: boolean[][]; spots: Spot
       if (kind) spots.push({ kind, x, y, facing: facingFor(tiles, x, y, kind) });
     }),
   );
-  return { walkable, spots };
+  return { walkable, passable, spots };
 }
 
 /** The floor under a spot or furniture tile, picked from its neighbours. */

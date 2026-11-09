@@ -131,20 +131,19 @@ export function projectFromPath(path: string | undefined): { path: string; name:
 }
 
 /** Shared office settings, edited in the browser and stored on the server. */
-export type TopRoom = "library" | "server" | "lab" | "git" | "mail";
+export type TopRoom = "web" | "server" | "cafe" | "lab" | "git" | "mail";
 export interface OfficeSettings {
   /** Left-to-right order of the rooms along the top. */
   roomOrder: TopRoom[];
-  /** Smallest size of each room, in agents it fits. */
+  /** Smallest size of each room, in agents it fits (`web`: the internet room's laptops; `lounge`: the café's sofas). */
   minRooms: {
-    library: number;
+    web: number;
     server: number;
     lab: number;
     git: number;
     mail: number;
     lounge: number;
     reception: number;
-    globe: number;
     filing: number;
   };
   /** Team areas side by side (1–4). */
@@ -154,8 +153,8 @@ export interface OfficeSettings {
 }
 
 export const DEFAULT_SETTINGS: OfficeSettings = {
-  roomOrder: ["library", "server", "lab", "git", "mail"],
-  minRooms: { library: 4, server: 4, lab: 3, git: 3, mail: 3, lounge: 6, reception: 4, globe: 2, filing: 3 },
+  roomOrder: ["web", "server", "cafe", "lab", "git", "mail"],
+  minRooms: { web: 4, server: 4, lab: 3, git: 3, mail: 3, lounge: 6, reception: 4, filing: 3 },
   teamsPerRow: 3,
   rugs: true,
   plants: true,

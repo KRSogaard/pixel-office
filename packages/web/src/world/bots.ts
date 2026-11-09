@@ -82,7 +82,7 @@ export class Bots {
 
   private spawn(id: string, agent: AgentState, job: Job, from: Point, initial: boolean): void {
     const room: SpotKind = isTestRun("Bash", job.summary) ? "lab" : "server";
-    const person = new Person(id, { cast: "robot" }, from, () => this.host.office().walkable);
+    const person = new Person(id, { cast: "robot" }, from, () => this.host.office().passable);
     const bot: Bot = { id, agentId: agent.id, sessionId: agent.sessionId, job, room, person, working: false, result: undefined, done: false };
     this.list.push(bot);
     const station = (): Destination | undefined => {
@@ -112,7 +112,7 @@ export class Bots {
         type: "goto",
         dest: () => {
           const at = this.host.agentTile(bot.agentId);
-          const w = this.host.office().walkable;
+          const w = this.host.office().passable;
           const near = at && [{ x: at.x + 1, y: at.y }, { x: at.x - 1, y: at.y }, { x: at.x, y: at.y + 1 }, { x: at.x, y: at.y - 1 }].find((q) => w[q.y]?.[q.x]);
           return near ? { tile: near, facing: "up", pose: "stand", run: true } : undefined;
         },

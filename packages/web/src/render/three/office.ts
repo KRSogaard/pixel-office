@@ -55,7 +55,6 @@ export const PALETTE = {
   door: 0x6b4226,
 };
 
-const BOOKS = [0xb84a47, 0x3d6fa8, 0xd9a83a, 0x4f9a52, 0x8a5aa8, 0xe9e4d8];
 
 /** A desk monitor's screen, keyed by the seat tile in front of it ("x,y"). */
 export type Screens = Map<string, THREE.Mesh>;
@@ -176,9 +175,6 @@ export function buildOffice(office: Office, colorOf: (sessionId: string) => numb
         case "H":
           glassWall(b, tiles, x, y);
           break;
-        case "B":
-          shelf(b, cx, cz, (i) => BOOKS[(x * 3 + i) % BOOKS.length]!);
-          break;
         case "Q":
           shelf(b, cx, cz, (i) => [0x7fd1c7, 0xd98fb5, 0xe6d27a][(x + i) % 3]!);
           break;
@@ -213,9 +209,11 @@ export function buildOffice(office: Office, colorOf: (sessionId: string) => numb
           b.box(PALETTE.metal, cx, 0, cz, 0.7, 1.1, 0.6);
           for (let i = 0; i < 3; i++) b.box(PALETTE.dark, cx, 0.2 + i * 0.33, cz + 0.3, 0.3, 0.04, 0.02);
           break;
-        case "G":
-          table(b, cx, cz, 0.8, 0.6, 0.7, PALETTE.woodLight, PALETTE.wood);
-          b.blob(0x4fa3d1, cx, 0.95, cz, 0.18);
+        case "L":
+          laptopBar(b, tiles, x, y, screens, group, materials);
+          break;
+        case "g":
+          stool(b, cx, cz);
           break;
         case "X":
           b.box(PALETTE.woodLight, cx, 0, cz, 1, 1.0, 0.8);
@@ -375,6 +373,40 @@ function chair(b: Builder, cx: number, cz: number, facing: "up" | "down", color:
   b.cylinder(PALETTE.dark, cx, 0, z, 0.03, 0.03, s.top - 0.07, 5);
   b.box(color, cx, s.top - 0.07, z + (back * (s.behind - s.ahead)) / 2, s.width, 0.07, depth);
   b.box(color, cx, s.top, z + back * (s.behind + 0.03), s.width, s.backTop - s.top, 0.06);
+}
+
+/**
+ * One tile of the café's laptop bar: a counter top with room for knees under
+ * it (the cabinet is set back against the wall), and a laptop over each stool
+ * whose screen shows code while someone browses.
+ */
+function laptopBar(b: Builder, tiles: string[][], x: number, y: number, screens: Screens, group: THREE.Group, materials: THREE.Material[]): void {
+  const cx = x + 0.5;
+  const cz = y + 0.5;
+  b.box(0x6b4a32, cx, 0, cz - 0.25, 1, DESK_H - 0.05, 0.35);
+  b.box(0xa8754c, cx, DESK_H - 0.05, cz - 0.05, 1, 0.05, 0.85);
+  if (tiles[y + 1]?.[x] !== "g") {
+    if ((x * 3 + y) % 4 === 0) b.cylinder(PALETTE.white, cx, DESK_H, cz, 0.05, 0.04, 0.1, 6);
+    return;
+  }
+  // The laptop: a base, and a screen leaning back a little.
+  b.box(0xa9b0ba, cx, DESK_H, cz + 0.08, 0.42, 0.02, 0.3);
+  b.box(PALETTE.dark, cx, DESK_H, cz - 0.08, 0.42, 0.3, 0.02, 0);
+  const mat = new THREE.MeshStandardMaterial({ color: PALETTE.screen, flatShading: true });
+  materials.push(mat);
+  const screen = new THREE.Mesh(new THREE.PlaneGeometry(0.38, 0.26), mat);
+  screen.position.set(cx, DESK_H + 0.15, cz - 0.068);
+  group.add(screen);
+  screens.set(`${x},${y + 1}`, screen);
+}
+
+/** A bar stool at the café's laptop bar, tucked in like a desk chair. */
+function stool(b: Builder, cx: number, cz: number): void {
+  const s = SEATS.chair;
+  const z = cz - s.tucked;
+  b.cylinder(PALETTE.dark, cx, 0, z, 0.03, 0.03, s.top - 0.06, 5);
+  b.cylinder(PALETTE.dark, cx, 0, z, 0.16, 0.18, 0.03, 8);
+  b.cylinder(0xc0504d, cx, s.top - 0.06, z, 0.2, 0.18, 0.06, 10);
 }
 
 /** A lounge armchair facing +z: a shallow seat (knees hang over the front), a backrest and two arms. */

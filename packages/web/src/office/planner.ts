@@ -9,14 +9,13 @@ export const SHRINK_AFTER_MS = 60_000;
 type RoomKind = keyof RoomCapacities;
 const ROOM_KINDS = Object.keys(MIN_ROOMS) as RoomKind[];
 const SPOT_TO_ROOM: Partial<Record<string, RoomKind>> = {
-  library: "library",
+  web: "web",
   server: "server",
   lab: "lab",
   git: "git",
   mail: "mail",
   lounge: "lounge",
   reception: "reception",
-  globe: "globe",
   filing: "filing",
 };
 

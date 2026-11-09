@@ -4,6 +4,7 @@ import { Allocator } from "../src/office/allocator.js";
 import { MIN_DWELL_MS, PlaceDebouncer, placeFor, SETTLE_MS } from "../src/office/director.js";
 import { MIN_ROOMS, WORKERS_PER_ROW, generateOffice, type OfficePlan } from "../src/office/generate.js";
 import { findPath } from "../src/office/pathfind.js";
+import { SEATS } from "../src/office/layout.js";
 import { OfficePlanner, SHRINK_AFTER_MS } from "../src/office/planner.js";
 
 const quiet: OfficePlan = { rooms: MIN_ROOMS, teams: [] };
@@ -13,7 +14,7 @@ describe("office generator", () => {
   it("builds a quiet office with every kind of spot except desks", () => {
     const office = generateOffice(quiet);
     const kinds = new Set(office.spots.map((s) => s.kind));
-    for (const k of ["library", "server", "mail", "globe", "filing", "lab", "git", "lounge", "reception", "door"]) {
+    for (const k of ["web", "server", "mail", "filing", "lab", "git", "lounge", "reception", "door"]) {
       expect(kinds, k).toContain(k);
     }
     expect(office.teams).toEqual([]);
@@ -63,6 +64,37 @@ describe("office generator", () => {
     }
   });
 
+  it("walks round chairs, sofas and stools: only the one sitting down steps onto a seat", () => {
+    const office = generateOffice({ ...quiet, teams: [team("s1", "app", 2 * WORKERS_PER_ROW), team("s2"), team("s3")] });
+    const seats = office.spots.filter((s) => SEATS.has(office.tiles[s.y]![s.x]!));
+    const places = [...office.rooms.map((r) => r.door), ...office.spots.filter((s) => s.kind === "door"), ...seats];
+    for (const from of places) {
+      for (const to of places) {
+        const path = findPath(office.passable, from, to);
+        for (const step of path.slice(0, -1)) {
+          expect(SEATS.has(office.tiles[step.y]![step.x]!), `${from.x},${from.y} → ${to.x},${to.y} crosses ${step.x},${step.y}`).toBe(false);
+        }
+      }
+    }
+  });
+
+  it("has a café (coffee and sofas) and an internet room (laptops and stools) along the top", () => {
+    const office = generateOffice({ ...quiet, teams: [] });
+    const room = (kind: string) => office.rooms.find((r) => r.kind === kind)!;
+    const inside = (r: { x: number; y: number; w: number; h: number }) => (s: { x: number; y: number }) =>
+      s.x >= r.x && s.x < r.x + r.w && s.y >= r.y && s.y < r.y + r.h;
+    const cafe = room("cafe");
+    const web = room("web");
+    expect(office.spots.filter((s) => s.kind === "lounge").every(inside(cafe))).toBe(true);
+    expect(office.spots.filter((s) => s.kind === "lounge").length).toBeGreaterThanOrEqual(quiet.rooms.lounge);
+    expect(office.tiles.flat().filter((c) => c === "K")).toHaveLength(1);
+    const stools = office.spots.filter((s) => s.kind === "web");
+    expect(stools.every(inside(web))).toBe(true);
+    expect(stools.length).toBeGreaterThanOrEqual(quiet.rooms.web);
+    // Every stool is right in front of a laptop bar.
+    for (const s of stools) expect(office.tiles[s.y - 1]![s.x]).toBe("L");
+  });
+
   it("gives each session a manager's chair and its worker desks", () => {
     const office = generateOffice({ ...quiet, teams: [team("s1", "app", 2 * WORKERS_PER_ROW), team("s2")] });
     expect(office.teams).toHaveLength(2);
@@ -77,9 +109,9 @@ describe("office generator", () => {
 
   it("makes rooms wider when more agents need them", () => {
     const small = generateOffice(quiet);
-    const big = generateOffice({ ...quiet, rooms: { ...MIN_ROOMS, library: 14 } });
-    const count = (o: typeof small) => o.spots.filter((s) => s.kind === "library").length;
-    expect(count(small)).toBeGreaterThanOrEqual(MIN_ROOMS.library);
+    const big = generateOffice({ ...quiet, rooms: { ...MIN_ROOMS, web: 14 } });
+    const count = (o: typeof small) => o.spots.filter((s) => s.kind === "web").length;
+    expect(count(small)).toBeGreaterThanOrEqual(MIN_ROOMS.web);
     expect(count(big)).toBeGreaterThanOrEqual(14);
   });
 
@@ -124,19 +156,19 @@ describe("planner", () => {
     const planner = new OfficePlanner();
     const busy = reduceAll(
       emptyState(),
-      [1, 2, 3, 4, 5, 6, 7].map((i) => ev({ kind: "tool.start", agentId: `a${i}`, sessionId: `s${i}`, callId: "c", tool: "Read", category: "read" })),
+      [1, 2, 3, 4, 5, 6, 7].map((i) => ev({ kind: "tool.start", agentId: `a${i}`, sessionId: `s${i}`, callId: "c", tool: "WebFetch", category: "web" })),
     );
-    expect(planner.plan(busy, 0).rooms.library).toBe(8);
+    expect(planner.plan(busy, 0).rooms.web).toBe(8);
     const calm = reduceAll(busy, [1, 2, 3, 4, 5, 6, 7].map((i) => ev({ kind: "idle", agentId: `a${i}`, sessionId: `s${i}` })));
-    expect(planner.plan(calm, 1000).rooms.library).toBe(8);
-    expect(planner.plan(calm, 1000 + SHRINK_AFTER_MS).rooms.library).toBe(MIN_ROOMS.library);
+    expect(planner.plan(calm, 1000).rooms.web).toBe(8);
+    expect(planner.plan(calm, 1000 + SHRINK_AFTER_MS).rooms.web).toBe(MIN_ROOMS.web);
   });
 
   it("sizes rooms for agents still holding a spot there, not just by activity", () => {
-    const state = reduceAll(emptyState(), [ev({ kind: "tool.start", agentId: "a", callId: "c", tool: "Read", category: "read" })]);
+    const state = reduceAll(emptyState(), [ev({ kind: "tool.start", agentId: "a", callId: "c", tool: "WebFetch", category: "web" })]);
     const holders = new Set(Array.from({ length: 9 }, (_, i) => `h${i}`));
-    const rooms = new OfficePlanner().plan(state, 0, undefined, new Map([["library", new Set([...holders, "a"])]])).rooms;
-    expect(rooms.library).toBeGreaterThanOrEqual(11); // 10 agents (a counted once) + a spare
+    const rooms = new OfficePlanner().plan(state, 0, undefined, new Map([["web", new Set([...holders, "a"])]])).rooms;
+    expect(rooms.web).toBeGreaterThanOrEqual(11); // 10 agents (a counted once) + a spare
   });
 });
 
@@ -181,32 +213,36 @@ describe("allocator", () => {
 
   it("notes who found a room full, so the planner can grow it", () => {
     const a = new Allocator(office);
-    const n = office.spots.filter((s) => s.kind === "globe").length;
-    for (let i = 0; i < n; i++) a.reserve(`a${i}`, "globe", { x: 0, y: 0 });
+    const n = office.spots.filter((s) => s.kind === "web").length;
+    for (let i = 0; i < n; i++) a.reserve(`a${i}`, "web", { x: 0, y: 0 });
     expect(a.shortage).toBe(false);
-    a.reserve("late", "globe", { x: 0, y: 0 });
+    a.reserve("late", "web", { x: 0, y: 0 });
     expect(a.shortage).toBe(true);
-    expect(a.claimants().get("globe")?.size).toBe(n + 1);
+    expect(a.claimants().get("web")?.size).toBe(n + 1);
     a.release("late");
     expect(a.shortage).toBe(false);
   });
 
   it("spreads agents over shared spots", () => {
     const a = new Allocator(office);
-    const s1 = a.reserve("a", "library", { x: 0, y: 0 })!;
-    const s2 = a.reserve("b", "library", { x: 0, y: 0 })!;
+    const s1 = a.reserve("a", "server", { x: 0, y: 0 })!;
+    const s2 = a.reserve("b", "server", { x: 0, y: 0 })!;
     expect(`${s1.x},${s1.y}`).not.toBe(`${s2.x},${s2.y}`);
   });
 });
 
 describe("place debouncer", () => {
+  it("reads and searches code at the desk", () => {
+    expect(placeFor("read")).toEqual({ kind: "seat", pose: "think" });
+  });
+
   it("holds a short burst at the current place, then moves once settled", () => {
     const d = new PlaceDebouncer();
     expect(d.decide(placeFor("edit"), 0).kind).toBe("seat");
-    expect(d.decide(placeFor("read"), 100).kind).toBe("seat");
+    expect(d.decide(placeFor("shell"), 100).kind).toBe("seat");
     expect(d.decide(placeFor("edit"), 300).kind).toBe("seat");
-    expect(d.decide(placeFor("read"), 400).kind).toBe("seat");
-    expect(d.decide(placeFor("read"), 400 + SETTLE_MS).kind).toBe("library");
+    expect(d.decide(placeFor("shell"), 400).kind).toBe("seat");
+    expect(d.decide(placeFor("shell"), 400 + SETTLE_MS).kind).toBe("server");
   });
 
   it("moves right away after dwelling long enough", () => {

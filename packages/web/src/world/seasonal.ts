@@ -49,11 +49,11 @@ export class Seasonal {
       o.tiles.forEach((row, y) => row.forEach((c, x) => c === "P" && d.pumpkins.push({ x, y })));
     }
     if (s.christmas) {
-      // In the lounge, just left of the coffee machine.
+      // In the café, by the coffee machine.
       for (let y = 0; y < o.height && !d.tree; y++) {
         const kx = o.tiles[y]!.indexOf("K");
         if (kx < 0) continue;
-        for (const dx of [-2, -1, -3]) if (o.walkable[y + 1]?.[kx + dx]) d.tree = { x: kx + dx, y: y + 1 };
+        for (const dx of [-2, -1, -3, 1]) if (!d.tree && o.passable[y + 1]?.[kx + dx]) d.tree = { x: kx + dx, y: y + 1 };
       }
     }
     if (s.birthday) {

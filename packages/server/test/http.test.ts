@@ -181,8 +181,8 @@ describe("history", () => {
 
 describe("settings", () => {
   const good = {
-    roomOrder: ["mail", "lab", "git", "server", "library"],
-    minRooms: { library: 6, server: 4, lab: 3, git: 3, mail: 3, lounge: 6, reception: 4, globe: 2, filing: 3 },
+    roomOrder: ["mail", "lab", "cafe", "git", "server", "web"],
+    minRooms: { web: 6, server: 4, lab: 3, git: 3, mail: 3, lounge: 6, reception: 4, filing: 3 },
     teamsPerRow: 2,
     rugs: false,
     plants: true,
@@ -212,7 +212,7 @@ describe("settings", () => {
     expect((await send(good, { cookie })).status).toBe(403);
     expect((await send(good, { "x-po-csrf": "1" })).status).toBe(401);
     expect((await send({ ...good, teamsPerRow: 9 }, { cookie, "x-po-csrf": "1" })).status).toBe(400);
-    expect((await send({ ...good, roomOrder: ["mail", "mail", "server", "library"] }, { cookie, "x-po-csrf": "1" })).status).toBe(400);
+    expect((await send({ ...good, roomOrder: ["mail", "mail", "server", "web"] }, { cookie, "x-po-csrf": "1" })).status).toBe(400);
   });
 });
 

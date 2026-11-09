@@ -142,7 +142,7 @@ export class OfficeView {
 
   /** Name signs over the top rooms; the test lab's shows the latest test result in the office. */
   private signRooms(): void {
-    const names = { library: "Library", server: "Server room", lab: "Test lab", git: "Git room", mail: "Mailroom" } as const;
+    const names = { web: "Internet room", server: "Server room", cafe: "Café", lab: "Test lab", git: "Git room", mail: "Mailroom" } as const;
     const silo = this.world.silo;
     const keep = new Set<string>();
     for (const r of this.world.office.rooms) {

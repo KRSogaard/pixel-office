@@ -15,7 +15,7 @@ interface Row {
 }
 
 const ROOMS_TOP: Row[] = [
-  { name: "Library", what: "Reading or searching code — Read, Grep, Glob, LSP." },
+  { name: "Internet room", what: "On the web — WebFetch and WebSearch, at a laptop on a stool." },
   { name: "Server room", what: "Running other shell commands — builds, git, scripts (Bash)." },
   { name: "Test lab", what: "Running tests — npm test, vitest, pytest, dotnet test and the like. The sign shows the latest result in the office: ⏳ running, ✓ pass, ✗ fail." },
   { name: "Git room", what: "Git work — commit, push, pull, rebase, gh pr. Every push or new PR launches a rocket from the silo. The gauge beside the silo shows how many commits are loaded (not pushed yet)." },
@@ -26,9 +26,9 @@ const ROOMS_MIDDLE: Row[] = [
   { name: "Front door (left wall)", what: "Agents walk in when a session starts and out when it ends." },
   { name: "Reception counter", what: "The agent needs you: a permission prompt or a question. It waves, with a red ! — go to your terminal." },
   { name: "Flying robots", what: "Every git commit sends a little robot from the agent's desk to the silo with a crate. The crate loads into the rocket." },
-  { name: "Lounge sofas", what: "Idle: the agent finished its turn and is waiting for your next prompt." },
-  { name: "Coffee machine", what: "A coffee break: the agent hit a rate limit or the API is overloaded." },
-  { name: "Globe desks", what: "On the web — WebFetch and WebSearch." },
+  { name: "Café sofas", what: "Idle: the agent finished its turn and is waiting for your next prompt." },
+  { name: "Coffee machine", what: "A coffee break (in the café): the agent hit a rate limit or the API is overloaded." },
+  { name: "At the desk with 📖", what: "Reading or searching code — Read, Grep, Glob, LSP." },
   { name: "Filing cabinets", what: "Decoration." },
 ];
 
@@ -85,7 +85,7 @@ const EVENTS: Row[] = [
   { name: "🥱", what: "Working for more than two hours." },
   { name: "Pizza", what: "Five or more agents working at once: crunch time." },
   { name: "Grey smoke + a bug", what: "A tool call failed: a bug escapes and scuttles around. Passing tests squash that session's bugs. Nine or more and they swarm the server room." },
-  { name: "Gossip", what: "Idle agents in the lounge chat about what just happened in the office." },
+  { name: "Gossip", what: "Idle agents in the café chat about what just happened in the office." },
   { name: "🏆 Toast", what: "An achievement was unlocked. See them all in the 📊 sidebar." },
   { name: "Seasons", what: "A Christmas tree and snow in winter, pumpkins at Halloween, confetti at New Year, and party hats on the office's birthday." },
   { name: "Sparkles", what: "A sub-agent just appeared next to its manager." },
