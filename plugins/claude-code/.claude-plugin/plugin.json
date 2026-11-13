@@ -1,21 +1,27 @@
 {
   "name": "pixel-office",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Shows your Claude Code sessions as little people in a self-hosted pixel-art office. Sends hook events to your pixel-office server; costs the model zero tokens.",
-  "author": { "name": "Kasper Sogaard" },
+  "author": {
+    "name": "Kasper Sogaard"
+  },
   "license": "MIT",
-  "keywords": ["visualization", "monitoring", "hooks"],
+  "keywords": [
+    "visualization",
+    "monitoring",
+    "hooks"
+  ],
   "userConfig": {
     "server_url": {
       "type": "string",
-      "title": "pixel-office server URL",
-      "description": "Where your pixel-office server runs, e.g. https://office.example.com or http://127.0.0.1:8790",
+      "title": "pixel-office server URL(s)",
+      "description": "Where your pixel-office server runs, e.g. https://office.example.com or http://127.0.0.1:8790. Several offices (e.g. home and work): separate them with commas.",
       "required": true
     },
     "token": {
       "type": "string",
-      "title": "Ingest token",
-      "description": "The server's ingest token (run `pixel-office token` on the server)",
+      "title": "Ingest token(s)",
+      "description": "Your token for the office (from 👥 People, or `pixel-office token` on the server). Several offices: their tokens, comma separated, in the same order as the URLs.",
       "required": true,
       "sensitive": true
     }

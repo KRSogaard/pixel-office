@@ -1,7 +1,20 @@
 {
-  "description": "Forward agent activity to a pixel-office server (async, silent, zero tokens)",
+  "description": "Forward agent activity to one or more pixel-office servers (async, silent, zero tokens), and show which ones are connected when a session starts",
   "hooks": {
     "SessionStart": [
+      {
+        "matcher": "startup|resume",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/po-status.sh"
+            ],
+            "timeout": 10
+          }
+        ]
+      },
       {
         "hooks": [
           {

@@ -8,6 +8,14 @@
  * Configure:
  *   export PIXEL_OFFICE_URL=https://office.example.com
  *   export PIXEL_OFFICE_TOKEN=<ingest token>
+ *
+ * Several offices (e.g. home and work): list them, comma or space separated,
+ * with their tokens in the same order (one token alone is used for all):
+ *   export PIXEL_OFFICE_URL="https://home.example.com, https://office.work.com"
+ *   export PIXEL_OFFICE_TOKEN="po_u_home…, po_u_work…"
+ *
+ * Connection status shows as a toast when OpenCode starts, and again whenever
+ * an office goes away or comes back.
  */
 
 const FORWARDED_EVENTS = new Set([
@@ -25,25 +33,85 @@ const FORWARDED_EVENTS = new Set([
 type Shell = (strings: TemplateStringsArray, ...values: unknown[]) => {
   cwd(dir: string): { quiet(): { nothrow(): { text(): Promise<string> } } };
 };
-type Ctx = { directory: string; $?: Shell };
+type Toast = { title?: string; message: string; variant: "info" | "success" | "warning" | "error"; duration?: number };
+type Client = { tui?: { showToast?(options: { body: Toast }): Promise<unknown> } };
+type Ctx = { directory: string; $?: Shell; client?: Client };
 
-export const PixelOffice = async ({ directory, $ }: Ctx) => {
-  const url = process.env.PIXEL_OFFICE_URL?.replace(/\/$/, "");
-  const token = process.env.PIXEL_OFFICE_TOKEN ?? "";
-  if (!url) return {};
+type Office = { url: string; token: string; name: string; status?: string; checking?: boolean };
 
-  const send = (body: Record<string, unknown>): void => {
+export const PixelOffice = async ({ directory, $, client }: Ctx) => {
+  const offices = parseOffices(process.env.PIXEL_OFFICE_URL, process.env.PIXEL_OFFICE_TOKEN);
+  if (offices.length === 0) return {};
+
+  const toast = (body: Toast): void => {
     try {
-      fetch(`${url}/ingest/opencode`, {
-        method: "POST",
-        headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
-        body: JSON.stringify({ directory, ...body }),
-        signal: AbortSignal.timeout(3000),
-      }).catch(() => {});
+      client?.tui?.showToast?.({ body }).catch(() => {});
     } catch {
-      // never let the office break the agent
+      // no TUI (e.g. `opencode run`), no toast
     }
   };
+
+  /** Remembers each office's last status and shows a toast when one changes. */
+  const report = (office: Office, status: string): void => {
+    if (office.status === status) return;
+    const first = office.status === undefined;
+    office.status = status;
+    const ok = status.startsWith("connected");
+    if (first && offices.some((o) => o.status === undefined)) return; // wait for the rest, then one toast
+    const lines = first ? offices.map((o) => `${o.name}: ${o.status}`) : [`${office.name}: ${status}`];
+    const allOk = offices.every((o) => o.status?.startsWith("connected"));
+    toast({ title: "pixel-office", message: lines.join("\n"), variant: first ? (allOk ? "success" : "warning") : ok ? "success" : "error" });
+  };
+
+  const post = async (office: Office, body: Record<string, unknown>): Promise<void> => {
+    try {
+      const res = await fetch(`${office.url}/ingest/opencode`, {
+        method: "POST",
+        headers: { "content-type": "application/json", authorization: `Bearer ${office.token}` },
+        body: JSON.stringify({ directory, ...body }),
+        signal: AbortSignal.timeout(3000),
+      });
+      if (res.status === 401) report(office, "token rejected");
+      else if (res.ok && !office.status?.startsWith("connected")) void check(office);
+    } catch {
+      report(office, "can't reach the server");
+    }
+  };
+
+  const send = (body: Record<string, unknown>): void => {
+    for (const office of offices) void post(office, body);
+  };
+
+  /** Asks the office whether it accepts the token, and whose it is. */
+  const check = async (office: Office): Promise<void> => {
+    if (office.checking) return;
+    office.checking = true;
+    try {
+      const res = await fetch(`${office.url}/ingest/check`, {
+        headers: { authorization: `Bearer ${office.token}` },
+        signal: AbortSignal.timeout(3000),
+      });
+      const who = res.ok ? ((await res.json().catch(() => ({}))) as { name?: string }).name : undefined;
+      if (res.ok) report(office, who ? `connected as ${who}` : "connected");
+      else if (res.status === 401) report(office, "token rejected");
+      else if (res.status === 404) report(office, (await isOlderOffice(office)) ? "connected (older server: update it to check the token)" : "not a pixel-office server (check the URL)");
+      else report(office, `server answered ${res.status}`);
+    } catch {
+      report(office, "can't reach the server");
+    } finally {
+      office.checking = false;
+    }
+  };
+  /** An older pixel-office has no /ingest/check yet; anything else at this address is the wrong URL. */
+  const isOlderOffice = async (office: Office): Promise<boolean> => {
+    try {
+      const res = await fetch(`${office.url}/health`, { signal: AbortSignal.timeout(3000) });
+      return res.ok && ((await res.json()) as { ok?: unknown }).ok === true;
+    } catch {
+      return false;
+    }
+  };
+  for (const office of offices) void check(office);
 
   /** The git branch of the project, for the team label. Never throws. */
   const sendBranch = async (props: unknown): Promise<void> => {
@@ -116,6 +184,25 @@ export const PixelOffice = async ({ directory, $ }: Ctx) => {
     },
   };
 };
+
+/**
+ * "a, b" + "t1, t2" → one office per URL, paired with the token in the same place (or the only token).
+ * Not exported: OpenCode runs every export of a plugin file as a plugin.
+ */
+function parseOffices(urls: string | undefined, tokens: string | undefined): Office[] {
+  const list = (v: string | undefined) => (v ?? "").split(/[\s,]+/).filter(Boolean);
+  const toks = list(tokens);
+  return list(urls).map((raw, i) => {
+    const url = raw.replace(/\/+$/, "");
+    let name = url;
+    try {
+      name = new URL(url).host;
+    } catch {
+      // not a URL; show it as written
+    }
+    return { url, token: (toks.length === 1 ? toks[0] : toks[i]) ?? "", name };
+  });
+}
 
 /** Only the fields the server summarizes — never file contents. */
 function trimArgs(args: Record<string, unknown> | undefined): Record<string, unknown> {

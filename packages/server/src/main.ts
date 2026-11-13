@@ -65,10 +65,12 @@ async function main(): Promise<void> {
     case "simulate": {
       if (!arg) throw new Error(`simulate needs a scenario or a .jsonl file.\n\n${USAGE}`);
       const config = loadConfig();
+      // The connectors' variables may list several offices; simulate into the first one.
+      const first = (v: string | undefined) => v?.split(/[\s,]+/).find(Boolean);
       const token =
-        values.token ?? process.env.PIXEL_OFFICE_TOKEN ?? loadSecrets(config.dataDir, config).secrets.ingestToken;
+        values.token ?? first(process.env.PIXEL_OFFICE_TOKEN) ?? loadSecrets(config.dataDir, config).secrets.ingestToken;
       const opts = {
-        url: values.url ?? process.env.PIXEL_OFFICE_URL ?? `http://127.0.0.1:${config.port}`,
+        url: values.url ?? first(process.env.PIXEL_OFFICE_URL) ?? `http://127.0.0.1:${config.port}`,
         token,
         speed: Number(values.speed ?? 1) || 1,
         ...(values.loops ? { loops: Number(values.loops) } : {}),
@@ -228,7 +230,9 @@ function installOpenCode(): void {
 
 Now tell OpenCode where your office is (e.g. in ~/.zshrc):
   export PIXEL_OFFICE_URL=https://office.example.com
-  export PIXEL_OFFICE_TOKEN=<ingest token>   # from \`pixel-office token\` on the server`);
+  export PIXEL_OFFICE_TOKEN=<ingest token>   # from \`pixel-office token\` on the server
+
+Several offices? List them, comma separated, with their tokens in the same order.`);
 }
 
 main().catch((err: unknown) => {

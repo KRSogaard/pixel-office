@@ -14,10 +14,9 @@
 # when a build or test run started in the background is done.
 # (Sub-agent events carry the main session's transcript_path too, so the number
 # always belongs to the main agent.)
-URL="${CLAUDE_PLUGIN_OPTION_SERVER_URL:-${PIXEL_OFFICE_URL:-}}"
-TOKEN="${CLAUDE_PLUGIN_OPTION_TOKEN:-${PIXEL_OFFICE_TOKEN:-}}"
+. "$(dirname "$0")/offices.sh" 2>/dev/null || { cat >/dev/null 2>&1; exit 0; }
 
-if [ -z "$URL" ] || ! command -v curl >/dev/null 2>&1; then
+if [ -z "$OFFICE_URLS" ] || ! command -v curl >/dev/null 2>&1; then
   cat >/dev/null 2>&1
   exit 0
 fi
@@ -85,10 +84,12 @@ case "$(field hook_event_name)" in
   SessionStart | UserPromptSubmit) BRANCH=$(git_branch "$(field cwd)") ;;
 esac
 
-set -- -s -m 3 -X POST -H 'content-type: application/json' -H "authorization: Bearer ${TOKEN}"
-[ -n "$CONTEXT" ] && set -- "$@" -H "x-po-context-tokens: ${CONTEXT}"
-[ -n "$BRANCH" ] && set -- "$@" -H "x-po-git-branch: ${BRANCH}"
-[ -n "$JOBS" ] && set -- "$@" -H "x-po-jobs: ${JOBS}"
-curl "$@" --data-binary @"$BODY" "${URL%/}/ingest/claude" >/dev/null 2>&1
+# Header values hold no spaces (digits, a sanitised branch, "id:status,…"), so they split cleanly.
+send_to() {
+  curl -s -m 3 -X POST -H 'content-type: application/json' -H "authorization: Bearer $2" \
+    ${CONTEXT:+-H x-po-context-tokens:$CONTEXT} ${BRANCH:+-H x-po-git-branch:$BRANCH} ${JOBS:+-H x-po-jobs:$JOBS} \
+    --data-binary @"$BODY" "$1/ingest/claude" >/dev/null 2>&1
+}
+each_office send_to
 
 exit 0

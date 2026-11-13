@@ -96,6 +96,19 @@ describe("ingest identity", () => {
     expect(hub.snapshot.agents.g1?.user).toBe("Morten");
   });
 
+  it("answers the connectors' connection check with whose token it is", async () => {
+    const { app, users } = setup();
+    const { token } = users.addUser("Morten");
+    const check = async (headers: Record<string, string>) => {
+      const res = await app.request("/ingest/check", { headers });
+      return { status: res.status, body: await res.json() };
+    };
+    expect(await check({ authorization: `Bearer ${token}` })).toEqual({ status: 200, body: { ok: true, name: "Morten" } });
+    expect(await check({ "x-po-token": "shared-tok" })).toEqual({ status: 200, body: { ok: true } });
+    expect(await check({ authorization: "Bearer nope" })).toEqual({ status: 401, body: { ok: false } });
+    expect(await check({})).toEqual({ status: 401, body: { ok: false } });
+  });
+
   it("stops accepting a removed person's token", async () => {
     const { app, users } = setup();
     const { user, token } = users.addUser("Temp");

@@ -153,6 +153,16 @@ export function createApp(deps: AppDeps): Hono {
 
   app.get("/health", (c) => c.json({ ok: true }));
 
+  // The connectors' connection check: is this ingest token accepted, and whose is it?
+  app.get("/ingest/check", (c) => {
+    const auth = c.req.header("authorization");
+    const presented = auth?.startsWith("Bearer ") ? auth.slice(7) : c.req.header("x-po-token");
+    if (!presented) return c.json({ ok: false }, 401);
+    if (safeEqual(presented, secrets.ingestToken)) return c.json({ ok: true });
+    const person = users?.findUserByToken(presented);
+    return person ? c.json({ ok: true, name: person.name }) : c.json({ ok: false }, 401);
+  });
+
   // Ingest. Always answers with an empty body: Claude Code must never receive text it could show the model.
   app.post(
     "/ingest/:source",

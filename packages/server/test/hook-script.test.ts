@@ -28,12 +28,14 @@ describe("po-hook.sh", () => {
   let server: Server;
   let port = 0;
   const received: { auth?: string; context?: string; branch?: string; jobs?: string; body: string }[] = [];
+  const paths: string[] = [];
 
   beforeAll(async () => {
     server = createServer((req, res) => {
       let body = "";
       req.on("data", (c) => (body += c));
       req.on("end", () => {
+        paths.push(req.url ?? "");
         const context = req.headers["x-po-context-tokens"];
         const branch = req.headers["x-po-git-branch"];
         const jobs = req.headers["x-po-jobs"];
@@ -92,6 +94,24 @@ describe("po-hook.sh", () => {
     expect(received.at(-1)?.branch).toBe("feature/office");
   });
 
+  it("sends to every office in the list, each with its own token", async () => {
+    const before = received.length;
+    const office = (name: string) => `http://127.0.0.1:${port}/${name}`;
+    const r = await runHook({
+      CLAUDE_PLUGIN_OPTION_SERVER_URL: `${office("home")}, ${office("work")}/ http://127.0.0.1:1`,
+      CLAUDE_PLUGIN_OPTION_TOKEN: "tok-home,tok-work tok-dead",
+    });
+    expect(r).toEqual({ status: 0, stdout: "", stderr: "" });
+    const sent = paths.slice(before).map((p, i) => `${p} ${received[before + i]?.auth}`).sort();
+    expect(sent).toEqual(["/home/ingest/claude Bearer tok-home", "/work/ingest/claude Bearer tok-work"]);
+  });
+
+  it("uses a single token for every office", async () => {
+    const before = received.length;
+    await runHook({ PIXEL_OFFICE_URL: `http://127.0.0.1:${port}/a,http://127.0.0.1:${port}/b`, PIXEL_OFFICE_TOKEN: "same" });
+    expect(received.slice(before).map((x) => x.auth)).toEqual(["Bearer same", "Bearer same"]);
+  });
+
   it("is silent and exits 0 when the server is unreachable", async () => {
     const r = await runHook({ CLAUDE_PLUGIN_OPTION_SERVER_URL: "http://127.0.0.1:1", CLAUDE_PLUGIN_OPTION_TOKEN: "tok" });
     expect(r.status).toBe(0);
@@ -138,3 +158,56 @@ describe("po-hook.sh", () => {
   });
 });
 
+
+describe("po-status.sh", () => {
+  const STATUS = resolve(__dirname, "../../../plugins/claude-code/hooks/po-status.sh");
+  let server: Server;
+  let base = "";
+
+  beforeAll(async () => {
+    server = createServer((req, res) => {
+      const path = req.url ?? "";
+      const json = (status: number, body: object) => res.writeHead(status, { "content-type": "application/json" }).end(JSON.stringify(body));
+      if (path === "/home/ingest/check") return req.headers.authorization === "Bearer good" ? json(200, { ok: true, name: 'Kas"per\\' }) : json(401, { ok: false });
+      if (path === "/old/health") return json(200, { ok: true });
+      res.writeHead(404).end("not here");
+    });
+    await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
+    base = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
+  });
+  afterAll(() => server.close());
+
+  const run = (env: Record<string, string>) =>
+    new Promise<{ status: number | null; stdout: string; stderr: string }>((done) => {
+      const child = spawn("sh", [STATUS], { env: { PATH: process.env.PATH ?? "", ...env } });
+      let stdout = "";
+      let stderr = "";
+      child.stdout.on("data", (c) => (stdout += c));
+      child.stderr.on("data", (c) => (stderr += c));
+      child.on("close", (status) => done({ status, stdout, stderr }));
+      child.stdin.end(JSON.stringify({ hook_event_name: "SessionStart", source: "startup" }));
+    });
+
+  it("prints only a systemMessage (shown to you, never to the model) with each office's status, in order", async () => {
+    const host = new URL(base).host;
+    const r = await run({
+      CLAUDE_PLUGIN_OPTION_SERVER_URL: `${base}/home, ${base}/home/ ${base}/old,${base}/wrong http://127.0.0.1:1`,
+      CLAUDE_PLUGIN_OPTION_TOKEN: "good, bad, good, good, good",
+    });
+    expect(r.status).toBe(0);
+    expect(r.stderr).toBe("");
+    expect(Object.keys(JSON.parse(r.stdout))).toEqual(["systemMessage"]);
+    expect(JSON.parse(r.stdout).systemMessage.split("\n")).toEqual([
+      "pixel-office",
+      `  ${host} ✓ connected as Kas"per\\`,
+      `  ${host} ✗ token rejected`,
+      `  ${host} ✓ reachable (older server: update it to check the token)`,
+      `  ${host} ✗ not a pixel-office server (check the URL)`,
+      "  127.0.0.1:1 ✗ can't reach the server",
+    ]);
+  });
+
+  it("prints nothing when no office is set up", async () => {
+    expect(await run({})).toEqual({ status: 0, stdout: "", stderr: "" });
+  });
+});

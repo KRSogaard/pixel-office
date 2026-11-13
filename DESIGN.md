@@ -164,6 +164,12 @@ know it exists.
   the model's context*. `po-hook.sh` sends all output to `/dev/null` and always exits 0. A test
   (`packages/server/test/hook-script.test.ts`) asserts silence with the server up, down, unset,
   and replying with text.
+- **The one exception: the connection status.** `po-status.sh` runs on `SessionStart`
+  (startup and resume) and prints a single `{"systemMessage": "…"}`. For a *synchronous*
+  SessionStart hook Claude Code shows `systemMessage` to the user and does not send it to the
+  model (checked: a model asked to repeat a codeword from it answered "none"). It must stay
+  synchronous: an async hook's `systemMessage` is delivered *to the model* on the next turn.
+  It gives every office at most 2 s, in parallel. It never prints anything else.
 - **The server always answers ingest with an empty `204`.** (Not that it matters for an async
   command hook, but an HTTP hook pointed at it would also be safe.)
 - **Async.** Every hook is registered with `async: true`, so Claude Code starts it and carries

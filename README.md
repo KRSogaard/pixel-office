@@ -144,8 +144,28 @@ other machine that can reach it.
    - Ingest token: the token from step 1 (kept in secure storage, not in `settings.json`)
 
    If it didn't ask, find them as plugin settings under `/config` or `/plugin`.
-5. **Start a new Claude Code session.** Hooks load when a session starts. Send any prompt
-   and a new person walks into the office.
+5. **Start a new Claude Code session.** Hooks load when a session starts. Under the banner
+   you'll see whether the office accepted your token:
+   ```
+   pixel-office
+     office.example.com ✓ connected as Kasper
+   ```
+   Send any prompt and a new person walks into the office.
+
+**Connection status.** Each time a session starts or resumes, the plugin asks every office
+whether it accepts your token and prints one line per office: `✓ connected as <name>`,
+`✗ token rejected`, `✗ can't reach the server` or `✗ not a pixel-office server (check the URL)`.
+It waits at most 2 seconds, and the model never sees this line (it costs no tokens).
+
+**Several offices.** To show your agents in more than one office (say your own and your
+company's), put every URL in the server URL setting and every token in the token setting,
+comma separated, in the same order:
+
+- Server URL: `https://office.home.example, https://office.work.example`
+- Ingest token: `po_u_home…, po_u_work…`
+
+One token on its own is used for every office. Every event goes to all of them at once, so a
+dead office never slows the others.
 
 To try it from a clone without installing: `claude --plugin-dir plugins/claude-code`
 with `PIXEL_OFFICE_URL` and `PIXEL_OFFICE_TOKEN` set in the environment.
@@ -158,6 +178,15 @@ node packages/server/dist/server.js install-opencode
 
 This copies `plugins/opencode/pixel-office.ts` into `~/.config/opencode/plugins/`.
 Then set `PIXEL_OFFICE_URL` and `PIXEL_OFFICE_TOKEN` in the environment OpenCode runs in.
+For several offices, list them the same way as for Claude Code:
+
+```sh
+export PIXEL_OFFICE_URL="https://office.home.example, https://office.work.example"
+export PIXEL_OFFICE_TOKEN="po_u_home…, po_u_work…"
+```
+
+When OpenCode starts, a toast shows each office's connection status. Another toast appears
+if an office later stops answering or rejects the token, and when it comes back.
 
 ## 4. Anything else
 
