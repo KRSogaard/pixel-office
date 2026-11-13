@@ -1,15 +1,16 @@
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import type { DisplayLink, OfficeUser } from "@pixel-office/protocol";
+import type { DisplayLink, OfficeUser, TokenInfo } from "@pixel-office/protocol";
 import { hashPassword, verifyPassword } from "./secrets.js";
 
 /**
  * People and screens, saved as DATA_DIR/users.json.
  *
- *  - A person has their own ingest token; events sent with it are labelled
- *    with their name. They log in with their name and that token, or with a
- *    password they chose themselves (the token stays the plugin's key).
+ *  - A person has one or more ingest tokens of their own (one per computer,
+ *    say); events sent with any of them are labelled with their name. They log
+ *    in with their name and any of their tokens, or with a password they chose
+ *    themselves (the tokens stay the plugins' keys).
  *  - A display link is a read-only key for a screen (a TV in the office):
  *    opening /tv?key=… once logs that browser in as a viewer.
  *
@@ -20,12 +21,24 @@ import { hashPassword, verifyPassword } from "./secrets.js";
 
 export type PersonRole = "admin" | "member";
 
+interface StoredToken {
+  id: string;
+  name: string;
+  hash: string;
+  /** The token's last 4 characters. */
+  hint?: string;
+  createdAt: number;
+  lastUsedAt?: number;
+}
+
 interface StoredUser {
   id: string;
   name: string;
   /** Missing in users.json from older versions → "member". */
   role?: PersonRole;
-  tokenHash: string;
+  tokens: StoredToken[];
+  /** users.json from before people could have several tokens: their one token. Moved into `tokens` on load. */
+  tokenHash?: string;
   /** Their own password for logging in (scrypt), if they've set one. */
   passwordHash?: string;
   createdAt: number;
@@ -54,9 +67,17 @@ export class UserError extends Error {
 }
 
 const USER_PREFIX = "po_u_";
+/** Tokens one person can have (one per computer is plenty). */
+const MAX_TOKENS = 20;
 const DISPLAY_PREFIX = "po_d_";
-/** lastSeenAt is saved at most this often. */
+/** lastSeenAt / lastUsedAt are saved at most this often. */
 const TOUCH_SAVE_MS = 60_000;
+
+/** A new token for a person: the plaintext (shown once) and what's stored. */
+function newUserToken(name: string, now: number): { token: string; stored: StoredToken } {
+  const token = newSecret(USER_PREFIX);
+  return { token, stored: { id: randomUUID(), name, hash: hashToken(token), hint: token.slice(-4), createdAt: now } };
+}
 
 export function hashToken(token: string): string {
   return createHash("sha256").update(token).digest("hex");
@@ -142,8 +163,8 @@ export class UsersStore {
     if (this.data.users.some((u) => u.name.toLowerCase() === n.toLowerCase())) {
       throw new UserError("duplicate", `someone called "${n}" already exists`);
     }
-    const token = newSecret(USER_PREFIX);
-    const stored: StoredUser = { id: randomUUID(), name: n, role: r, tokenHash: hashToken(token), createdAt: now };
+    const { token, stored: first } = newUserToken("First token", now);
+    const stored: StoredUser = { id: randomUUID(), name: n, role: r, tokens: [first], createdAt: now };
     this.data.users.push(stored);
     this.save();
     return { user: publicUser(stored), token };
@@ -187,15 +208,52 @@ export class UsersStore {
     return u ? this.removeUser(u.id) : false;
   }
 
-  /** The person a presented ingest token belongs to, if any. */
-  findUserByToken(token: string): OfficeUser | undefined {
+  /** The person a presented ingest token belongs to, if any, and which of their tokens it is. */
+  findUserByToken(token: string): (OfficeUser & { tokenId: string }) | undefined {
     if (!token.startsWith(USER_PREFIX)) return undefined;
     this.refresh();
     const h = hashToken(token);
-    let found: StoredUser | undefined;
+    let found: { user: StoredUser; token: StoredToken } | undefined;
     // Compare against every stored hash so timing doesn't reveal which one matched.
-    for (const u of this.data.users) if (sameHash(h, u.tokenHash)) found = u;
-    return found && publicUser(found);
+    for (const u of this.data.users) for (const t of u.tokens) if (sameHash(h, t.hash)) found = { user: u, token: t };
+    return found && { ...publicUser(found.user), tokenId: found.token.id };
+  }
+
+  // --- a person's own tokens ------------------------------------------------
+
+  /** Someone's tokens, oldest first. Undefined if there's no such person. */
+  listTokens(userId: string): TokenInfo[] | undefined {
+    this.refresh();
+    return this.data.users.find((x) => x.id === userId)?.tokens.map(publicToken);
+  }
+
+  /** A new token for someone, next to the ones they have. The plaintext is returned only now. */
+  addToken(userId: string, name: unknown, now = Date.now()): { info: TokenInfo; token: string } | undefined {
+    this.refresh();
+    const n = typeof name === "string" && name.trim() === "" ? "Token" : cleanName(name);
+    const u = this.data.users.find((x) => x.id === userId);
+    if (!u) return undefined;
+    if (u.tokens.length >= MAX_TOKENS) throw new UserError("invalid", `you can have at most ${MAX_TOKENS} tokens; delete one first`);
+    const { token, stored } = newUserToken(n, now);
+    u.tokens.push(stored);
+    this.save();
+    return { info: publicToken(stored), token };
+  }
+
+  /**
+   * Delete one of someone's tokens; it stops working at once. Their last token can only
+   * go if they have a password, or they could never log in again. False if not found.
+   */
+  removeToken(userId: string, tokenId: string): boolean {
+    this.refresh();
+    const u = this.data.users.find((x) => x.id === userId);
+    if (!u?.tokens.some((t) => t.id === tokenId)) return false;
+    if (u.tokens.length === 1 && !u.passwordHash) {
+      throw new UserError("invalid", "this is your only way to log in: set a password or add another token first");
+    }
+    u.tokens = u.tokens.filter((t) => t.id !== tokenId);
+    this.save();
+    return true;
   }
 
   /** The person with this name, if they've set a password and it's this one. */
@@ -235,11 +293,16 @@ export class UsersStore {
     return publicUser(u);
   }
 
-  /** Remember when someone's agents were last seen. Saved at most once a minute. */
-  touch(id: string, now = Date.now()): void {
+  /**
+   * Remember when someone's agents were last seen (and, given a token, when that token
+   * was last used). Saved at most once a minute.
+   */
+  touch(id: string, now = Date.now(), tokenId?: string): void {
     const u = this.data.users.find((x) => x.id === id);
     if (!u) return;
     u.lastSeenAt = now;
+    const t = tokenId ? u.tokens.find((x) => x.id === tokenId) : undefined;
+    if (t) t.lastUsedAt = now;
     this.dirty = true;
     if (now - this.lastSave >= TOUCH_SAVE_MS) this.save(now);
   }
@@ -251,13 +314,16 @@ export class UsersStore {
     return this.data.displays.map(publicDisplay);
   }
 
-  /** Give someone a new token; the old one stops working at once. */
-  regenerateUserToken(id: string): string | undefined {
+  /**
+   * For a lost or leaked token (an admin, or `user token` on the server): every token the
+   * person has stops working at once, and they get one new one.
+   */
+  regenerateUserToken(id: string, now = Date.now()): string | undefined {
     this.refresh();
     const u = this.data.users.find((x) => x.id === id);
     if (!u) return undefined;
-    const token = newSecret(USER_PREFIX);
-    u.tokenHash = hashToken(token);
+    const { token, stored } = newUserToken("New token", now);
+    u.tokens = [stored];
     this.save();
     return token;
   }
@@ -348,15 +414,20 @@ export class UsersStore {
     if (!this.file || !existsSync(this.file)) return;
     try {
       const raw = JSON.parse(readFileSync(this.file, "utf8")) as Partial<StoredFile>;
-      // Keep in-memory lastSeenAt values that haven't been saved yet.
+      // Keep in-memory lastSeenAt / lastUsedAt values that haven't been saved yet.
       const seen = new Map(this.data.users.map((u) => [u.id, u.lastSeenAt]));
+      const used = new Map(this.data.users.flatMap((u) => u.tokens.map((t) => [t.id, t.lastUsedAt] as const)));
       this.data = {
-        users: Array.isArray(raw.users) ? raw.users : [],
+        users: Array.isArray(raw.users) ? raw.users.map(withTokenList) : [],
         displays: Array.isArray(raw.displays) ? raw.displays : [],
       };
       for (const u of this.data.users) {
         const s = seen.get(u.id);
         if (s && (!u.lastSeenAt || s > u.lastSeenAt)) u.lastSeenAt = s;
+        for (const t of u.tokens) {
+          const l = used.get(t.id);
+          if (l && (!t.lastUsedAt || l > t.lastUsedAt)) t.lastUsedAt = l;
+        }
       }
       this.mtime = statSync(this.file).mtimeMs;
     } catch {
@@ -385,6 +456,30 @@ function publicUser(u: StoredUser): OfficeUser {
     ...(u.lastSeenAt ? { lastSeenAt: u.lastSeenAt } : {}),
     ...(u.passwordHash ? { hasPassword: true } : {}),
   };
+}
+
+function publicToken(t: StoredToken): TokenInfo {
+  return {
+    id: t.id,
+    name: t.name,
+    ...(t.hint ? { hint: t.hint } : {}),
+    createdAt: t.createdAt,
+    ...(t.lastUsedAt ? { lastUsedAt: t.lastUsedAt } : {}),
+  };
+}
+
+/**
+ * A person as read from users.json. Files from before several tokens hold one `tokenHash`:
+ * it becomes their first token, with an id made from the hash so it's the same every load
+ * (another process may re-read the file before this one saves it).
+ */
+function withTokenList(u: StoredUser): StoredUser {
+  if (Array.isArray(u.tokens)) return u;
+  const { tokenHash, ...rest } = u;
+  const tokens: StoredToken[] = tokenHash
+    ? [{ id: `t-${tokenHash.slice(0, 16)}`, name: "First token", hash: tokenHash, createdAt: u.createdAt, ...(u.lastSeenAt ? { lastUsedAt: u.lastSeenAt } : {}) }]
+    : [];
+  return { ...rest, tokens };
 }
 
 /** Checked against when a name has no password, so a miss takes as long as a hit. */

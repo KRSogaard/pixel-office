@@ -1103,7 +1103,39 @@ body:not(.admin) .admin-only {
 }
 
 #me {
-  width: 360px;
+  width: 460px;
+}
+
+/* Your tokens: one per computer, add and delete. */
+#me .me-tokens {
+  display: block;
+  margin: 10px 0;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+}
+#me .me-tokens p {
+  margin: 4px 0;
+}
+#me .me-tokens td {
+  vertical-align: top;
+}
+#me .me-tokens .add {
+  display: flex;
+  gap: 6px;
+}
+#me .me-tokens .add input {
+  flex: 1;
+  font: inherit;
+  color: inherit;
+  background: #11151c;
+  border: 1px solid var(--line);
+  padding: 3px 6px;
+}
+#me .me-tokens .ok {
+  color: #6fd08c;
+}
+#me .me-tokens .error {
+  color: #ff7a7a;
 }
 
 #me button {

@@ -1,4 +1,4 @@
-import type { DisplayLink, Me as MeInfo, OfficeUser } from "@pixel-office/protocol";
+import type { DisplayLink, Me as MeInfo, OfficeUser, TokenInfo } from "@pixel-office/protocol";
 
 /** The logged-in person, as the "Me" panel shows them. */
 type Me = NonNullable<MeInfo["user"]>;
@@ -136,7 +136,7 @@ Ingest token: (the token above)</pre>
       b.onclick = async () => {
         const isUser = !!b.dataset.newUser;
         const what = isUser
-          ? `Give ${b.dataset.name} a new token? Their current token stops working right away.`
+          ? `Give ${b.dataset.name} a new token? All their current tokens stop working right away (use this for a lost or leaked token).`
           : `Make a new code for "${b.dataset.name}"? The old code stops working (a screen that's already logged in stays logged in).`;
         if (!confirm(what)) return;
         try {
@@ -167,7 +167,7 @@ Ingest token: (the token above)</pre>
     this.root.querySelectorAll<HTMLButtonElement>("[data-del-user],[data-del-display]").forEach((b) => {
       b.onclick = async () => {
         const isUser = !!b.dataset.delUser;
-        const what = isUser ? `Remove ${b.dataset.name}? Their token stops working right away.` : `Remove the screen "${b.dataset.name}"? It is logged out.`;
+        const what = isUser ? `Remove ${b.dataset.name}? Their tokens stop working right away.` : `Remove the screen "${b.dataset.name}"? It is logged out.`;
         if (!confirm(what)) return;
         await api("DELETE", isUser ? `/api/users/${b.dataset.delUser}` : `/api/displays/${b.dataset.delDisplay}`).catch((err) => {
           this.error = String(err instanceof Error ? err.message : err);
@@ -179,33 +179,72 @@ Ingest token: (the token above)</pre>
   }
 }
 
-/** "You": your name and role, your own password, a new token for yourself, and log out. */
+/** "You": your name and role, your tokens, your own password, and log out. */
 export class MePanel {
-  private token: string | undefined;
-  /** What happened to the last password change: a note to show, good or bad. */
+  private tokens: TokenInfo[] = [];
+  /** A token just made: shown once, then gone. */
+  private made: { name: string; token: string } | undefined;
+  /** What happened to the last token or password change: a note to show, good or bad. */
+  private tokenNote: { ok: boolean; text: string } | undefined;
   private passwordNote: { ok: boolean; text: string } | undefined;
 
   constructor(private root: HTMLElement) {}
 
   async toggle(me: Me | undefined, role: string): Promise<void> {
-    if (this.root.classList.toggle("open")) this.render(me, role);
-    else {
-      this.token = undefined;
+    if (this.root.classList.toggle("open")) {
+      this.render(me, role);
+      if (me) await this.loadTokens(me, role);
+    } else {
+      this.made = undefined;
+      this.tokenNote = undefined;
       this.passwordNote = undefined;
     }
   }
 
+  private async loadTokens(me: Me, role: string): Promise<void> {
+    try {
+      this.tokens = await api<TokenInfo[]>("GET", "/api/me/tokens");
+    } catch (err) {
+      this.tokenNote = { ok: false, text: errorText(err) };
+    }
+    this.render(me, role);
+  }
+
   private render(me: Me | undefined, role: string): void {
     const origin = location.origin;
+    const when = (t?: number) => (t ? new Date(t).toLocaleString() : "never");
     this.root.innerHTML = `
       <div class="set-head"><b>${me ? esc(me.name) : "Admin token"}</b><button class="set-close" title="Close">×</button></div>
-      <p class="muted">${role === "admin" ? "Admin — you can manage people, screens and settings." : "Member — you can watch the office and manage your own token."}
+      <p class="muted">${role === "admin" ? "Admin — you can manage people, screens and settings." : "Member — you can watch the office and manage your own tokens."}
       ${me ? "Your agents are highlighted in the office." : "You're logged in with the setup key. Add yourself in 👥 People as an admin, then log in with your own name and token."}</p>
       ${
-        this.token
-          ? `<div class="secret"><b>Your new token</b> — shown only now. Your old one has stopped working.
-             <code>${esc(this.token)}</code><button data-copy="${esc(this.token)}">Copy</button>
-             <p class="muted">Put it in the Claude plugin (/config → pixel-office, server ${esc(origin)}) and use it next time you log in.</p></div>`
+        me
+          ? `<section class="me-tokens">
+               <b>Your tokens</b>
+               <p class="muted">Each computer's Claude Code or OpenCode plugin needs a token, and you can log in with any of them. Give each computer its own, so you can delete one without touching the others.</p>
+               ${
+                 this.made
+                   ? `<div class="secret"><b>${esc(this.made.name)}</b> — shown only now, copy it:
+                      <code>${esc(this.made.token)}</code><button data-copy="${esc(this.made.token)}">Copy</button>
+                      <p class="muted">Put it in the Claude plugin (/plugin → pixel-office, server ${esc(origin)}) or in PIXEL_OFFICE_TOKEN for OpenCode.</p></div>`
+                   : ""
+               }
+               <table class="people">
+                 ${
+                   this.tokens
+                     .map(
+                       (t) => `<tr>
+                         <td><b>${esc(t.name)}</b>${t.hint ? ` <span class="muted">…${esc(t.hint)}</span>` : ""}
+                           <div class="muted">created ${when(t.createdAt)}<br />last used ${when(t.lastUsedAt)}</div></td>
+                         <td><button data-del-token="${esc(t.id)}" data-name="${esc(t.name)}">Delete</button></td>
+                       </tr>`,
+                     )
+                     .join("") || `<tr><td class="muted">No tokens. You log in with your password.</td></tr>`
+                 }
+               </table>
+               ${this.tokenNote ? `<p class="${this.tokenNote.ok ? "ok" : "error"}">${esc(this.tokenNote.text)}</p>` : ""}
+               <form class="add me-add-token"><input name="name" maxlength="40" placeholder="What it's for, e.g. Work laptop" /><button type="submit">Add token</button></form>
+             </section>`
           : ""
       }
       ${
@@ -214,8 +253,8 @@ export class MePanel {
                <b>${me.hasPassword ? "Change your password" : "Set a password"}</b>
                <p class="muted">${
                  me.hasPassword
-                   ? "You log in with your name and this password. Your token still works too (it's what the Claude plugin uses)."
-                   : "Pick your own password to log in with, instead of pasting your token. The plugin keeps using the token."
+                   ? "You log in with your name and this password. Your tokens still work too (they're what the plugins use)."
+                   : "Pick your own password to log in with, instead of pasting a token. The plugins keep using the tokens."
                }</p>
                ${me.hasPassword ? `<input name="current" type="password" autocomplete="current-password" placeholder="Current password" required />` : ""}
                <input name="password" type="password" autocomplete="new-password" minlength="8" placeholder="New password (at least 8 characters)" required />
@@ -226,7 +265,7 @@ export class MePanel {
           : ""
       }
       <div class="set-actions">
-        ${me ? `<button class="me-new">Get a new token</button>` : "<span></span>"}
+        <span></span>
         <form method="post" action="/logout"><button type="submit">Log out</button></form>
       </div>`;
     this.root.querySelector<HTMLButtonElement>(".set-close")!.onclick = () => void this.toggle(me, role);
@@ -235,9 +274,34 @@ export class MePanel {
       await navigator.clipboard?.writeText(b.dataset.copy!).catch(() => {});
       b.textContent = "Copied";
     });
+    if (!me) return;
+    this.root.querySelector<HTMLFormElement>(".me-add-token")?.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const name = String(new FormData(e.currentTarget as HTMLFormElement).get("name") ?? "").trim();
+      try {
+        const r = await api<{ info: TokenInfo; token: string }>("POST", "/api/me/tokens", { name });
+        this.made = { name: r.info.name, token: r.token };
+        this.tokenNote = undefined;
+      } catch (err) {
+        this.tokenNote = { ok: false, text: errorText(err) };
+      }
+      await this.loadTokens(me, role);
+    });
+    this.root.querySelectorAll<HTMLButtonElement>("[data-del-token]").forEach((b) => {
+      b.onclick = async () => {
+        if (!confirm(`Delete the token "${b.dataset.name}"? Anything using it (a plugin on some computer) stops reaching the office right away.`)) return;
+        try {
+          await api("DELETE", `/api/me/tokens/${encodeURIComponent(b.dataset.delToken!)}`);
+          this.made = undefined;
+          this.tokenNote = { ok: true, text: `Deleted "${b.dataset.name}".` };
+        } catch (err) {
+          this.tokenNote = { ok: false, text: errorText(err) };
+        }
+        await this.loadTokens(me, role);
+      };
+    });
     this.root.querySelector<HTMLFormElement>(".me-password")?.addEventListener("submit", async (e) => {
       e.preventDefault();
-      if (!me) return;
       const f = new FormData(e.currentTarget as HTMLFormElement);
       const password = String(f.get("password") ?? "");
       if (password !== String(f.get("repeat") ?? "")) {
@@ -255,20 +319,20 @@ export class MePanel {
         me.hasPassword = true;
       } else {
         const why = res ? ((await res.json().catch(() => ({}))) as { error?: string }).error : undefined;
-        this.passwordNote = { ok: false, text: why ? why[0]!.toUpperCase() + why.slice(1) : "That didn't work. Try again." };
-      }
-      this.render(me, role);
-    });
-    this.root.querySelector<HTMLButtonElement>(".me-new")?.addEventListener("click", async () => {
-      if (!confirm("Get a new token? Your current one stops working right away — in the Claude plugin too.")) return;
-      try {
-        this.token = (await api<{ token: string }>("POST", "/api/me/token")).token;
-      } catch (err) {
-        alert(String(err instanceof Error ? err.message : err));
+        this.passwordNote = { ok: false, text: why ? capitalize(why) : "That didn't work. Try again." };
       }
       this.render(me, role);
     });
   }
+}
+
+/** A failed api() call as a sentence. */
+function errorText(err: unknown): string {
+  return capitalize(String(err instanceof Error ? err.message : err));
+}
+
+function capitalize(s: string): string {
+  return s ? s[0]!.toUpperCase() + s.slice(1) : s;
 }
 
 async function api<T>(method: string, url: string, body?: unknown): Promise<T> {
@@ -279,7 +343,11 @@ async function api<T>(method: string, url: string, body?: unknown): Promise<T> {
     ...(body ? { body: JSON.stringify(body) } : {}),
   });
   if (res.status === 409) throw new Error("That name is already taken.");
-  if (!res.ok) throw new Error(`${method} ${url} failed (${res.status})`);
+  if (!res.ok) {
+    // The server explains a refused change (e.g. deleting your only way to log in) in `error`.
+    const why = ((await res.json().catch(() => ({}))) as { error?: unknown }).error;
+    throw new Error(typeof why === "string" ? why : `${method} ${url} failed (${res.status})`);
+  }
   return (res.status === 204 ? undefined : await res.json()) as T;
 }
 

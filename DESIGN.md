@@ -120,8 +120,10 @@ going to the lounge. When tags crowd together they drop their "why" line for a m
 - **Who's who on screen**: name tags start with a chip in the person's own colour, then the
   agent's name; the second line starts with the project. Team labels read
   `project · manager · person · ⎇ branch`. The list view and the detail panel show the person.
-- **Login and roles**: people log in with their **name and their own token** (the one in
-  their Claude plugin). Each person is a *member* (watch, renew their own token) or an
+- **Login and roles**: people log in with their **name and one of their own tokens** (the
+  ones in their plugins). A person can hold several tokens (one per computer), each with a
+  name, its last 4 characters, and when it was made and last used; they add and delete them
+  by clicking their name. Each person is a *member* (watch, manage their own tokens) or an
   *admin* (also ⚙ settings and 👥 people / screens). The role is looked up on every
   request, so promoting, demoting or removing someone takes effect at once. The **admin
   token** (`po_a_…`, printed on first start; `/admin?token=…`) is the setup and emergency
@@ -130,7 +132,7 @@ going to the lounge. When tags crowd together they drop their "why" line for a m
   A **TV code** (6 letters, `abc-def`, created in 👥 or with `pixel-office display add <name>`),
   typed into the login page's "TV code" box or opened as `/tv/abc-def`, logs a screen in as a
   *viewer* for a year: it can watch, not change anything. Removing the screen logs it out.
-  "New token" / "New code" replace a person's token or a screen's code.
+  "New token" (admin) replaces all of a person's tokens with one; "New code" replaces a screen's code.
 - **TV mode** (viewers, or `?tv`): no buttons, bigger tags, the office always fitted to the
   screen, the mouse hidden when idle, and a screen wake lock.
 - **Auto-update**: the server sends the web build's id (a hash of `index.html`) on connect and

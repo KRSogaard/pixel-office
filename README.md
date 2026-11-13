@@ -199,14 +199,20 @@ One office can show everyone's agents. Each person gets their own token: their a
 labelled with their name, and they **log in with their name and that token** (the same one
 they put in the Claude plugin). A TV gets a 6-letter code.
 
+**Your tokens:** click your name in the top bar to see all your tokens, with when each was
+made and last used, and to add or delete them. Give each computer its own token (name it,
+e.g. "Work laptop"), so you can delete one without touching the others. A new token is shown
+once. You can log in with any of them. Your last token can only be deleted once you've set a
+password, so you can't lock yourself out.
+
 **Your own password:** click your name in the top bar to set a password you choose (at least 8
 characters) and log in with that instead of pasting the token. The token keeps working for
-the plugin; changing one doesn't touch the other. Forgot it? An admin clicks **Reset
+the plugins; changing one doesn't touch the other. Forgot it? An admin clicks **Reset
 password** in 👥 People, and you log in with your token again and pick a new one.
 
 **Roles**
 
-| | Watch | Set their own password, get a new token for themselves | Settings, people, screens |
+| | Watch | Manage their own tokens and password | Settings, people, screens |
 |---|---|---|---|
 | **member** | ✓ | ✓ | |
 | **admin** | ✓ | ✓ | ✓ |
@@ -238,15 +244,15 @@ pin it with `PIXEL_OFFICE_ADMIN_TOKEN`.
 ### Add a person
 
 In 👥 **People**, add a name (as a member or an admin) — their token is shown **once**. Lost
-it? **New token** gives them a fresh one (the old one stops working); people can also renew
-their own. Or on the server:
+or leaked? **New token** replaces all their tokens with one fresh one (the old ones stop
+working); people can also add and delete their own. Or on the server:
 
 ```sh
 pnpm start user add Morten        # prints Morten's token once (--admin to make him an admin)
 pnpm start user role Morten admin # or: member
-pnpm start user token Morten      # a new token; the old one stops working
+pnpm start user token Morten      # one new token; all his old ones stop working
 pnpm start user list
-pnpm start user remove Morten     # his token stops working
+pnpm start user remove Morten     # his tokens stop working
 ```
 
 Morten logs in to the office with his name and that token, and sets up the Claude Code

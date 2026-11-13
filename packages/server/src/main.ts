@@ -31,8 +31,8 @@ Usage:
   pixel-office user add <name> [--admin]     Add a person (a member, or an admin); prints their token once
   pixel-office user role <name> admin|member Make someone an admin or a member
   pixel-office user list                     List people
-  pixel-office user remove <name>            Remove a person (their token stops working)
-  pixel-office user token <name>             Give a person a new token (the old one stops working)
+  pixel-office user remove <name>            Remove a person (their tokens stop working)
+  pixel-office user token <name>             Lost or leaked token: replace all of a person's tokens with one new one
   pixel-office display add <name>            Add a TV / screen; prints its 6-letter code (abc-def)
   pixel-office display list                  List screens
   pixel-office display remove <name>         Remove a screen (it is logged out)
@@ -140,13 +140,13 @@ function manage(kind: "user" | "display", action: string | undefined, name: stri
       const id = users.findUserIdByName(name);
       const token = id && users.regenerateUserToken(id);
       if (!token) throw new Error(`No one called "${name}".`);
-      console.log(`New token for ${name} (shown once; the old one no longer works):\n  ${token}`);
+      console.log(`New token for ${name} (shown once; all their other tokens no longer work):\n  ${token}`);
       return;
     }
     if (kind === "user" && action === "remove") {
       need();
       if (!users.removeUserByName(name)) throw new Error(`No one called "${name}".`);
-      return void console.log(`Removed ${name}. Their token no longer works.`);
+      return void console.log(`Removed ${name}. Their tokens no longer work.`);
     }
     if (kind === "display" && action === "add") {
       need();

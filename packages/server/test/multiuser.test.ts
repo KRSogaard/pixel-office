@@ -1,6 +1,7 @@
 import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { TokenInfo } from "@pixel-office/protocol";
 import { describe, expect, it } from "vitest";
 import { createAdapters } from "../src/adapters/index.js";
 import { createApp } from "../src/http.js";
@@ -354,21 +355,87 @@ describe("name + token login", () => {
     expect((await app.request("/login", login({ token: "hunter2" }))).status).toBe(401);
   });
 
-  it("lets a member watch and renew their own token, but not manage the office", async () => {
+  it("lets a member watch and manage their own tokens, but not manage the office", async () => {
     const { app, users } = setup();
     const { token } = users.addUser("Ada");
     const cookie = cookieOf(await app.request("/login", login({ name: "Ada", token })));
     expect((await app.request("/api/state", { headers: { cookie } })).status).toBe(200);
     expect((await app.request("/api/users", { headers: { cookie } })).status).toBe(403);
     expect((await app.request("/api/settings", { method: "PUT", headers: { cookie, "x-po-csrf": "1" }, body: "{}" })).status).toBe(403);
-    // Own token: needs the CSRF header; the old token stops working, the session stays.
-    expect((await app.request("/api/me/token", { method: "POST", headers: { cookie } })).status).toBe(403);
-    const renewed = await app.request("/api/me/token", { method: "POST", headers: { cookie, "x-po-csrf": "1" } });
-    expect(renewed.status).toBe(200);
-    const { token: fresh } = (await renewed.json()) as { token: string };
+
+    const list = async () => (await (await app.request("/api/me/tokens", { headers: { cookie } })).json()) as TokenInfo[];
+    const add = (name: string, csrf = true) =>
+      app.request("/api/me/tokens", { method: "POST", headers: { cookie, "content-type": "application/json", ...(csrf ? { "x-po-csrf": "1" } : {}) }, body: JSON.stringify({ name }) });
+    const del = (id: string) => app.request(`/api/me/tokens/${id}`, { method: "DELETE", headers: { cookie, "x-po-csrf": "1" } });
+
+    // The token she logged in with is listed, and marked used.
+    const [first] = await list();
+    expect(first).toMatchObject({ name: "First token", hint: token.slice(-4) });
+    expect(first?.lastUsedAt).toBeTypeOf("number");
+
+    // Adding one needs the CSRF header; it's shown once, and both tokens work.
+    expect((await add("Work laptop", false)).status).toBe(403);
+    const made = (await (await add("Work laptop")).json()) as { info: TokenInfo; token: string };
+    expect(made.info).toMatchObject({ name: "Work laptop", hint: made.token.slice(-4) });
+    expect(made.info.lastUsedAt).toBeUndefined();
+    expect((await list()).map((t) => t.name)).toEqual(["First token", "Work laptop"]);
+    expect(users.findUserByToken(made.token)?.name).toBe("Ada");
+    expect(users.findUserByToken(token)?.name).toBe("Ada");
+
+    // Sending events with the new one marks it used.
+    await app.request("/ingest/claude", { method: "POST", body: hook("w1"), headers: { authorization: `Bearer ${made.token}` } });
+    expect((await list())[1]?.lastUsedAt).toBeTypeOf("number");
+
+    // Deleting one stops it at once; the session stays. Her last token can't go while she has no password.
+    expect((await del(first!.id)).status).toBe(204);
     expect(users.findUserByToken(token)).toBeUndefined();
-    expect(users.findUserByToken(fresh)?.name).toBe("Ada");
+    const last = await del(made.info.id);
+    expect(last.status).toBe(400);
+    expect(((await last.json()) as { error: string }).error).toMatch(/only way to log in/);
+    expect((await del("nope")).status).toBe(404);
     expect(await me(app, cookie)).toMatchObject({ role: "member" });
+  });
+
+  it("lets someone with a password delete every token, and keeps a person's tokens apart from another's", async () => {
+    const { app, users } = setup();
+    const ada = users.addUser("Ada");
+    const bo = users.addUser("Bo");
+    users.setPassword(ada.user.id, "correct horse");
+    const cookie = cookieOf(await app.request("/login", login({ name: "Ada", token: ada.token })));
+    const [adaToken] = users.listTokens(ada.user.id)!;
+    const [boToken] = users.listTokens(bo.user.id)!;
+    const del = (id: string) => app.request(`/api/me/tokens/${id}`, { method: "DELETE", headers: { cookie, "x-po-csrf": "1" } });
+    expect((await del(boToken!.id)).status).toBe(404);
+    expect(users.findUserByToken(bo.token)?.name).toBe("Bo");
+    expect((await del(adaToken!.id)).status).toBe(204);
+    expect(users.listTokens(ada.user.id)).toEqual([]);
+  });
+
+  it("an admin's New token replaces all of someone's tokens with one", () => {
+    const store = new UsersStore(mkdtempSync(join(tmpdir(), "po-us-")));
+    const { user, token } = store.addUser("Ada");
+    const second = store.addToken(user.id, "Laptop")!;
+    const fresh = store.regenerateUserToken(user.id)!;
+    expect(store.findUserByToken(token)).toBeUndefined();
+    expect(store.findUserByToken(second.token)).toBeUndefined();
+    expect(store.listTokens(user.id)).toEqual([expect.objectContaining({ name: "New token", hint: fresh.slice(-4) })]);
+  });
+
+  it("moves the one token in an older users.json into the list, keeping it working", () => {
+    const dir = mkdtempSync(join(tmpdir(), "po-us-"));
+    const token = "po_u_old-token-from-before";
+    const old = { users: [{ id: "u1", name: "Ada", role: "member", tokenHash: sha256(token), createdAt: 5, lastSeenAt: 9 }], displays: [] };
+    writeFileSync(join(dir, "users.json"), JSON.stringify(old));
+    const store = new UsersStore(dir);
+    const found = store.findUserByToken(token);
+    expect(found?.name).toBe("Ada");
+    expect(store.listTokens("u1")).toEqual([{ id: found!.tokenId, name: "First token", createdAt: 5, lastUsedAt: 9 }]);
+    // The same id on every load, and saved in the new shape on the next change.
+    expect(new UsersStore(dir).findUserByToken(token)?.tokenId).toBe(found!.tokenId);
+    store.addToken("u1", "Laptop");
+    const saved = JSON.parse(readFileSync(join(dir, "users.json"), "utf8")) as { users: Record<string, unknown>[] };
+    expect(saved.users[0]?.tokenHash).toBeUndefined();
+    expect(new UsersStore(dir).findUserByToken(token)?.tokenId).toBe(found!.tokenId);
   });
 
   it("lets a person set their own password and log in with it; changing it needs the old one", async () => {
@@ -416,9 +483,10 @@ describe("name + token login", () => {
     expect(res.status).toBe(403);
   });
 
-  it("only people can renew 'their own' token (not the admin token or a TV)", async () => {
+  it("only people have tokens of their own (not the admin token or a TV)", async () => {
     const { app, admin } = setup();
-    expect((await app.request("/api/me/token", { method: "POST", headers: { cookie: admin, "x-po-csrf": "1" } })).status).toBe(403);
+    expect((await app.request("/api/me/tokens", { headers: { cookie: admin } })).status).toBe(403);
+    expect((await app.request("/api/me/tokens", { method: "POST", headers: { cookie: admin, "x-po-csrf": "1" } })).status).toBe(403);
   });
 
   it("changes roles with PATCH, and adds people as admins with POST", async () => {

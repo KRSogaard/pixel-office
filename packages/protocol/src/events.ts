@@ -209,17 +209,32 @@ export const ACHIEVEMENTS = [
 
 export type AchievementId = (typeof ACHIEVEMENTS)[number]["id"];
 
-/** A person who sends agents to the office (one ingest token each). */
+/** A person who sends agents to the office (with one or more ingest tokens of their own). */
 export interface OfficeUser {
   id: string;
   name: string;
-  /** "admin" manages people, screens and settings; "member" watches and manages their own token. */
+  /** "admin" manages people, screens and settings; "member" watches and manages their own tokens. */
   role: "admin" | "member";
   createdAt: number;
   /** Last time one of their agents sent an event. */
   lastSeenAt?: number;
   /** They've set their own password (they can log in with it as well as their token). */
   hasPassword?: boolean;
+}
+
+/**
+ * One of a person's ingest tokens, as their "You" panel lists it (GET /api/me/tokens).
+ * The token itself is stored only as a hash and shown once, when it's made.
+ */
+export interface TokenInfo {
+  id: string;
+  /** What it's for, e.g. "Work laptop". */
+  name: string;
+  /** The token's last 4 characters, to tell it apart from the others ("…a1B2"). Missing on tokens made before this existed. */
+  hint?: string;
+  createdAt: number;
+  /** Last time an agent sent an event with it, or someone logged in with it. */
+  lastUsedAt?: number;
 }
 
 /** A read-only link for a screen (TV) in the office. */
@@ -232,7 +247,7 @@ export interface DisplayLink {
 /**
  * Who is looking at the office:
  *  - "admin": a person with the admin role, or the admin token — can change settings, people, screens;
- *  - "member": a person — watches, and can get a new token for themselves;
+ *  - "member": a person — watches, and manages their own tokens and password;
  *  - "viewer": a TV code — only watches.
  */
 export type Role = "admin" | "member" | "viewer";

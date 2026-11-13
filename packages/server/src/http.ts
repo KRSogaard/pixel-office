@@ -198,7 +198,7 @@ export function createApp(deps: AppDeps): Hono {
         (payload as Record<string, unknown>)._jobs = parseJobs(jobs);
       }
       const now = clock();
-      if (person) users?.touch(person.id, now);
+      if (person) users?.touch(person.id, now, person.tokenId);
       const events = adapter.toEvents(payload, now).filter((e) => !isThrowawaySession(e));
       hub.apply(events.map((e) => stampUser(e, person?.name)));
       return c.body(null, 204);
@@ -225,9 +225,11 @@ export function createApp(deps: AppDeps): Hono {
     const fail = () => c.html(loginPage("That name and password (or token) don't match.", name), 401);
     if (!secret) return fail();
 
-    const person = users?.findUserByToken(secret) ?? (name ? users?.findUserByPassword(name, secret) : undefined);
+    const byToken = users?.findUserByToken(secret);
+    const person = byToken ?? (name ? users?.findUserByPassword(name, secret) : undefined);
     if (person) {
       if (person.name.toLowerCase() !== name.toLowerCase()) return fail();
+      if (byToken) users?.touch(byToken.id, clock(), byToken.tokenId);
       attempts.delete(clientIp(c));
       setSession(c, signSession(secrets.sessionSecret, clock() + SESSION_TTL_MS, { userId: person.id }), SESSION_TTL_MS);
       return c.redirect("/", 303);
@@ -274,14 +276,41 @@ export function createApp(deps: AppDeps): Hono {
     return c.json(me);
   });
 
-  // A person gets a new token for themselves (their old one stops working; they stay logged in).
-  app.post("/api/me/token", (c) => {
+  // A person's own tokens (one per computer, say): list them, add one (shown once), delete one.
+  const myId = (c: Context, mutation: boolean): string | Response => {
     const s = session(c);
     if (!s) return c.body(null, 401);
-    if (!s.userId) return c.body(null, 403);
-    if (c.req.header("x-po-csrf") !== "1") return c.body(null, 403);
-    const token = users?.regenerateUserToken(s.userId);
-    return token ? c.json({ token }) : c.body(null, 404);
+    if (!s.userId || !users) return c.body(null, 403);
+    if (mutation && c.req.header("x-po-csrf") !== "1") return c.body(null, 403);
+    return s.userId;
+  };
+  app.get("/api/me/tokens", (c) => {
+    const id = myId(c, false);
+    if (typeof id !== "string") return id;
+    const tokens = users?.listTokens(id);
+    return tokens ? c.json(tokens) : c.body(null, 404);
+  });
+  app.post("/api/me/tokens", bodyLimit({ maxSize: 1024, onError: (c) => c.body(null, 413) }), async (c) => {
+    const id = myId(c, true);
+    if (typeof id !== "string") return id;
+    const body = (await c.req.json().catch(() => ({}))) as { name?: unknown };
+    try {
+      const made = users?.addToken(id, body.name ?? "", clock());
+      return made ? c.json(made) : c.body(null, 404);
+    } catch (err) {
+      if (err instanceof UserError) return c.json({ error: err.message }, 400);
+      throw err;
+    }
+  });
+  app.delete("/api/me/tokens/:tokenId", (c) => {
+    const id = myId(c, true);
+    if (typeof id !== "string") return id;
+    try {
+      return users?.removeToken(id, c.req.param("tokenId")) ? c.body(null, 204) : c.body(null, 404);
+    } catch (err) {
+      if (err instanceof UserError) return c.json({ error: err.message }, 400);
+      throw err;
+    }
   });
 
   // A person sets or changes their own password. Changing it needs the current one.
